@@ -1,0 +1,226 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+type Lang = "ar" | "en";
+
+const dict = {
+  ar: {
+    brand: "قيمة",
+    tagline: "منصة تداول وحدة القيمة",
+    subTagline: "منظومة متكاملة لإنشاء وضبط وتقييم وتبادل القيمة",
+    nav_home: "الرئيسية",
+    nav_market: "السوق",
+    nav_trade: "التداول",
+    nav_portfolio: "المحفظة",
+    nav_workspace: "منصة الشركة",
+    nav_shariah: "الهيئة الشرعية",
+    nav_docs: "التوثيق",
+    signin: "دخول",
+    getStarted: "ابدأ الآن",
+    exploreMarket: "استكشف السوق",
+    forBusiness: "للشركات",
+    brands256: "256 براند نشط",
+    liveMarket: "السوق مفتوح",
+    closed: "مغلق",
+    marketCap: "القيمة السوقية",
+    volume24h: "التداول 24س",
+    price: "السعر",
+    change: "التغير",
+    change24h: "التغير 24س",
+    high: "الأعلى",
+    low: "الأدنى",
+    open: "الافتتاح",
+    close: "الإغلاق",
+    buy: "شراء",
+    sell: "بيع",
+    orderBook: "سجل الأوامر",
+    recentTrades: "الصفقات الأخيرة",
+    myOrders: "أوامري",
+    watchlist: "قائمة المراقبة",
+    overview: "نظرة عامة",
+    chart: "المخطط",
+    financials: "البيانات المالية",
+    shariah: "الشريعة",
+    halal: "متوافق شرعياً",
+    reviewing: "قيد المراجعة",
+    sector: "القطاع",
+    valuation: "التقييم",
+    ipo: "اكتتاب",
+    sukuk: "صكوك",
+    equity: "أسهم",
+    search: "بحث عن براند...",
+    all: "الكل",
+    heroHeadline: "وحدة القيمة كما لم تُبنَ من قبل",
+    heroSub: "منصة تداول مؤسسية لـ 256 براند داخل منظومة قيمة، بمعايير عالمية ومتوافقة مع الشريعة الإسلامية.",
+    ctaPrimary: "ادخل السوق",
+    ctaSecondary: "أنشئ منصتك",
+    featTitle1: "محرك تداول احترافي",
+    featDesc1: "مطابقة أوامر بأولوية السعر-الوقت، شموع حية، عمق سوق كامل",
+    featTitle2: "متوافق مع AAOIFI",
+    featDesc2: "هيئة رقابة شرعية، صكوك ومشاركة، منع تلقائي للربا والرافعة",
+    featTitle3: "منصة متعددة الشركات",
+    featDesc3: "أجّر المنصة، ابنِ إيكوسيستمك، اطرح للسوق العام عند الاستعداد",
+    featTitle4: "بيانات لحظية",
+    featDesc4: "مخططات شمعية، تحديث حي، عمق سوق، مؤشرات متقدمة",
+    marketOverview: "نظرة عامة على السوق",
+    activeInstruments: "أدوات نشطة",
+    totalCap: "إجمالي القيمة السوقية",
+    dayVolume: "حجم اليوم",
+    topGainers: "الأعلى ارتفاعاً",
+    topLosers: "الأعلى انخفاضاً",
+    mostActive: "الأكثر نشاطاً",
+    footerRights: "جميع الحقوق محفوظة",
+    disclaimer: "بيانات المنصة تجريبية لأغراض العرض",
+    aboutBoard: "الهيئة الشرعية",
+    aboutBoardDesc: "هيئة مستقلة تراجع كل براند واكتتاب وأداة مالية وفق معايير AAOIFI",
+    standards: "المعايير المرجعية",
+    decisions: "القرارات الأخيرة",
+    members: "أعضاء الهيئة",
+    companyProfile: "ملف الشركة",
+    brandsCount: "عدد البراندات",
+    established: "تأسست",
+    marketDepth: "عمق السوق",
+    lastPrice: "آخر سعر",
+    bid: "طلب",
+    ask: "عرض",
+    qty: "الكمية",
+    total: "الإجمالي",
+    orderType: "نوع الأمر",
+    limit: "محدد",
+    market: "سوقي",
+    amount: "المبلغ",
+    submit: "تنفيذ",
+    balance: "الرصيد",
+    positions: "المراكز",
+    pnl: "الربح/الخسارة",
+  },
+  en: {
+    brand: "Qeema",
+    tagline: "Value Unit Trading Platform",
+    subTagline: "Integrated ecosystem to create, govern, valuate & exchange value",
+    nav_home: "Home",
+    nav_market: "Market",
+    nav_trade: "Trade",
+    nav_portfolio: "Portfolio",
+    nav_workspace: "Workspace",
+    nav_shariah: "Shariah Board",
+    nav_docs: "Docs",
+    signin: "Sign in",
+    getStarted: "Get started",
+    exploreMarket: "Explore market",
+    forBusiness: "For business",
+    brands256: "256 active brands",
+    liveMarket: "Market open",
+    closed: "Closed",
+    marketCap: "Market cap",
+    volume24h: "24h volume",
+    price: "Price",
+    change: "Change",
+    change24h: "24h change",
+    high: "High",
+    low: "Low",
+    open: "Open",
+    close: "Close",
+    buy: "Buy",
+    sell: "Sell",
+    orderBook: "Order book",
+    recentTrades: "Recent trades",
+    myOrders: "My orders",
+    watchlist: "Watchlist",
+    overview: "Overview",
+    chart: "Chart",
+    financials: "Financials",
+    shariah: "Shariah",
+    halal: "Shariah compliant",
+    reviewing: "Under review",
+    sector: "Sector",
+    valuation: "Valuation",
+    ipo: "Offering",
+    sukuk: "Sukuk",
+    equity: "Equity",
+    search: "Search brands...",
+    all: "All",
+    heroHeadline: "Value Unit, engineered like never before.",
+    heroSub: "An institutional trading platform for 256 brands inside the Qeema ecosystem — global standards, fully Shariah compliant.",
+    ctaPrimary: "Enter the market",
+    ctaSecondary: "Build your platform",
+    featTitle1: "Institutional matching engine",
+    featDesc1: "Price-time priority order matching, live candles, full depth of market",
+    featTitle2: "AAOIFI aligned",
+    featDesc2: "Shariah board, sukuk & mudarabah instruments, automatic riba blocking",
+    featTitle3: "Multi-tenant platform",
+    featDesc3: "Lease Qeema, build your ecosystem, publish to the public market when ready",
+    featTitle4: "Real-time data",
+    featDesc4: "Candlestick charts, live tick, market depth, professional indicators",
+    marketOverview: "Market overview",
+    activeInstruments: "Active instruments",
+    totalCap: "Total market cap",
+    dayVolume: "Day volume",
+    topGainers: "Top gainers",
+    topLosers: "Top losers",
+    mostActive: "Most active",
+    footerRights: "All rights reserved",
+    disclaimer: "Demo data shown for preview purposes",
+    aboutBoard: "Shariah Supervisory Board",
+    aboutBoardDesc: "Independent board reviewing every brand, offering and instrument per AAOIFI standards",
+    standards: "Reference standards",
+    decisions: "Recent decisions",
+    members: "Board members",
+    companyProfile: "Company profile",
+    brandsCount: "Brands",
+    established: "Established",
+    marketDepth: "Market depth",
+    lastPrice: "Last price",
+    bid: "Bid",
+    ask: "Ask",
+    qty: "Qty",
+    total: "Total",
+    orderType: "Order type",
+    limit: "Limit",
+    market: "Market",
+    amount: "Amount",
+    submit: "Submit",
+    balance: "Balance",
+    positions: "Positions",
+    pnl: "P/L",
+  },
+} as const;
+
+type Key = keyof (typeof dict)["ar"];
+
+const I18nContext = createContext<{
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (k: Key) => string;
+  dir: "rtl" | "ltr";
+}>({ lang: "ar", setLang: () => {}, t: (k) => k, dir: "rtl" });
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("ar");
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? (localStorage.getItem("qeema:lang") as Lang | null) : null;
+    if (saved === "ar" || saved === "en") setLangState(saved);
+  }, []);
+
+  useEffect(() => {
+    const dir = lang === "ar" ? "rtl" : "ltr";
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("dir", dir);
+      document.documentElement.setAttribute("lang", lang);
+    }
+  }, [lang]);
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    if (typeof window !== "undefined") localStorage.setItem("qeema:lang", l);
+  };
+
+  const t = (k: Key) => dict[lang][k] ?? k;
+  return (
+    <I18nContext.Provider value={{ lang, setLang, t, dir: lang === "ar" ? "rtl" : "ltr" }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export const useI18n = () => useContext(I18nContext);
