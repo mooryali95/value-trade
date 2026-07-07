@@ -1,141 +1,93 @@
+## المرحلة الثانية: تحويل الهوية إلى ثيم فاتح فاخر + تفعيل Lovable Cloud والمصادقة
 
-# منصة قيمة — خطة البناء الشاملة
+### 1) تحليل الهوية المرفقة
 
-منصة تداول احترافية لوحدة القيمة (Value Unit) تدير 256 براند داخل الايكوسيستم، مع دعم متعدد المستأجرين (Multi-tenant) لتأجير المنصة للشركات، والتزام شرعي وفق معايير AAOIFI.
+من الصور المرفقة (الشعار + العينات اللونية + بوستر "وحدة القيمة"):
 
-## الرؤية والمعمار
+**اللوحة اللونية الأساسية (Light Luxury):**
+- خلفية أساسية: `Ivory / Warm White` — `oklch(0.98 0.005 85)` (من الصورة الفاتحة الرمادية-البيج)
+- خلفية ثانوية: `Soft Stone` — `oklch(0.95 0.008 85)` (بطاقات، أقسام)
+- حدود ناعمة: `oklch(0.88 0.01 85)`
+- النص الأساسي (Primary Ink): `Deep Navy` — `oklch(0.22 0.05 260)` (من نص "وحدة القيمة" في البوستر)
+- النص الثانوي: `oklch(0.45 0.02 260)`
+- **اللون الذهبي المميز (Signature Gold):** `oklch(0.72 0.11 82)` (من الصورة الذهبية والخطوط الذهبية في البوستر)
+- ذهبي فاتح لل hover/glow: `oklch(0.82 0.09 84)`
+- **لون شعار Value (Burgundy accent):** `oklch(0.38 0.11 20)` (الحواف الحمراء-العنابية للشعار) — يُستخدم كـ accent ثانوي للتمييز فقط
+- Bull (أخضر متوافق مع الفخامة): `oklch(0.55 0.13 155)`
+- Bear (عنابي بدلاً من الأحمر الفاقع): `oklch(0.48 0.16 25)`
 
-**نموذج ثلاثي المستويات:**
-- **قيمة (Value Core):** المنصة الأم، تدير 256 براند الأصلية والسوق العام.
-- **الشركات المستأجرة (Tenants):** كل شركة لها workspace خاص، براندات خاصة، سوق داخلي.
-- **الطرح العام:** أي براند من أي شركة يمكن ترقيته للسوق العام بموافقة الصلاحية.
+**التوجه البصري:** فاخر هادئ — خلفيات عاجية، طباعة كحلي داكن، حدود شعرية، لمسات ذهبية معدنية (تدرجات، خطوط رفيعة، إطارات)، ظلال ناعمة جداً (soft-elevation) بدل ظلال قوية. مستوحى من الملف التنفيذي الفاخر.
 
-**الهوية البصرية:** Dubai Financial Luxury — كحلي عميق `#0B1F3A`، ذهبي `#C9A961`، أبيض عاجي، رمادي أزرق. خطوط: عربي (IBM Plex Sans Arabic) + لاتيني (Inter/Söhne-style). دعم RTL/LTR كامل من اليوم الأول.
+### 2) إعادة بناء نظام التصميم (src/styles.css)
 
----
+- قلب `:root` بالكامل من ثيم كحلي داكن إلى ثيم فاتح عاجي.
+- تعديل `--background, --foreground, --card, --primary (gold), --secondary, --muted, --border, --input, --ring`.
+- إضافة توكنز جديدة: `--ink`, `--stone`, `--gold-metallic`, `--burgundy` (accent الشعار), `--shadow-luxury`.
+- تدرجات مُحدَّثة: `gold-gradient` بلون معدني حقيقي، `ivory-gradient` للأقسام، `hairline` (خط ذهبي رفيع 1px).
+- ضبط `text-bull / text-bear` للألوان الجديدة الأكثر هدوءاً.
+- إبقاء الخطوط (IBM Plex Sans Arabic + Inter).
 
-## المرحلة 1 — الأساس البصري والهيكل (Design Foundation)
+### 3) مراجعة المكونات لتتناسب مع الثيم الفاتح
 
-**النتيجة:** واجهة كاملة قابلة للتصفح ببيانات وهمية واقعية، بلا Backend.
+- `AppShell` (header/footer): إزالة `bg-navy` والاعتماد على `bg-background/80 + backdrop-blur`، حد سفلي شعري ذهبي، `BrandMark` بخلفية ذهبية معدنية على نص كحلي.
+- `MarketPill`, أزرار اللغة والدخول: إعادة صياغة الحواف والألوان للفاتح.
+- `candlestick-chart`: تحديث ألوان الخلفية/الشبكة/الشموع لتناسب الفاتح.
+- مراجعة صفحات: `index, market, market.$slug, trade.$symbol, workspace, shariah, company.$id` وتبديل أي `bg-navy*`, `text-white`, ألوان مباشرة بالتوكنز الجديدة. لا تغيير في التخطيط أو المحتوى — فقط الألوان والخلفيات والظلال.
 
-- نظام تصميم Enterprise كامل: tokens، أزرار، جداول، بطاقات، مخططات شمعية Candlestick.
-- شل التطبيق: هيدر مع مبدل لغة، سايدبار قابل للطي، تخطيط responsive (موبايل/آيباد/لابتوب).
-- i18n كامل (عربي RTL أساسي + إنجليزي LTR) عبر مكتبة خفيفة داخلية.
-- الصفحات الأساسية بواجهات فقط:
-  - Landing عامة لمنصة قيمة (شرح المنظومة، 256 براند، عرض للشركات).
-  - سوق عام (Market Overview) — شبكة 256 براند مع بحث/فلتر.
-  - صفحة براند تفصيلية (Overview / Chart / Order Book / Financials / Shariah).
-  - داشبورد تداول احترافي (Bloomberg-style): شارت شمعي، أوامر، محفظة، Watchlist.
-  - ملف مستخدم شخصي، ملف شركة عام.
-  - داشبورد شركة مستأجرة (Workspace).
-  - صفحة الهيئة الشرعية.
+### 4) شعار Value
 
-## المرحلة 2 — المصادقة والحسابات (Lovable Cloud)
+- إنشاء `src/assets/value-logo.png.asset.json` عبر `lovable-assets` من الشعار المرفق.
+- استبدال `BrandMark` الحالي (المربع الذهبي مع الحرف) باستخدام الشعار الفعلي كـ `<img>` مع إطار عنابي رفيع مطابق للأصل، مع الحفاظ على نفس المقاسات.
 
-- تفعيل Lovable Cloud.
-- تسجيل بالبريد + Google.
-- جدول `profiles` مرتبط بـ `auth.users`.
-- جدول `user_roles` منفصل (enum: `platform_admin`, `shariah_board`, `company_owner`, `brand_manager`, `trader`) + دالة `has_role` SECURITY DEFINER.
-- صفحة `/auth` عامة، layout محمي `_authenticated`.
-- صفحة `/reset-password`.
-- تسجيل خروج نظيف (cancel queries → clear cache → signOut → navigate).
+### 5) تفعيل Lovable Cloud + نظام المصادقة (Phase 2 الفعلي)
 
-## المرحلة 3 — الشركات والبراندات (Multi-tenancy)
+- تفعيل `supabase--enable` (يظهر كـ Lovable Cloud للمستخدم).
+- migration تنشئ:
+  - `profiles (id uuid PK ref auth.users, full_name, avatar_url, locale, created_at)` مع trigger على `auth.users` لإنشاء البروفايل تلقائياً.
+  - `app_role` enum: `platform_admin, shariah_board, company_owner, brand_manager, trader`.
+  - `user_roles (id, user_id, role)` + unique(user_id, role).
+  - `has_role(_user_id, _role)` SECURITY DEFINER.
+  - GRANTs + RLS كما تفرضه معايير Lovable (grants قبل RLS، سياسات مبنية على `auth.uid()` و `has_role`).
+- تفعيل مزودَي: Email/Password + Google عبر `supabase--configure_social_auth`.
+- تفعيل HIBP للباسورد.
 
-- جدول `companies` (شركات مستأجرة) + `company_members` (الأدوار داخل الشركة).
-- جدول `brands` (البراند: اسم، شعار، تصنيف، company_id، شرعي/مشبوه/محرم، هل مطروح عام).
-- جدول `brand_managers` (روابط دعوة للمسؤول المالي لكل براند).
-- تدفق: صاحب الشركة يضيف براند → يُنشئ رابط دعوة → المسؤول المالي يقبل → يكمل ملف البراند.
-- RLS كامل: كل شركة ترى بياناتها فقط، السوق العام يقرأ البراندات المطروحة فقط عبر policy `TO anon`.
+### 6) صفحات المصادقة والواجهة
 
-## المرحلة 4 — التقييم والاكتتاب والصكوك
+- `src/routes/auth.tsx` (public): تصميم split فاخر — يسار: البراند + خلفية عاجية بخطوط ذهبية مستوحاة من البوستر؛ يمين: بطاقة Sign in / Sign up مع تبويبَين + زر Google. يدعم `?redirect=` ويحفظه بعد الدخول.
+- `src/routes/_authenticated/route.tsx` (managed pattern، `ssr:false`، يتحقق من `supabase.auth.getUser()`، يعيد إلى `/auth`).
+- نقل `workspace` تحت `_authenticated/workspace.tsx` (لأنها بيئة الشركات).
+- إضافة `functionMiddleware` (attachSupabaseAuth) في `src/start.ts`.
+- تحديث `AppShell`: زر الدخول يعرض إما "دخول" (رابط `/auth`) أو قائمة الحساب (الصورة الرمزية + اسم المستخدم + "لوحتي" + "تسجيل خروج") بحسب `supabase.auth.onAuthStateChange`.
+- `src/routes/__root.tsx`: تفعيل مستمع واحد لـ `onAuthStateChange` (`SIGNED_IN/OUT/USER_UPDATED` فقط) مع `router.invalidate()` و `queryClient.invalidateQueries()`.
 
-- جدول `valuations` (تقييم مبدئي، تاريخ، مقيّم).
-- جدول `offerings` (اكتتاب: نوع [أسهم/صكوك/مضاربة/مشاركة]، سعر، كمية، تواريخ، حالة).
-- جدول `subscriptions` (اكتتابات المستخدمين).
-- تدفق الطرح: مسؤول براند → طلب اكتتاب → موافقة الشركة → موافقة الهيئة الشرعية → إطلاق.
-- ترقية للسوق العام: موافقة صاحب الشركة + مراجعة قيمة.
+### 7) تفاصيل تقنية
 
-## المرحلة 5 — محرك التداول والسوق
+**ملفات جديدة:**
+- `src/routes/auth.tsx`
+- `src/routes/_authenticated/route.tsx`
+- `src/routes/_authenticated/workspace.tsx` (نقل من `workspace.tsx`)
+- `src/assets/value-logo.png.asset.json`
+- `src/components/user-menu.tsx`
+- migration SQL (profiles, roles, has_role, RLS, grants)
 
-- جدول `instruments` (الأداة القابلة للتداول لكل براند/اكتتاب).
-- جدول `orders` (Buy/Sell, Limit/Market, حالة، صلاحية).
-- جدول `trades` (تنفيذ الأوامر بمطابقة Price-Time Priority مبسطة عبر Server Function).
-- جدول `positions` (المحفظة لكل مستخدم).
-- جدول `candles` (OHLCV، فترات 1m/5m/15m/1h/1d) — تُبنى من الصفقات.
-- Market Hours: جدول `market_sessions` (فتح/إغلاق يومي + جلسات خاصة).
-- تحديث حي عبر Supabase Realtime لأوامر/صفقات/شموع.
-- شارت شمعي احترافي (lightweight-charts).
+**ملفات معدّلة:**
+- `src/styles.css` (ثيم فاتح كامل)
+- `src/components/app-shell.tsx` (شعار + ألوان + قائمة المستخدم)
+- `src/components/candlestick-chart.tsx` (ألوان فاتحة)
+- كل صفحات الروت (توكنز فقط، بدون تغيير محتوى)
+- `src/start.ts` (attachSupabaseAuth middleware)
+- `src/routes/__root.tsx` (auth listener)
 
-## المرحلة 6 — الشريعة والحوكمة
+**قيود ملتزم بها:**
+- لا استخراج أي نص من الصور المرفقة.
+- الاعتماد فقط على التوكنز الدلالية — لا `text-white` أو ألوان hex في المكونات.
+- كل جدول عام يحصل على GRANTs + RLS مع سياسات مقيّدة بـ `auth.uid()`.
+- المسارات العامة تبقى SSR افتراضياً؛ المحمية تحت `_authenticated/`.
 
-- جدول `shariah_standards` (معايير AAOIFI مرجعية).
-- جدول `shariah_reviews` (مراجعة كل براند/اكتتاب: نتيجة، معيار، ملاحظات، مراجع).
-- جدول `shariah_decisions` (قرارات الهيئة، توقيع، تاريخ).
-- منع تلقائي للأدوات الربوية، حدود الرافعة، فلاتر النسب المالية.
-- شارة "متوافق شرعياً" تظهر فقط بعد اعتماد.
+### 8) خارج نطاق هذه المرحلة (سنتناولها في Phase 3+)
 
-## المرحلة 7 — الصقل والاحترافية
+- الجداول متعددة الشركات (`companies, brands, company_members`) — Phase 3.
+- الاكتتابات والتقييمات — Phase 4.
+- محرك أوامر التداول الحقيقي — Phase 5.
 
-- Motion دقيق (Framer Motion) — انتقالات صفحات، دخول أوامر، وميض أسعار.
-- SEO كامل لكل صفحة عامة (title/description/OG/twitter لكل route).
-- تدقيق responsive شامل (320px → 2560px).
-- توثيق تصميم داخلي (Design Tokens + Component Library) في `/docs`.
-- سكان أمني + قواعد RLS مراجعة.
-
----
-
-## التفاصيل التقنية
-
-**Stack:** TanStack Start (موجود) + Lovable Cloud (Supabase) + Tailwind v4 + shadcn + lightweight-charts + Framer Motion + Supabase Realtime.
-
-**تنظيم Routes:**
-```text
-/                          Landing قيمة العام
-/market                    السوق العام (256 براند)
-/market/$brandSlug         صفحة براند
-/trade/$symbol             داشبورد تداول
-/shariah                   الهيئة الشرعية
-/auth, /reset-password     مصادقة (عامة)
-/_authenticated/
-  dashboard                لوحة المستخدم
-  portfolio                المحفظة
-  orders                   أوامري
-  profile                  ملفي
-  companies/$id            ملف شركة (عام لكن مخصص)
-  workspace/               (شركات مستأجرة)
-    overview
-    brands
-    brands/$id
-    offerings
-    members
-    settings
-  admin/                   (platform_admin فقط)
-    brands, users, shariah, markets
-```
-
-**RLS Strategy:**
-- Public reads فقط للبراندات `is_public=true` والصفقات المكتملة والشموع.
-- Company data: عبر `company_members` membership check.
-- User data: `auth.uid()` scoping.
-- كل الأدوار عبر `has_role()` SECURITY DEFINER.
-
-**Server Functions:**
-- `placeOrder`, `cancelOrder`, `matchOrders` (محمية بـ `requireSupabaseAuth`).
-- `submitBrandForReview`, `approveShariahReview` (محمية + role check).
-- `promoteBrandToPublicMarket` (company_owner + platform review).
-
-**بيانات أولية (Seed migration):** 256 براند تجريبية موزعة على قطاعات، شموع مولدة عشوائياً واقعياً، هيئة شرعية بمعايير AAOIFI مبدئية.
-
----
-
-## ما سأبنيه في التسليمة القادمة (المرحلة 1 فقط)
-
-بعد موافقتك، سأبني **المرحلة 1 كاملة** كأساس بصري متين قبل تفعيل Cloud:
-1. نظام تصميم Dubai Financial Luxury (tokens + خطوط + RTL).
-2. Shell التطبيق (هيدر + سايدبار + مبدل لغة).
-3. Landing + Market Overview + Brand Detail + Trading Dashboard + Company Profile + Shariah Board — كلها ببيانات mock واقعية.
-4. شارت شمعي حقيقي يعمل ببيانات وهمية.
-5. i18n عربي/إنجليزي كامل.
-
-بعدها ننتقل للمرحلة 2 (Auth + Cloud) في تسليمة منفصلة، ثم كل مرحلة على حدة للحفاظ على الجودة.
+هل نبدأ التنفيذ؟
