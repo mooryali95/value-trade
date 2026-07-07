@@ -150,7 +150,7 @@ function BrandDetail() {
           </div>
           <ul className="space-y-2 text-xs text-muted-foreground">
             <li>· AAOIFI-21 Investment Sukuk</li>
-            <li>· Debt ratio < 33%</li>
+            <li>· Debt ratio &lt; 33%</li>
             <li>· Non-permissible income &lt; 5%</li>
             <li>· No interest-based leverage</li>
           </ul>
