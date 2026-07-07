@@ -13,7 +13,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s) => searchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "دخول — قيمة | Sign in — Qeema" },
+      { title: "دخول — قيمة | Sign in — Value Unit" },
       { name: "description", content: "دخول أو إنشاء حساب في منصة قيمة." },
     ],
   }),

@@ -7,7 +7,7 @@ import { ShieldCheck, ScrollText } from "lucide-react";
 export const Route = createFileRoute("/shariah")({
   head: () => ({
     meta: [
-      { title: "الهيئة الشرعية — قيمة | Shariah Board — Qeema" },
+      { title: "الهيئة الشرعية — قيمة | Shariah Board — Value Unit" },
       { name: "description", content: "هيئة رقابة شرعية مستقلة وفق معايير AAOIFI." },
     ],
   }),

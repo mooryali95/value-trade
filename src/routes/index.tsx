@@ -112,7 +112,7 @@ function HeroTicker() {
   return (
     <div className="relative rounded-xl border border-border bg-card p-4 shadow-luxury">
       <div className="mb-3 flex items-center justify-between px-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-        <span>Qeema · Live board</span>
+        <span>Value Unit · Live board</span>
         <span className="text-[var(--bull)]">● LIVE</span>
       </div>
       <div className="divide-y divide-border">

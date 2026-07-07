@@ -8,7 +8,7 @@ import { Building2, Users, TrendingUp, Plus, Send } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
     meta: [
-      { title: "منصة الشركة — قيمة | Workspace — Qeema" },
+      { title: "منصة الشركة — قيمة | Workspace — Value Unit" },
       { name: "description", content: "منصة تداول داخلية للشركات المستأجرة." },
     ],
   }),
@@ -87,7 +87,7 @@ function WorkspacePage() {
           <div className="rounded-xl border border-border/60 bg-card/60 p-5">
             <h3 className="mb-3 text-sm font-semibold text-foreground">{lang === "ar" ? "الطرح للسوق العام" : "Publish to public market"}</h3>
             <p className="text-xs text-muted-foreground">
-              {lang === "ar" ? "بعد الموافقة الشرعية، يمكن ترقية البراند للسوق العام في قيمة." : "After Shariah approval, brands can be promoted to Qeema public market."}
+              {lang === "ar" ? "بعد الموافقة الشرعية، يمكن ترقية البراند للسوق العام في قيمة." : "After Shariah approval, brands can be promoted to Value Unit public market."}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
               <div className="rounded border border-border/50 bg-secondary/30 py-2">
