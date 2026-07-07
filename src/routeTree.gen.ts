@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ShariahRouteImport } from './routes/shariah'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 
+const ShariahRoute = ShariahRouteImport.update({
+  id: '/shariah',
+  path: '/shariah',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketRoute = MarketRouteImport.update({
   id: '/market',
   path: '/market',
@@ -38,12 +44,14 @@ const MarketSlugRoute = MarketSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
+  '/shariah': typeof ShariahRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
+  '/shariah': typeof ShariahRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
@@ -51,25 +59,40 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
+  '/shariah': typeof ShariahRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/market' | '/market/$slug' | '/trade/$symbol'
+  fullPaths: '/' | '/market' | '/shariah' | '/market/$slug' | '/trade/$symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/market' | '/market/$slug' | '/trade/$symbol'
-  id: '__root__' | '/' | '/market' | '/market/$slug' | '/trade/$symbol'
+  to: '/' | '/market' | '/shariah' | '/market/$slug' | '/trade/$symbol'
+  id:
+    | '__root__'
+    | '/'
+    | '/market'
+    | '/shariah'
+    | '/market/$slug'
+    | '/trade/$symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MarketRoute: typeof MarketRouteWithChildren
+  ShariahRoute: typeof ShariahRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/shariah': {
+      id: '/shariah'
+      path: '/shariah'
+      fullPath: '/shariah'
+      preLoaderRoute: typeof ShariahRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/market': {
       id: '/market'
       path: '/market'
@@ -115,6 +138,7 @@ const MarketRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MarketRoute: MarketRouteWithChildren,
+  ShariahRoute: ShariahRoute,
   TradeSymbolRoute: TradeSymbolRoute,
 }
 export const routeTree = rootRouteImport
