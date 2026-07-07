@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 
 const MarketRoute = MarketRouteImport.update({
   id: '/market',
@@ -22,31 +23,39 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketSlugRoute = MarketSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => MarketRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/market': typeof MarketRoute
+  '/market': typeof MarketRouteWithChildren
+  '/market/$slug': typeof MarketSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/market': typeof MarketRoute
+  '/market': typeof MarketRouteWithChildren
+  '/market/$slug': typeof MarketSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/market': typeof MarketRoute
+  '/market': typeof MarketRouteWithChildren
+  '/market/$slug': typeof MarketSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/market'
+  fullPaths: '/' | '/market' | '/market/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/market'
-  id: '__root__' | '/' | '/market'
+  to: '/' | '/market' | '/market/$slug'
+  id: '__root__' | '/' | '/market' | '/market/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  MarketRoute: typeof MarketRoute
+  MarketRoute: typeof MarketRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +74,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/market/$slug': {
+      id: '/market/$slug'
+      path: '/$slug'
+      fullPath: '/market/$slug'
+      preLoaderRoute: typeof MarketSlugRouteImport
+      parentRoute: typeof MarketRoute
+    }
   }
 }
 
+interface MarketRouteChildren {
+  MarketSlugRoute: typeof MarketSlugRoute
+}
+
+const MarketRouteChildren: MarketRouteChildren = {
+  MarketSlugRoute: MarketSlugRoute,
+}
+
+const MarketRouteWithChildren =
+  MarketRoute._addFileChildren(MarketRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  MarketRoute: MarketRoute,
+  MarketRoute: MarketRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

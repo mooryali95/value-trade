@@ -132,7 +132,7 @@ function BrandDetail() {
           <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
             <KV k={t("sector")} v={brand.sector} />
             <KV k={t("established")} v={String(brand.established)} />
-            <KV k={t("instrument")} v={brand.instrument} />
+            <KV k="Instrument" v={brand.instrument} />
             <KV k={t("valuation")} v={formatCurrency(brand.marketCap, true, lang)} />
           </div>
         </Panel>
