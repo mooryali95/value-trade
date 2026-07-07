@@ -15,6 +15,7 @@ import { Route as MarketRouteImport } from './routes/market'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
+import { Route as CompanyIdRouteImport } from './routes/company.$id'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
@@ -46,12 +47,18 @@ const MarketSlugRoute = MarketSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => MarketRoute,
 } as any)
+const CompanyIdRoute = CompanyIdRouteImport.update({
+  id: '/company/$id',
+  path: '/company/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
   '/workspace': typeof WorkspaceRoute
+  '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
   '/workspace': typeof WorkspaceRoute
+  '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
   '/workspace': typeof WorkspaceRoute
+  '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/shariah'
     | '/workspace'
+    | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/shariah'
     | '/workspace'
+    | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/shariah'
     | '/workspace'
+    | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   MarketRoute: typeof MarketRouteWithChildren
   ShariahRoute: typeof ShariahRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  CompanyIdRoute: typeof CompanyIdRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
 }
 
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketSlugRouteImport
       parentRoute: typeof MarketRoute
     }
+    '/company/$id': {
+      id: '/company/$id'
+      path: '/company/$id'
+      fullPath: '/company/$id'
+      preLoaderRoute: typeof CompanyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -170,6 +190,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketRoute: MarketRouteWithChildren,
   ShariahRoute: ShariahRoute,
   WorkspaceRoute: WorkspaceRoute,
+  CompanyIdRoute: CompanyIdRoute,
   TradeSymbolRoute: TradeSymbolRoute,
 }
 export const routeTree = rootRouteImport

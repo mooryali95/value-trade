@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, getCompanyBrands } from "@/lib/mock-data";
+import { getCompanyBrands, type Brand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { Building2 } from "lucide-react";
 
@@ -25,9 +25,9 @@ export const Route = createFileRoute("/company/$id")({
 });
 
 function CompanyPage() {
-  const { nameAr, nameEn, brands } = Route.useLoaderData();
+  const { nameAr, nameEn, brands } = Route.useLoaderData() as { companyId: string; nameAr: string; nameEn: string; brands: Brand[] };
   const { t, lang } = useI18n();
-  const totalCap = brands.reduce((s, b) => s + b.marketCap, 0);
+  const totalCap = brands.reduce((s: number, b: Brand) => s + b.marketCap, 0);
 
   return (
     <AppShell>
