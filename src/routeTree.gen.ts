@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 
 const MarketRoute = MarketRouteImport.update({
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TradeSymbolRoute = TradeSymbolRouteImport.update({
+  id: '/trade/$symbol',
+  path: '/trade/$symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketSlugRoute = MarketSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -33,29 +39,33 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
   '/market/$slug': typeof MarketSlugRoute
+  '/trade/$symbol': typeof TradeSymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
   '/market/$slug': typeof MarketSlugRoute
+  '/trade/$symbol': typeof TradeSymbolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/market': typeof MarketRouteWithChildren
   '/market/$slug': typeof MarketSlugRoute
+  '/trade/$symbol': typeof TradeSymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/market' | '/market/$slug'
+  fullPaths: '/' | '/market' | '/market/$slug' | '/trade/$symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/market' | '/market/$slug'
-  id: '__root__' | '/' | '/market' | '/market/$slug'
+  to: '/' | '/market' | '/market/$slug' | '/trade/$symbol'
+  id: '__root__' | '/' | '/market' | '/market/$slug' | '/trade/$symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MarketRoute: typeof MarketRouteWithChildren
+  TradeSymbolRoute: typeof TradeSymbolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -72,6 +82,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trade/$symbol': {
+      id: '/trade/$symbol'
+      path: '/trade/$symbol'
+      fullPath: '/trade/$symbol'
+      preLoaderRoute: typeof TradeSymbolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/market/$slug': {
@@ -98,6 +115,7 @@ const MarketRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MarketRoute: MarketRouteWithChildren,
+  TradeSymbolRoute: TradeSymbolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
