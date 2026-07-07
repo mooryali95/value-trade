@@ -4,7 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useI18n } from "@/lib/i18n";
-import { BrandMark } from "@/components/app-shell";
+import { BrandMark } from "@/components/brand-mark";
 import { Loader2, Mail, KeyRound, User as UserIcon } from "lucide-react";
 
 const searchSchema = z.object({ redirect: z.string().optional() });
@@ -13,7 +13,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s) => searchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "دخول — قيمة | Sign in — Qeema" },
+      { title: "دخول — قيمة | Sign in — Value Unit" },
       { name: "description", content: "دخول أو إنشاء حساب في منصة قيمة." },
     ],
   }),

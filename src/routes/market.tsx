@@ -9,7 +9,7 @@ import { Search, ShieldCheck } from "lucide-react";
 export const Route = createFileRoute("/market")({
   head: () => ({
     meta: [
-      { title: "السوق العام — قيمة | Market — Qeema" },
+      { title: "السوق العام — قيمة | Market — Value Unit" },
       { name: "description", content: "استكشف 256 براند نشط داخل منظومة قيمة مع بيانات لحظية." },
     ],
   }),

@@ -52,9 +52,19 @@ const COMPANIES = [
   { id: "co-durra", ar: "درة العربية", en: "Durra Arabia" },
 ];
 
+// Luxury brand palette — muted, deep, editorial. Ink / gold / burgundy / emerald / copper / graphite.
+const LUXURY_PALETTE = [
+  "oklch(0.24 0.05 260)", // deep ink
+  "oklch(0.52 0.13 72)",  // gold deep
+  "oklch(0.36 0.13 24)",  // burgundy
+  "oklch(0.42 0.09 158)", // emerald
+  "oklch(0.5 0.12 45)",   // copper
+  "oklch(0.32 0.03 260)", // graphite
+  "oklch(0.44 0.1 230)",  // slate blue
+  "oklch(0.4 0.11 340)",  // plum
+];
 function goldenColor(i: number) {
-  const hue = (i * 137.508) % 360;
-  return `hsl(${hue.toFixed(0)} 55% 55%)`;
+  return LUXURY_PALETTE[i % LUXURY_PALETTE.length];
 }
 
 function generateBrands(): Brand[] {

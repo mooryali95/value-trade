@@ -1,93 +1,146 @@
-## المرحلة الثانية: تحويل الهوية إلى ثيم فاتح فاخر + تفعيل Lovable Cloud والمصادقة
+# خطة إعادة ضبط الهوية البصرية الفاخرة
 
-### 1) تحليل الهوية المرفقة
+## الأهداف
 
-من الصور المرفقة (الشعار + العينات اللونية + بوستر "وحدة القيمة"):
+1. رفع مستوى الألوان لكل المنصة إلى درجات Luxury حقيقية (كحلي عميق + ذهبي معدني + عاجي دافئ + عنابي ملكي).
+2. استخدام شعار "قيمة / Value Unit" **بدون الإطار / الحواف** كعلامة رسمية.
+3. توظيف **نقاط الشعار (Dot Matrix)** كـ Pattern بصري متكرر في الخلفيات والأقسام الفاخرة.
+4. استبدال أيقونات lucide-react العامة بمكتبة أيقونات احترافية مخصصة لمنصات التداول.
+5. إزالة أي إيحاءات تدل على AI/Vibe Coding (تدرجات بنفسجية، إيموجي، أيقونات عامة، ظلال ملونة).
+6. توحيد جميع النصوص على خط **Tajawal** (خط ثمانية / Thmanyah-style) للعربي والإنجليزي.
+7. ترسيخ اسم العلامة: **قيمة — Value Unit** في كل مكان.
 
-**اللوحة اللونية الأساسية (Light Luxury):**
-- خلفية أساسية: `Ivory / Warm White` — `oklch(0.98 0.005 85)` (من الصورة الفاتحة الرمادية-البيج)
-- خلفية ثانوية: `Soft Stone` — `oklch(0.95 0.008 85)` (بطاقات، أقسام)
-- حدود ناعمة: `oklch(0.88 0.01 85)`
-- النص الأساسي (Primary Ink): `Deep Navy` — `oklch(0.22 0.05 260)` (من نص "وحدة القيمة" في البوستر)
-- النص الثانوي: `oklch(0.45 0.02 260)`
-- **اللون الذهبي المميز (Signature Gold):** `oklch(0.72 0.11 82)` (من الصورة الذهبية والخطوط الذهبية في البوستر)
-- ذهبي فاتح لل hover/glow: `oklch(0.82 0.09 84)`
-- **لون شعار Value (Burgundy accent):** `oklch(0.38 0.11 20)` (الحواف الحمراء-العنابية للشعار) — يُستخدم كـ accent ثانوي للتمييز فقط
-- Bull (أخضر متوافق مع الفخامة): `oklch(0.55 0.13 155)`
-- Bear (عنابي بدلاً من الأحمر الفاقع): `oklch(0.48 0.16 25)`
+---
 
-**التوجه البصري:** فاخر هادئ — خلفيات عاجية، طباعة كحلي داكن، حدود شعرية، لمسات ذهبية معدنية (تدرجات، خطوط رفيعة، إطارات)، ظلال ناعمة جداً (soft-elevation) بدل ظلال قوية. مستوحى من الملف التنفيذي الفاخر.
+## 1. الشعار (Logo)
 
-### 2) إعادة بناء نظام التصميم (src/styles.css)
+- رفع نسخة الشعار **بدون الإطار الأبيض والحدود** كأصل رئيسي عبر `lovable-assets` من المرفق الحالي (crop للنقاط + النص فقط).
+- تحديث `src/components/app-shell.tsx` → `BrandMark`:
+  - إظهار الشعار الفعلي (النقاط + كلمة "قيمة" + "VALUE UNIT") مباشرة، بدون خلفية ذهبية مربعة.
+  - نسختان: `BrandMarkFull` (نقاط + نص) و `BrandMarkDots` (النقاط فقط للأيقونة المصغرة / Favicon / Loader).
+- تحديث `favicon` و `og:image` (leaf routes فقط) لاستخدام الشعار النظيف.
 
-- قلب `:root` بالكامل من ثيم كحلي داكن إلى ثيم فاتح عاجي.
-- تعديل `--background, --foreground, --card, --primary (gold), --secondary, --muted, --border, --input, --ring`.
-- إضافة توكنز جديدة: `--ink`, `--stone`, `--gold-metallic`, `--burgundy` (accent الشعار), `--shadow-luxury`.
-- تدرجات مُحدَّثة: `gold-gradient` بلون معدني حقيقي، `ivory-gradient` للأقسام، `hairline` (خط ذهبي رفيع 1px).
-- ضبط `text-bull / text-bear` للألوان الجديدة الأكثر هدوءاً.
-- إبقاء الخطوط (IBM Plex Sans Arabic + Inter).
+## 2. Dot Matrix Pattern
 
-### 3) مراجعة المكونات لتتناسب مع الثيم الفاتح
+- إنشاء `src/components/dot-pattern.tsx`: مكوّن SVG قابل لإعادة الاستخدام يرسم شبكة نقاط بنفس نسبة شعار قيمة (5×5 أو 8×8) مع تحكم بالكثافة والحجم واللون والـ opacity.
+- استخدامه في:
+  - خلفية Hero في `index.tsx` (نقاط ذهبية باهتة على العاجي).
+  - Header الـ AppShell (شريط رفيع من النقاط).
+  - بطاقات Empty State / Auth split panel / Shariah page.
+  - Watermark خفيف خلف بطاقات البراند.
 
-- `AppShell` (header/footer): إزالة `bg-navy` والاعتماد على `bg-background/80 + backdrop-blur`، حد سفلي شعري ذهبي، `BrandMark` بخلفية ذهبية معدنية على نص كحلي.
-- `MarketPill`, أزرار اللغة والدخول: إعادة صياغة الحواف والألوان للفاتح.
-- `candlestick-chart`: تحديث ألوان الخلفية/الشبكة/الشموع لتناسب الفاتح.
-- مراجعة صفحات: `index, market, market.$slug, trade.$symbol, workspace, shariah, company.$id` وتبديل أي `bg-navy*`, `text-white`, ألوان مباشرة بالتوكنز الجديدة. لا تغيير في التخطيط أو المحتوى — فقط الألوان والخلفيات والظلال.
+## 3. نظام الألوان الفاخر (src/styles.css)
 
-### 4) شعار Value
+إعادة معايرة كل الـ tokens في `@theme inline` و `:root`:
 
-- إنشاء `src/assets/value-logo.png.asset.json` عبر `lovable-assets` من الشعار المرفق.
-- استبدال `BrandMark` الحالي (المربع الذهبي مع الحرف) باستخدام الشعار الفعلي كـ `<img>` مع إطار عنابي رفيع مطابق للأصل، مع الحفاظ على نفس المقاسات.
 
-### 5) تفعيل Lovable Cloud + نظام المصادقة (Phase 2 الفعلي)
+| Token                | القيمة الجديدة                       | الاستخدام                  |
+| -------------------- | ------------------------------------ | -------------------------- |
+| `--background`       | `oklch(0.985 0.006 85)` عاجي دافئ    | خلفية عامة                 |
+| `--surface`          | `oklch(0.965 0.008 82)`              | البطاقات                   |
+| `--surface-elevated` | `oklch(0.99 0.004 85)`               | Modals                     |
+| `--ink` (foreground) | `oklch(0.18 0.04 260)` كحلي عميق     | النصوص                     |
+| `--ink-soft`         | `oklch(0.35 0.03 260)`               | نصوص ثانوية                |
+| `--muted-foreground` | `oklch(0.52 0.02 260)`               | Labels                     |
+| `--gold` (primary)   | `oklch(0.68 0.12 78)` ذهب معدني عميق | Accents/CTA                |
+| `--gold-deep`        | `oklch(0.55 0.13 72)`                | Hover/borders              |
+| `--gold-soft`        | `oklch(0.92 0.05 85)`                | خلفيات ناعمة               |
+| `--burgundy`         | `oklch(0.38 0.13 25)` عنابي ملكي     | Highlights, Shariah badges |
+| `--bull`             | `oklch(0.52 0.13 155)` أخضر زمردي    | صعود                       |
+| `--bear`             | `oklch(0.48 0.18 28)` أحمر عنابي     | هبوط                       |
+| `--border`           | `oklch(0.88 0.01 82)`                | حدود شعرة                  |
+| `--border-gold`      | `oklch(0.75 0.08 82)`                | حدود مميزة                 |
 
-- تفعيل `supabase--enable` (يظهر كـ Lovable Cloud للمستخدم).
-- migration تنشئ:
-  - `profiles (id uuid PK ref auth.users, full_name, avatar_url, locale, created_at)` مع trigger على `auth.users` لإنشاء البروفايل تلقائياً.
-  - `app_role` enum: `platform_admin, shariah_board, company_owner, brand_manager, trader`.
-  - `user_roles (id, user_id, role)` + unique(user_id, role).
-  - `has_role(_user_id, _role)` SECURITY DEFINER.
-  - GRANTs + RLS كما تفرضه معايير Lovable (grants قبل RLS، سياسات مبنية على `auth.uid()` و `has_role`).
-- تفعيل مزودَي: Email/Password + Google عبر `supabase--configure_social_auth`.
-- تفعيل HIBP للباسورد.
 
-### 6) صفحات المصادقة والواجهة
+**Shadows** (soft luxury، بلا هالات ملونة):
 
-- `src/routes/auth.tsx` (public): تصميم split فاخر — يسار: البراند + خلفية عاجية بخطوط ذهبية مستوحاة من البوستر؛ يمين: بطاقة Sign in / Sign up مع تبويبَين + زر Google. يدعم `?redirect=` ويحفظه بعد الدخول.
-- `src/routes/_authenticated/route.tsx` (managed pattern، `ssr:false`، يتحقق من `supabase.auth.getUser()`، يعيد إلى `/auth`).
-- نقل `workspace` تحت `_authenticated/workspace.tsx` (لأنها بيئة الشركات).
-- إضافة `functionMiddleware` (attachSupabaseAuth) في `src/start.ts`.
-- تحديث `AppShell`: زر الدخول يعرض إما "دخول" (رابط `/auth`) أو قائمة الحساب (الصورة الرمزية + اسم المستخدم + "لوحتي" + "تسجيل خروج") بحسب `supabase.auth.onAuthStateChange`.
-- `src/routes/__root.tsx`: تفعيل مستمع واحد لـ `onAuthStateChange` (`SIGNED_IN/OUT/USER_UPDATED` فقط) مع `router.invalidate()` و `queryClient.invalidateQueries()`.
+- `--shadow-hairline`: `0 0 0 1px oklch(0.88 0.01 82)`
+- `--shadow-card`: `0 1px 2px oklch(0.2 0.03 260 / 0.04), 0 8px 24px oklch(0.2 0.03 260 / 0.06)`
+- `--shadow-luxury`: `0 2px 4px oklch(0.2 0.03 260 / 0.06), 0 24px 48px oklch(0.2 0.03 260 / 0.08)`
+- `--shadow-gold`: `0 1px 2px oklch(0.55 0.13 72 / 0.15), 0 8px 20px oklch(0.55 0.13 72 / 0.1)`
 
-### 7) تفاصيل تقنية
+**Gradients:**
 
-**ملفات جديدة:**
-- `src/routes/auth.tsx`
-- `src/routes/_authenticated/route.tsx`
-- `src/routes/_authenticated/workspace.tsx` (نقل من `workspace.tsx`)
-- `src/assets/value-logo.png.asset.json`
-- `src/components/user-menu.tsx`
-- migration SQL (profiles, roles, has_role, RLS, grants)
+- `--gradient-ink`: `linear-gradient(135deg, oklch(0.18 0.04 260), oklch(0.24 0.05 265))` — أزرار داكنة فقط.
+- `--gradient-gold`: `linear-gradient(135deg, oklch(0.72 0.11 82), oklch(0.62 0.13 76))` — أزرار CTA أساسية.
+- ❌ حذف أي تدرج بنفسجي/وردي/نيون.
 
-**ملفات معدّلة:**
-- `src/styles.css` (ثيم فاتح كامل)
-- `src/components/app-shell.tsx` (شعار + ألوان + قائمة المستخدم)
-- `src/components/candlestick-chart.tsx` (ألوان فاتحة)
-- كل صفحات الروت (توكنز فقط، بدون تغيير محتوى)
-- `src/start.ts` (attachSupabaseAuth middleware)
-- `src/routes/__root.tsx` (auth listener)
+**ألوان البراندات** (badges في السوق): استبدال البالتة الحالية (أخضر/أصفر/بنفسجي/زهري) بـ **بالتة موحّدة رصينة**: 8 درجات مشتقة من كحلي/ذهبي/عنابي/زمردي/نحاسي/فحمي، مع أحرف الرمز بلون عاجي وخلفية مربّع بحدود ذهبية شعرة.
 
-**قيود ملتزم بها:**
-- لا استخراج أي نص من الصور المرفقة.
-- الاعتماد فقط على التوكنز الدلالية — لا `text-white` أو ألوان hex في المكونات.
-- كل جدول عام يحصل على GRANTs + RLS مع سياسات مقيّدة بـ `auth.uid()`.
-- المسارات العامة تبقى SSR افتراضياً؛ المحمية تحت `_authenticated/`.
+## 4. الطباعة (Typography)
 
-### 8) خارج نطاق هذه المرحلة (سنتناولها في Phase 3+)
+- اعتماد **Tajawal** كخط أساسي (عربي + إنجليزي) عبر `<link>` في `__root.tsx` head.
+- تدرج الأوزان: 300 / 400 / 500 / 700 / 900.
+- `--font-display`: Tajawal 900 (عناوين ضخمة، tracking سالب).
+- `--font-body`: Tajawal 400/500.
+- `--font-mono`: `JetBrains Mono` للأرقام المالية (tabular-nums دائماً).
+- إزالة أي استخدام لـ Inter / Poppins / system-ui.
 
-- الجداول متعددة الشركات (`companies, brands, company_members`) — Phase 3.
-- الاكتتابات والتقييمات — Phase 4.
-- محرك أوامر التداول الحقيقي — Phase 5.
+## 5. الأيقونات الاحترافية
 
-هل نبدأ التنفيذ؟
+- إضافة `**@phosphor-icons/react**` (Duotone/Bold weights) — مستخدمة في Bloomberg-style dashboards.
+- إضافة `**@tabler/icons-react**` كمكمّل للأيقونات المالية المتخصصة (candles, order-book, portfolio).
+- استبدال lucide في:
+  - AppShell nav → Phosphor Duotone.
+  - Trade page (buy/sell, order types) → Tabler finance icons.
+  - Shariah page → Phosphor (shield-check, scales, mosque).
+  - Market table sort/filter → Phosphor Bold.
+- الاحتفاظ بـ lucide فقط للأدوات العامة (X, Check, ChevronDown).
+
+## 6. تنظيف مظاهر AI / Vibe Coding
+
+- إزالة أي: gradients بنفسجية، shadows ملونة (purple/pink glow)، رموز إيموجي في UI، بطاقات "مبنية بواسطة"، placeholders افتراضية.
+- تشديد الشبكة (grid discipline): spacing على مضاعفات 4px، radii ثابتة (`--radius-sm: 4px`, `md: 8px`, `lg: 12px`, `xl: 16px`).
+- استخدام hairline borders + soft shadows بدلاً من ظلال ثقيلة.
+- Micro-interactions هادئة (150-200ms، ease-out فقط، بلا bounce).
+
+## 7. تطبيق الهوية على الصفحات القائمة
+
+تحديث بصري فقط (بدون تغيير المنطق) لـ:
+
+- `index.tsx` — Hero بخلفية Dot Pattern ذهبية باهتة، KPIs ببطاقات hairline.
+- `market.tsx` — badges البراندات بالبالتة الجديدة، صف الفلاتر بنمط pill فاخر بحدود ذهبية.
+- `market.$slug.tsx` — Header براند بنقاط pattern في الخلفية.
+- `trade.$symbol.tsx` — أيقونات Tabler، أزرار Buy/Sell بلون bull/bear الجديد.
+- `company.$id.tsx`، `_authenticated/workspace.tsx`، `shariah.tsx`، `auth.tsx` — تطبيق نفس النظام.
+- `app-shell.tsx` — Header بشعار جديد، user-menu بأيقونات Phosphor.
+
+## 8. توحيد اسم العلامة
+
+- كل ذِكر للاسم في UI/i18n/meta:
+  - عربي: وحدة القيمة
+  - إنجليزي: **Value Unit** (بدون Value Innovation).
+- تحديث `i18n.tsx`، `__root.tsx` (title/description/og)، `app-shell.tsx`.
+
+---
+
+## الملفات المتأثرة
+
+**Create:**
+
+- `src/assets/value-logo-clean.png.asset.json` (شعار بدون إطار)
+- `src/components/dot-pattern.tsx`
+- `src/components/brand-mark.tsx` (استخراج من app-shell)
+
+**Edit:**
+
+- `src/styles.css` (إعادة كتابة كاملة للـ tokens)
+- `src/routes/__root.tsx` (Tajawal + JetBrains Mono links + meta)
+- `src/components/app-shell.tsx` (Brand + أيقونات Phosphor)
+- `src/lib/i18n.tsx` (اسم العلامة)
+- `src/lib/mock-data.ts` (بالتة ألوان البراند)
+- كل ملفات `src/routes/*` (استبدال lucide → Phosphor/Tabler حيث لزم + tokens جديدة)
+
+**Install:**
+
+- `@phosphor-icons/react`
+- `@tabler/icons-react`
+
+---
+
+## تفاصيل تقنية (للمراجعة)
+
+- Tajawal يُحمّل عبر `<link rel="preconnect" href="https://fonts.googleapis.com">` + `<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">` في `__root.tsx` (لا `@import` في CSS بسبب Lightning CSS).
+- Dot Pattern SVG: `<pattern>` بـ `<circle r="1.5" fill="currentColor">` وعُقد 12px، يُستخدم عبر `<div style={{color: 'var(--gold)'}} className="opacity-[0.08]">`.
+- كل ألوان OKLCH تُعرَّف في `:root` ثم تُربط بـ `@theme inline` لتوليد utilities (`bg-gold`, `text-ink`, `border-gold`, ...).
+- لا تغييرات على Schema/RLS/Auth في هذه المرحلة.
