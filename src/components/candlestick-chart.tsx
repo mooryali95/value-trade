@@ -11,26 +11,26 @@ export function CandlestickChart({ candles, height = 420 }: { candles: Candle[];
     const chart = createChart(containerRef.current, {
       layout: {
         background: { color: "transparent" },
-        textColor: "#B8C1D4",
+        textColor: "#5A6478",
         fontFamily: "Inter, IBM Plex Sans Arabic, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(148, 163, 184, 0.06)" },
-        horzLines: { color: "rgba(148, 163, 184, 0.06)" },
+        vertLines: { color: "rgba(120, 100, 60, 0.06)" },
+        horzLines: { color: "rgba(120, 100, 60, 0.06)" },
       },
-      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.15)" },
-      timeScale: { borderColor: "rgba(148, 163, 184, 0.15)", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "rgba(120, 100, 60, 0.15)" },
+      timeScale: { borderColor: "rgba(120, 100, 60, 0.15)", timeVisible: true, secondsVisible: false },
       crosshair: { mode: 1 },
       autoSize: true,
       height,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#3ecf8e",
-      downColor: "#e2564a",
+      upColor: "#3f9d6c",
+      downColor: "#a63b2c",
       borderVisible: false,
-      wickUpColor: "#3ecf8e",
-      wickDownColor: "#e2564a",
+      wickUpColor: "#3f9d6c",
+      wickDownColor: "#a63b2c",
     });
     candleSeries.setData(candles.map((c) => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close })));
 
@@ -43,7 +43,7 @@ export function CandlestickChart({ candles, height = 420 }: { candles: Candle[];
       candles.map((c) => ({
         time: c.time as any,
         value: c.volume,
-        color: c.close >= c.open ? "rgba(62, 207, 142, 0.35)" : "rgba(226, 86, 74, 0.35)",
+        color: c.close >= c.open ? "rgba(63, 157, 108, 0.28)" : "rgba(166, 59, 44, 0.28)",
       })),
     );
 
