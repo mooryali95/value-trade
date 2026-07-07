@@ -4,7 +4,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useI18n } from "@/lib/i18n";
-import { BrandMark } from "@/components/app-shell";
+import { BrandMark } from "@/components/brand-mark";
 import { Loader2, Mail, KeyRound, User as UserIcon } from "lucide-react";
 
 const searchSchema = z.object({ redirect: z.string().optional() });
