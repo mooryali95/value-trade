@@ -5,7 +5,7 @@ import { BRANDS, getCompanyBrands } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { Building2, Users, TrendingUp, Plus, Send } from "lucide-react";
 
-export const Route = createFileRoute("/workspace")({
+export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
     meta: [
       { title: "منصة الشركة — قيمة | Workspace — Qeema" },
