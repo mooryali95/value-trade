@@ -6,6 +6,8 @@ export type Sector =
 
 export type ShariahStatus = "halal" | "reviewing" | "restricted";
 
+export type AssetClass = "brand" | "stock" | "sukuk";
+
 export type Brand = {
   id: string;
   slug: string;
@@ -24,6 +26,17 @@ export type Brand = {
   instrument: "equity" | "sukuk" | "mudarabah";
   established: number;
   color: string;
+  assetClass?: AssetClass;
+  // Stock-only
+  exchange?: "TADAWUL" | "DFM" | "ADX" | "MSM" | "BSE";
+  pe?: number;
+  divYield?: number;
+  // Sukuk-only
+  issuer?: string;
+  couponPct?: number;
+  ytmPct?: number;
+  maturity?: string; // ISO date
+  tenorYears?: number;
 };
 
 const sectors: Sector[] = ["tech","fintech","food","fashion","media","health","energy","logistics","realestate","education","retail","auto"];
