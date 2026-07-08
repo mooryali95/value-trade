@@ -117,12 +117,111 @@ function generateBrands(): Brand[] {
       instrument,
       established: 2005 + (i % 20),
       color: goldenColor(i),
+      assetClass: "brand",
     });
   }
   return brands;
 }
 
-export const BRANDS: Brand[] = generateBrands();
+const BASE_BRANDS: Brand[] = generateBrands();
+
+// Curated GCC stocks (mock but realistic tickers/sectors — for demo only)
+const STOCK_SEED: Array<{ sym: string; ar: string; en: string; ex: Brand["exchange"]; sec: Sector; px: number; halal: ShariahStatus }> = [
+  { sym: "2222", ar: "أرامكو السعودية", en: "Saudi Aramco", ex: "TADAWUL", sec: "energy", px: 28.4, halal: "halal" },
+  { sym: "1120", ar: "الراجحي", en: "Al Rajhi Bank", ex: "TADAWUL", sec: "fintech", px: 92.1, halal: "halal" },
+  { sym: "7010", ar: "الاتصالات السعودية", en: "STC", ex: "TADAWUL", sec: "tech", px: 39.8, halal: "halal" },
+  { sym: "2010", ar: "سابك", en: "SABIC", ex: "TADAWUL", sec: "energy", px: 74.3, halal: "halal" },
+  { sym: "4013", ar: "الدواء", en: "Al Dawaa Medical", ex: "TADAWUL", sec: "health", px: 66.0, halal: "halal" },
+  { sym: "4001", ar: "أسواق العثيم", en: "Othaim Markets", ex: "TADAWUL", sec: "retail", px: 12.6, halal: "halal" },
+  { sym: "4002", ar: "مركز الرعاية الطبية", en: "Care Medical", ex: "TADAWUL", sec: "health", px: 138.0, halal: "halal" },
+  { sym: "EMAAR", ar: "إعمار العقارية", en: "Emaar Properties", ex: "DFM", sec: "realestate", px: 8.2, halal: "reviewing" },
+  { sym: "ADCB", ar: "بنك أبوظبي التجاري", en: "ADCB", ex: "ADX", sec: "fintech", px: 9.4, halal: "reviewing" },
+  { sym: "SALIK", ar: "سالك", en: "Salik", ex: "DFM", sec: "logistics", px: 5.1, halal: "halal" },
+  { sym: "OMTL", ar: "عمانتل", en: "Omantel", ex: "MSM", sec: "tech", px: 0.83, halal: "halal" },
+  { sym: "BHTL", ar: "بتلكو", en: "Batelco", ex: "BSE", sec: "tech", px: 0.42, halal: "halal" },
+];
+
+function generateStocks(): Brand[] {
+  const rand = seededRandom(9131);
+  return STOCK_SEED.map((s, i) => {
+    const change = (rand() - 0.5) * 6;
+    const cap = s.px * (500_000_000 + Math.floor(rand() * 3_000_000_000));
+    return {
+      id: `stock-${s.sym}`,
+      slug: s.sym.toLowerCase(),
+      symbol: s.sym,
+      nameAr: s.ar,
+      nameEn: s.en,
+      sector: s.sec,
+      companyId: `co-${s.sym.toLowerCase()}`,
+      companyNameAr: s.ar,
+      companyNameEn: s.en,
+      price: Number(s.px.toFixed(2)),
+      change24h: Number(change.toFixed(2)),
+      volume24h: Math.floor(rand() * 12_000_000) + 500_000,
+      marketCap: Math.floor(cap),
+      shariah: s.halal,
+      instrument: "equity" as const,
+      established: 1970 + (i * 3),
+      color: LUXURY_PALETTE[i % LUXURY_PALETTE.length],
+      assetClass: "stock" as const,
+      exchange: s.ex,
+      pe: Number((12 + rand() * 22).toFixed(1)),
+      divYield: Number((1 + rand() * 5).toFixed(2)),
+    } satisfies Brand;
+  });
+}
+
+// Curated sovereign & corporate sukuk (mock)
+const SUKUK_SEED: Array<{ sym: string; ar: string; en: string; issuer: string; coupon: number; tenor: number; halal: ShariahStatus }> = [
+  { sym: "KSA-30", ar: "صكوك حكومة السعودية 2030", en: "KSA Govt Sukuk 2030", issuer: "MoF KSA", coupon: 4.5, tenor: 6, halal: "halal" },
+  { sym: "KSA-33", ar: "صكوك حكومة السعودية 2033", en: "KSA Govt Sukuk 2033", issuer: "MoF KSA", coupon: 4.75, tenor: 9, halal: "halal" },
+  { sym: "IDB-28", ar: "صكوك البنك الإسلامي للتنمية", en: "IsDB Sukuk 2028", issuer: "IsDB", coupon: 4.25, tenor: 4, halal: "halal" },
+  { sym: "ARB-31", ar: "صكوك الراجحي 2031", en: "Al Rajhi Sukuk 2031", issuer: "Al Rajhi", coupon: 5.0, tenor: 7, halal: "halal" },
+  { sym: "STC-29", ar: "صكوك STC 2029", en: "STC Sukuk 2029", issuer: "STC", coupon: 4.85, tenor: 5, halal: "halal" },
+  { sym: "DPW-32", ar: "صكوك موانئ دبي 2032", en: "DP World Sukuk 2032", issuer: "DP World", coupon: 5.4, tenor: 8, halal: "halal" },
+  { sym: "EMR-27", ar: "صكوك إعمار 2027", en: "Emaar Sukuk 2027", issuer: "Emaar", coupon: 4.65, tenor: 3, halal: "halal" },
+  { sym: "QAT-34", ar: "صكوك قطر السيادية 2034", en: "Qatar Sovereign Sukuk 2034", issuer: "MoF Qatar", coupon: 4.4, tenor: 10, halal: "halal" },
+];
+
+function generateSukuk(): Brand[] {
+  const rand = seededRandom(7373);
+  const now = new Date();
+  return SUKUK_SEED.map((s, i) => {
+    const price = 98 + rand() * 6; // clean price near par
+    const ytm = s.coupon + (rand() - 0.5) * 1.2;
+    const maturity = new Date(now.getFullYear() + s.tenor, 6, 15).toISOString().slice(0, 10);
+    return {
+      id: `sukuk-${s.sym}`,
+      slug: s.sym.toLowerCase(),
+      symbol: s.sym,
+      nameAr: s.ar,
+      nameEn: s.en,
+      sector: "fintech" as Sector,
+      companyId: `iss-${s.issuer.toLowerCase().replace(/\s/g, "-")}`,
+      companyNameAr: s.issuer,
+      companyNameEn: s.issuer,
+      price: Number(price.toFixed(2)),
+      change24h: Number(((rand() - 0.5) * 0.6).toFixed(2)),
+      volume24h: Math.floor(rand() * 800_000) + 20_000,
+      marketCap: Math.floor(price * 1_000_000_000),
+      shariah: s.halal,
+      instrument: "sukuk" as const,
+      established: now.getFullYear() - 1,
+      color: LUXURY_PALETTE[(i + 3) % LUXURY_PALETTE.length],
+      assetClass: "sukuk" as const,
+      issuer: s.issuer,
+      couponPct: s.coupon,
+      ytmPct: Number(ytm.toFixed(2)),
+      maturity,
+      tenorYears: s.tenor,
+    } satisfies Brand;
+  });
+}
+
+export const STOCKS: Brand[] = generateStocks();
+export const SUKUK: Brand[] = generateSukuk();
+export const BRANDS: Brand[] = [...BASE_BRANDS, ...STOCKS, ...SUKUK];
 
 export function getBrand(slug: string): Brand | undefined {
   return BRANDS.find((b) => b.slug === slug);
