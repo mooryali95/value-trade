@@ -5,6 +5,8 @@ import { useI18n } from "@/lib/i18n";
 import { BRANDS, MARKET_STATS } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { ArrowRight, TrendingUp, ShieldCheck, Building2, LineChart } from "lucide-react";
+import { DotDivider } from "@/components/dot-divider";
+import { DotPattern } from "@/components/dot-pattern";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -19,6 +21,7 @@ function Index() {
     <AppShell>
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-border/70 ivory-gradient px-6 py-16 shadow-luxury md:px-12 md:py-24">
+        <DotPattern size={22} radius={1} opacity={0.05} color="var(--gold-deep)" />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
@@ -69,7 +72,8 @@ function Index() {
       </section>
 
       {/* FEATURES */}
-      <section className="mt-14 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <DotDivider className="mt-14" />
+      <section className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Feature icon={LineChart} title={t("featTitle1")} desc={t("featDesc1")} />
         <Feature icon={ShieldCheck} title={t("featTitle2")} desc={t("featDesc2")} />
         <Feature icon={Building2} title={t("featTitle3")} desc={t("featDesc3")} />
