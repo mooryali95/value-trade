@@ -105,6 +105,30 @@ const dict = {
     authNote: "بيئة مؤسسية متوافقة مع الشريعة الإسلامية",
     myAccount: "حسابي",
     account: "الحساب",
+    // Asset classes
+    brands: "العلامات",
+    stocks: "الأسهم",
+    sukukAll: "الصكوك",
+    // Sukuk-specific
+    coupon: "الكوبون",
+    maturity: "الاستحقاق",
+    issuer: "المُصدر",
+    ytm: "العائد حتى الاستحقاق",
+    tenor: "المدة",
+    years: "سنة",
+    // Stock-specific
+    pe: "مكرر الربحية",
+    divYield: "توزيعات الأرباح",
+    exchange: "السوق",
+    // States
+    emptyTitle: "لا نتائج مطابقة",
+    emptyDesc: "جرّب تعديل معايير البحث أو الفلترة.",
+    errorTitle: "تعذّر تحميل هذه الصفحة",
+    errorDesc: "حدث خلل مؤقت في الاتصال. أعد المحاولة أو ارجع للرئيسية.",
+    tryAgain: "إعادة المحاولة",
+    backHome: "الرئيسية",
+    notFoundTitle: "العنصر غير موجود",
+    notFoundDesc: "المسار الذي طلبته غير متاح ضمن المنصة حالياً.",
   },
   en: {
     brand: "Value Unit",
@@ -208,6 +232,30 @@ const dict = {
     authNote: "Enterprise-grade, Shariah-compliant",
     myAccount: "My account",
     account: "Account",
+    // Asset classes
+    brands: "Brands",
+    stocks: "Stocks",
+    sukukAll: "Sukuk",
+    // Sukuk-specific
+    coupon: "Coupon",
+    maturity: "Maturity",
+    issuer: "Issuer",
+    ytm: "Yield to maturity",
+    tenor: "Tenor",
+    years: "yrs",
+    // Stock-specific
+    pe: "P/E",
+    divYield: "Dividend yield",
+    exchange: "Exchange",
+    // States
+    emptyTitle: "No matching results",
+    emptyDesc: "Adjust your search or filters and try again.",
+    errorTitle: "This page didn't load",
+    errorDesc: "A temporary error occurred. Please retry or go home.",
+    tryAgain: "Try again",
+    backHome: "Home",
+    notFoundTitle: "Not found",
+    notFoundDesc: "The requested resource is not available on the platform.",
   },
 } as const;
 
