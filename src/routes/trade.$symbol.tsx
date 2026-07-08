@@ -173,6 +173,32 @@ function TradePage() {
           </div>
 
           {/* Compact order book */}
+          {brand.assetClass === "sukuk" ? (
+            <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+              <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                {t("bid")} / {t("ask")} · {t("ytm")}
+              </h3>
+              <div className="grid grid-cols-3 gap-2 border-b border-border/40 pb-1.5 text-[10px] uppercase text-muted-foreground">
+                <div>{t("bid")}</div>
+                <div className="text-center">{t("ask")}</div>
+                <div className="text-end">{t("ytm")}</div>
+              </div>
+              <div className="mt-1 space-y-0.5 font-mono text-[11px]">
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const b = brand.price - (i + 1) * 0.05;
+                  const a = brand.price + (i + 1) * 0.05;
+                  const y = (brand.ytmPct ?? 5) + i * 0.02;
+                  return (
+                    <div key={i} className="grid grid-cols-3 gap-2 rounded px-1 py-0.5">
+                      <div className="text-[var(--bull)]">{b.toFixed(2)}</div>
+                      <div className="text-center text-[var(--bear)]">{a.toFixed(2)}</div>
+                      <div className="text-end text-foreground/80">{y.toFixed(2)}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
           <div className="rounded-xl border border-border/60 bg-card/60 p-3">
             <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("orderBook")}</h3>
             <div className="space-y-0.5 font-mono text-[11px]">
@@ -193,6 +219,7 @@ function TradePage() {
               ))}
             </div>
           </div>
+          )}
         </aside>
       </div>
     </AppShell>
