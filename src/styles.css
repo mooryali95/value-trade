@@ -280,3 +280,6 @@
 @utility shadow-gold {
   box-shadow: var(--shadow-gold);
 }
+@utility text-ivory {
+  color: var(--ivory);
+}
