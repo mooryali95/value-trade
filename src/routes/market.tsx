@@ -123,7 +123,7 @@ function MarketPage() {
               className="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 px-4 py-3 text-sm transition hover:bg-secondary/40"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white" style={{ background: b.color }}>
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>
                   {b.symbol.slice(0, 3)}
                 </div>
                 <div className="min-w-0">

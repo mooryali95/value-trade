@@ -78,7 +78,7 @@ function TradePage() {
         <section className="rounded-xl border border-border/60 bg-card/60 p-4">
           <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs font-bold text-white" style={{ background: brand.color }}>{brand.symbol.slice(0,3)}</div>
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs font-bold text-ivory" style={{ background: brand.color }}>{brand.symbol.slice(0,3)}</div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold text-foreground">{lang === "ar" ? brand.nameAr : brand.nameEn}</span>
@@ -142,8 +142,8 @@ function TradePage() {
         <aside className="space-y-4">
           <div className="rounded-xl border border-border/60 bg-card/60 p-4">
             <div className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold">
-              <button onClick={() => setSide("buy")} className={`rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-white" : "text-muted-foreground"}`}>{t("buy")}</button>
-              <button onClick={() => setSide("sell")} className={`rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-white" : "text-muted-foreground"}`}>{t("sell")}</button>
+              <button onClick={() => setSide("buy")} className={`rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
+              <button onClick={() => setSide("sell")} className={`rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
             </div>
             <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
               <button onClick={() => setOrderType("limit")} className={`rounded border px-2 py-1.5 ${orderType === "limit" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("limit")}</button>
@@ -162,7 +162,7 @@ function TradePage() {
               <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
             </div>
             <button
-              className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-white ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
+              className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
             >
               {side === "buy" ? t("buy") : t("sell")} {brand.symbol}
             </button>
@@ -173,6 +173,32 @@ function TradePage() {
           </div>
 
           {/* Compact order book */}
+          {brand.assetClass === "sukuk" ? (
+            <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+              <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                {t("bid")} / {t("ask")} · {t("ytm")}
+              </h3>
+              <div className="grid grid-cols-3 gap-2 border-b border-border/40 pb-1.5 text-[10px] uppercase text-muted-foreground">
+                <div>{t("bid")}</div>
+                <div className="text-center">{t("ask")}</div>
+                <div className="text-end">{t("ytm")}</div>
+              </div>
+              <div className="mt-1 space-y-0.5 font-mono text-[11px]">
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const b = brand.price - (i + 1) * 0.05;
+                  const a = brand.price + (i + 1) * 0.05;
+                  const y = (brand.ytmPct ?? 5) + i * 0.02;
+                  return (
+                    <div key={i} className="grid grid-cols-3 gap-2 rounded px-1 py-0.5">
+                      <div className="text-[var(--bull)]">{b.toFixed(2)}</div>
+                      <div className="text-center text-[var(--bear)]">{a.toFixed(2)}</div>
+                      <div className="text-end text-foreground/80">{y.toFixed(2)}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
           <div className="rounded-xl border border-border/60 bg-card/60 p-3">
             <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("orderBook")}</h3>
             <div className="space-y-0.5 font-mono text-[11px]">
@@ -193,6 +219,7 @@ function TradePage() {
               ))}
             </div>
           </div>
+          )}
         </aside>
       </div>
     </AppShell>

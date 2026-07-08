@@ -128,7 +128,7 @@ function HeroTicker() {
             className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-2 py-2.5 text-sm transition hover:bg-secondary/60"
           >
             <div
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory"
               style={{ background: b.color }}
             >
               {b.symbol.slice(0, 3)}
@@ -166,7 +166,7 @@ function MoverCard({ title, rows, tone }: { title: string; rows: typeof BRANDS; 
             params={{ slug: b.slug }}
             className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 py-2.5 text-sm transition hover:opacity-80"
           >
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white" style={{ background: b.color }}>
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>
               {b.symbol.slice(0, 3)}
             </div>
             <div className="min-w-0">

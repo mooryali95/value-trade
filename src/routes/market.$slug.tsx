@@ -43,7 +43,7 @@ function BrandDetail() {
       {/* Header */}
       <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-sm font-bold text-white shadow-lg" style={{ background: brand.color }}>
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-sm font-bold text-ivory shadow-lg" style={{ background: brand.color }}>
             {brand.symbol.slice(0, 3)}
           </div>
           <div className="min-w-0">
