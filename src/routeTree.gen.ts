@@ -19,6 +19,7 @@ import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
+import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 
 const ShariahRoute = ShariahRouteImport.update({
   id: '/shariah',
@@ -69,6 +70,12 @@ const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
   path: '/portfolio',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedShariahReviewRoute =
+  AuthenticatedShariahReviewRouteImport.update({
+    id: '/shariah/review',
+    path: '/shariah/review',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/shariah/review': typeof AuthenticatedShariahReviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,6 +99,7 @@ export interface FileRoutesByTo {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/shariah/review': typeof AuthenticatedShariahReviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,6 +113,7 @@ export interface FileRoutesById {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/shariah/review'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/shariah/review'
   id:
     | '__root__'
     | '/'
@@ -140,6 +152,7 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/_authenticated/shariah/review'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -224,17 +237,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/shariah/review': {
+      id: '/_authenticated/shariah/review'
+      path: '/shariah/review'
+      fullPath: '/shariah/review'
+      preLoaderRoute: typeof AuthenticatedShariahReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
