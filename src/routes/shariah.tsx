@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
 import { SHARIAH_BOARD, SHARIAH_STANDARDS, BRANDS } from "@/lib/mock-data";
@@ -25,6 +25,9 @@ function ShariahPage() {
         </div>
         <h1 className="text-3xl font-bold text-foreground md:text-4xl">{t("aboutBoard")}</h1>
         <p className="max-w-3xl text-sm text-muted-foreground md:text-base">{t("aboutBoardDesc")}</p>
+        <Link to="/shariah/review" className="mt-2 w-fit rounded-md border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]">
+          {t("shariahReview")} →
+        </Link>
       </header>
 
       <section className="mb-10">
