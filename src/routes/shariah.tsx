@@ -48,7 +48,7 @@ function ShariahPage() {
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
             {decisions.map((b) => (
               <div key={b.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white" style={{ background: b.color }}>{b.symbol.slice(0,3)}</div>
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>{b.symbol.slice(0,3)}</div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</div>
                   <div className="text-[10px] text-muted-foreground">{b.symbol} · AAOIFI-{21 + (b.price | 0) % 10}</div>

@@ -61,7 +61,7 @@ function CompanyPage() {
             className="rounded-xl border border-border/60 bg-card/60 p-4 transition hover:border-primary/40"
           >
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white" style={{ background: b.color }}>{b.symbol.slice(0,3)}</div>
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>{b.symbol.slice(0,3)}</div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</div>
                 <div className="text-[10px] text-muted-foreground">{b.symbol} · {b.sector}</div>
