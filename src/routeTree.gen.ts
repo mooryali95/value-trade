@@ -18,6 +18,9 @@ import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
+import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
+import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 
 const ShariahRoute = ShariahRouteImport.update({
   id: '/shariah',
@@ -63,26 +66,48 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicCronAlertsRoute = ApiPublicCronAlertsRouteImport.update({
+  id: '/api/public/cron-alerts',
+  path: '/api/public/cron-alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedShariahReviewRoute =
+  AuthenticatedShariahReviewRouteImport.update({
+    id: '/shariah/review',
+    path: '/shariah/review',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/shariah/review': typeof AuthenticatedShariahReviewRoute
+  '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/shariah/review': typeof AuthenticatedShariahReviewRoute
+  '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -91,10 +116,13 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
+  '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -103,20 +131,26 @@ export interface FileRouteTypes {
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/portfolio'
     | '/workspace'
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/shariah/review'
+    | '/api/public/cron-alerts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/portfolio'
     | '/workspace'
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/shariah/review'
+    | '/api/public/cron-alerts'
   id:
     | '__root__'
     | '/'
@@ -124,10 +158,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/_authenticated/shariah/review'
+    | '/api/public/cron-alerts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -138,6 +175,7 @@ export interface RootRouteChildren {
   ShariahRoute: typeof ShariahRoute
   CompanyIdRoute: typeof CompanyIdRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
+  ApiPublicCronAlertsRoute: typeof ApiPublicCronAlertsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,15 +243,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/portfolio': {
+      id: '/_authenticated/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/cron-alerts': {
+      id: '/api/public/cron-alerts'
+      path: '/api/public/cron-alerts'
+      fullPath: '/api/public/cron-alerts'
+      preLoaderRoute: typeof ApiPublicCronAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/shariah/review': {
+      id: '/_authenticated/shariah/review'
+      path: '/shariah/review'
+      fullPath: '/shariah/review'
+      preLoaderRoute: typeof AuthenticatedShariahReviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -238,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShariahRoute: ShariahRoute,
   CompanyIdRoute: CompanyIdRoute,
   TradeSymbolRoute: TradeSymbolRoute,
+  ApiPublicCronAlertsRoute: ApiPublicCronAlertsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

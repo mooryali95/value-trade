@@ -14,6 +14,150 @@ export type Database = {
   }
   public: {
     Tables: {
+      orders: {
+        Row: {
+          asset_class: string
+          created_at: string
+          filled_at: string | null
+          filled_price: number | null
+          id: string
+          price: number | null
+          qty: number
+          side: string
+          status: string
+          symbol: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_class?: string
+          created_at?: string
+          filled_at?: string | null
+          filled_price?: number | null
+          id?: string
+          price?: number | null
+          qty: number
+          side: string
+          status?: string
+          symbol: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_class?: string
+          created_at?: string
+          filled_at?: string | null
+          filled_price?: number | null
+          id?: string
+          price?: number | null
+          qty?: number
+          side?: string
+          status?: string
+          symbol?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      portfolios: {
+        Row: {
+          cash_balance: number
+          created_at: string
+          currency: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cash_balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cash_balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          asset_class: string
+          avg_price: number
+          created_at: string
+          id: string
+          qty: number
+          symbol: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_class?: string
+          avg_price?: number
+          created_at?: string
+          id?: string
+          qty?: number
+          symbol: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_class?: string
+          avg_price?: number
+          created_at?: string
+          id?: string
+          qty?: number
+          symbol?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      price_alerts: {
+        Row: {
+          active: boolean
+          created_at: string
+          direction: string
+          id: string
+          symbol: string
+          target_price: number
+          triggered_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          direction: string
+          id?: string
+          symbol: string
+          target_price: number
+          triggered_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          direction?: string
+          id?: string
+          symbol?: string
+          target_price?: number
+          triggered_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -37,6 +181,36 @@ export type Database = {
           full_name?: string | null
           id?: string
           locale?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shariah_decisions: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string | null
+          reviewer_id: string | null
+          status: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reviewer_id?: string | null
+          status: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          reviewer_id?: string | null
+          status?: string
+          symbol?: string
           updated_at?: string
         }
         Relationships: []

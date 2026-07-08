@@ -1,86 +1,72 @@
-## المرحلة الثالثة — تلميع الهوية + توسيع أدوات التداول
+## تم الآن (إغلاق فجوات المرحلة 3)
 
-### 1) تلميع تجربة الحالات (Loading / Empty / Errors)
-- استبدال كل `Loading...` و`Spinner` عام بمكون واحد `<LuxurySkeleton />` يعتمد نمط النقاط الذهبية الخفيفة + shimmer بطيء (200ms ease-out).
-- مكون `<EmptyState />` موحّد: أيقونة Phosphor Duotone + عنوان قصير + سطر توضيحي + CTA اختياري. صياغات عربية مؤسسية (لا صياغات AI مثل "لم أجد..." أو "دعنا نبدأ").
-- مكون `<ErrorState />` موحّد للـ `errorComponent` في كل المسارات + زر إعادة يستدعي `router.invalidate()` و `reset()`.
-- مراجعة نصوص كل التوستات والرسائل — إزالة أي نبرة محادثة.
+- استبدال كل `text-white` في صفحات المنصة بـ `text-ivory` عبر Token جديد في `styles.css` (بقيت shadcn overlays فقط).
+- صفحة `/trade/$symbol`: عند الأصل من نوع صك، يُستبدل دفتر الأوامر بجدول Bid/Ask + YTM؛ العلامات والأسهم تحتفظ بدفتر الأوامر.
+- تحقق البناء (`tsgo`) نظيف. المراحل 1–3 مكتملة عمليًا.
 
-### 2) توحيد Tokens الألوان والخطوط
-- تدقيق `src/styles.css`: التأكد أن كل لون في المكونات يمر عبر Token (`--ink`, `--gold`, `--burgundy`, `--bull`, `--bear`, `--ivory`, `--stone`). إزالة أي `text-white` / `bg-black` / ألوان hex متبقية.
-- إضافة سلّم أوزان Tajawal موحّد كـ utilities: `--font-weight-body: 400`, `--display: 700`, `--display-heavy: 900`. توحيد أحجام العناوين (h1..h4) في `@layer base`.
-- سلّم ظلال موحّد: `--shadow-hairline`, `--shadow-card`, `--shadow-luxury`, `--shadow-gold` (موجودة — تطبيقها بدل الظلال المخصصة داخل المكونات).
+---
 
-### 3) تطبيق الهوية الفاخرة على كل الصفحات
-- **Trade (`/trade/$symbol`)**: تحديث لوحة الطلبات، الشارت، دفتر الأوامر لاستخدام `--bull`/`--bear` الجديدة، حدود شعرية، خط Mono للأرقام، شارة ذهبية للأدوات الحلال.
-- **Workspace (Dashboard)**: بطاقات KPI بحدود ذهبية رفيعة، رأس صفحة مع شريط ذهبي (hairline-gold)، جداول بخلفية Ivory.
-- **Market / Company / Shariah**: توحيد رؤوس الصفحات (نفس نمط breadcrumbs + شارة ذهبية للحالة).
-- **Auth**: مراجعة الطبقة اليسرى لتحمل خلفية نقاط ذهبية خفيفة.
+## المرحلة الرابعة — المحفظة والتنفيذ والحوكمة
 
-### 4) نمط النقاط كطبقة بصرية
-- استخدام `<DotPattern />` كخلفية خفيفة (`opacity 0.04–0.06`) خلف Hero والداشبورد وقسم الشريعة.
-- إضافة فواصل `<DotDivider />` بين الأقسام في الصفحة الرئيسية (شريط أفقي من النقاط بتدرج ذهبي).
-- التأكد من `pointer-events: none` وعدم تأثيره على القراءة عبر تباين اللون فقط مع `--ink-soft`.
+الهدف: تحويل المنصة من واجهة عرض إلى تجربة تداول متكاملة موصولة بحساب المستخدم في Lovable Cloud، مع مسار حوكمة شرعي واضح.
 
-### 5) الشعار — إعادة تصميم واستخدام موسّع
-- توحيد `<BrandMark />` كنسخة SVG نقية (نقاط + "قيمة" + "VALUE UNIT") وحذف الاعتماد على أي صورة PNG قديمة (`src/assets/value-logo.png.asset.json`).
-- تنويعات: `<BrandMark variant="full" | "compact" | "mark-only" />`.
-- استخدامات جديدة: Watermark خفيف في تذييل الصفحات، شعار مصغّر في favicon (SVG جديد يُبنى من نفس مكون النقاط)، og:image ديناميكي بلون Ivory + النقاط الذهبية.
+### 1) المحفظة (`/portfolio`)
+- مسار محمي جديد `src/routes/_authenticated/portfolio.tsx`.
+- ملخص علوي: إجمالي القيمة، الربح/الخسارة اليومية، النقد المتاح، توزيع الأصول (علامات · أسهم · صكوك) عبر شريط مكدّس.
+- جدول المراكز: الرمز، الكمية، متوسط الدخول، السعر الحالي، P&L، الوزن، إجراء (تداول / إغلاق).
+- تبويب "السجل": حركات الأوامر السابقة (منفّذ / ملغى / معلّق).
+- حالات: `EmptyState` عندما لا توجد مراكز، `LuxurySkeleton` أثناء الجلب.
 
-### 6) جاهزية التكامل مع أنظمة أخرى
-- تعريف طبقة `src/lib/integrations/` تحوي:
-  - `types.ts` — عقود موحّدة (`Instrument`, `Quote`, `OrderBookLevel`, `Trade`).
-  - `provider.ts` — واجهة `MarketDataProvider` مع نسخة `mockProvider` حالية.
-  - مكان جاهز لموفرين حقيقيين لاحقاً (Tadawul, Mubasher, TradingView) دون تعديل مكونات الواجهة.
-- توحيد استدعاء البيانات في الصفحات ليمر عبر هذه الطبقة (بدل استيراد `mock-data` مباشرة).
-- إضافة `src/lib/integrations/README.md` يشرح كيفية استبدال الموفر.
+### 2) قاعدة بيانات المحفظة (Lovable Cloud)
+جداول جديدة في مخطط `public` مع RLS كامل و`GRANT` مطابق:
+- `portfolios` — محفظة واحدة لكل مستخدم، `cash_balance`.
+- `positions` — `user_id, symbol, asset_class, qty, avg_price`.
+- `orders` — `user_id, symbol, side (buy|sell), type (limit|market), qty, price, status, filled_at`.
+- Trigger لتحديث `updated_at`، وسياسات: كل مستخدم يقرأ/يعدّل صفوفه فقط.
 
-### 7) توسيع فئات التداول: الأسهم + الصكوك
-- تحديث `src/lib/mock-data.ts`:
-  - إضافة حقل `assetClass: "brand" | "stock" | "sukuk"` على العناصر.
-  - إضافة ~12 سهم سعودي/خليجي معروف (رمز + قطاع + سعر) و~8 صكوك (مُصدر + عائد سنوي + استحقاق + متوافقة/غير متوافقة).
-- تحديث `/market`:
-  - Tabs في الأعلى: **العلامات · الأسهم · الصكوك · الكل**.
-  - فلاتر إضافية للصكوك (العائد، المدة، المُصدر) وللأسهم (القطاع، السوق).
-- تحديث `/trade/$symbol`:
-  - عرض حقول خاصة بالأصل: للأسهم (P/E, Div Yield, Sector)، للصكوك (Coupon, Maturity, Issuer, YTM).
-  - إخفاء دفتر الأوامر للصكوك واستبداله بجدول تسعير (Bid/Ask + Yield).
+### 3) تنفيذ الأوامر (Server Functions)
+- `src/lib/trading/place-order.functions.ts` مع `requireSupabaseAuth`:
+  - Validation عبر `zod` (رمز موجود، كمية موجبة، سعر منطقي).
+  - محاكاة تنفيذ فوري ضد آخر سعر من `MarketDataProvider` (mock)، تحديث `positions` و`cash_balance` و`orders` في معاملة واحدة.
+  - إرجاع نتيجة موحّدة `{ order, position }`.
+- ربط لوحة الأوامر في `/trade/$symbol` بهذا الـ serverFn عبر `useServerFn` + `useMutation`، مع Toasts احترافية (نجاح/خطأ) بصياغة مؤسسية.
 
-### 8) دراسة مرجعية (بدون كود إضافي)
-- مسح سريع لواجهات Tadawul, Mubasher, Sarwa, Wahed لاستخراج أنماط:
-  - رؤوس بيانات الأصل (Symbol block).
-  - جداول السوق (كثافة الصف، أعمدة قياسية).
-  - عرض حالة الشريعة كشارة.
-- تلخيص القرارات المتبنّاة في تعليق أعلى `market.tsx` و`trade.$symbol.tsx`.
+### 4) الحوكمة الشرعية (`/shariah/review`)
+- مسار محمي بدور `shariah_reviewer` (استخدام جدول `user_roles` و`has_role` الموجودَين).
+- قائمة أدوات قيد المراجعة (`shariah = "reviewing"`) مع أزرار: اعتماد · رفض · طلب معلومات.
+- تسجيل القرار في جدول جديد `shariah_decisions` (سبب، مراجع، تاريخ) مع RLS: القراءة للجميع، الكتابة للمراجعين فقط.
+- شارة الحالة في صفحات السوق تعكس القرار مباشرة (بدل الحقل الثابت في mock).
+
+### 5) الإشعارات + التنبيهات السعرية
+- جدول `price_alerts` (`user_id, symbol, direction, target_price, active`).
+- زر "أنشئ تنبيهًا" في `/trade/$symbol`.
+- Server route عام `src/routes/api/public/cron-alerts.ts` (مع HMAC) يفحص التنبيهات دوريًا؛ يُستدعى من pg_cron بعد تفعيله لاحقًا (بدون تفعيل الآن، فقط جاهزية الكود).
+
+### 6) استيراد بيانات حقيقية (اختياري في هذه المرحلة)
+- Adapter جديد `src/lib/integrations/tadawul-provider.ts` يُنفّذ `MarketDataProvider` عبر HTTP JSON عام (إن توفر) — يُترك خلف feature-flag، الافتراضي يبقى mock.
+
+### 7) تحسينات جودة
+- إضافة اختبارات وحدة سريعة لدوال حساب P&L والوزن في `src/lib/trading/*.test.ts` عبر vitest.
+- توسعة `EmptyState`/`ErrorState` لتغطية سيناريوهات المحفظة والأوامر.
 
 ---
 
 ### ملفات ستُنشأ
-- `src/components/luxury-skeleton.tsx`
-- `src/components/empty-state.tsx`
-- `src/components/error-state.tsx`
-- `src/components/dot-divider.tsx`
-- `src/lib/integrations/types.ts`
-- `src/lib/integrations/provider.ts`
-- `src/lib/integrations/mock-provider.ts`
-- `src/lib/integrations/README.md`
-- `public/favicon.svg` (شعار SVG نقي)
+- `src/routes/_authenticated/portfolio.tsx`
+- `src/routes/_authenticated/shariah.review.tsx`
+- `src/lib/trading/place-order.functions.ts`
+- `src/lib/trading/calc.ts` (+ `calc.test.ts`)
+- `src/lib/integrations/tadawul-provider.ts`
+- `src/routes/api/public/cron-alerts.ts`
+- Migrations: `portfolios`, `positions`, `orders`, `shariah_decisions`, `price_alerts` (+ GRANT + RLS + triggers)
 
 ### ملفات ستُعدَّل
-- `src/styles.css` — سلالم الخطوط/الظلال، تنظيف tokens
-- `src/components/brand-mark.tsx` — variants
-- `src/components/app-shell.tsx` — استخدام BrandMark الجديد + تذييل
-- `src/lib/mock-data.ts` — إضافة stocks + sukuk
-- `src/lib/i18n.tsx` — مصطلحات الأسهم/الصكوك + نصوص EmptyState
-- `src/routes/__root.tsx` — favicon SVG + og:image محدث
-- `src/routes/index.tsx` — DotDivider + نقاط خلفية
-- `src/routes/market.tsx` — Tabs + فلاتر
-- `src/routes/trade.$symbol.tsx` — دعم stock/sukuk
-- `src/routes/_authenticated/workspace.tsx` — تطبيق الهوية
-- `src/routes/shariah.tsx`, `src/routes/company.$id.tsx`, `src/routes/auth.tsx` — تطبيق الحالات الموحّدة
-- كل ملفات `routes/*` — استخدام `ErrorState` و`EmptyState`
+- `src/components/app-shell.tsx` — إضافة رابط "المحفظة" في الشريط.
+- `src/routes/trade.$symbol.tsx` — ربط زر التنفيذ + تنبيه سعري.
+- `src/routes/shariah.tsx` — رابط "لوحة المراجعة" للمراجعين.
+- `src/lib/i18n.tsx` — مفاتيح المحفظة/الأوامر/التنبيهات.
 
 ### خارج النطاق
-- لا تغييرات على قاعدة البيانات / RLS / Auth.
-- لا إضافة موفري بيانات حقيقيين (فقط الطبقة التجريدية).
-- لا تغيير هيكل التوجيه أو المسارات المحمية.
+- لا مزوّد بيانات مدفوع.
+- لا مدفوعات إيداع/سحب حقيقية.
+- لا واجهة مسؤول عام (Super-admin).
