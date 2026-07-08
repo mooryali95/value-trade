@@ -186,7 +186,7 @@ const dict = {
     high: "High",
     low: "Low",
     open: "Open",
-    closePosition: "Close",
+    close: "Close",
     buy: "Buy",
     sell: "Sell",
     orderBook: "Order book",
