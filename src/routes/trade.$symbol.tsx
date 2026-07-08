@@ -8,6 +8,11 @@ import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { ShieldCheck, Search } from "lucide-react";
 import { ErrorState } from "@/components/error-state";
 import { EmptyState } from "@/components/empty-state";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { placeOrder } from "@/lib/trading/place-order.functions";
+import { createPriceAlert } from "@/lib/trading/alerts.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/trade/$symbol")({
   loader: ({ params }) => {
@@ -41,6 +46,33 @@ function TradePage() {
   const [qty, setQty] = useState("100");
   const [q, setQ] = useState("");
   const up = brand.change24h >= 0;
+
+  const qc = useQueryClient();
+  const placeOrderFn = useServerFn(placeOrder);
+  const createAlertFn = useServerFn(createPriceAlert);
+  const orderMutation = useMutation({
+    mutationFn: () => placeOrderFn({ data: {
+      symbolSlug: brand.slug, side, type: orderType, qty: Number(qty),
+      price: orderType === "limit" ? Number(price) : undefined,
+    } }),
+    onSuccess: () => {
+      toast.success(t("orderPlaced"));
+      qc.invalidateQueries({ queryKey: ["portfolio"] });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "INSUFFICIENT_CASH") toast.error(t("insufficientCash"));
+      else if (msg === "INSUFFICIENT_QTY") toast.error(t("insufficientQty"));
+      else toast.error(t("orderFailed"));
+    },
+  });
+  const alertMutation = useMutation({
+    mutationFn: (direction: "above" | "below") => createAlertFn({ data: {
+      symbol: brand.symbol, direction, targetPrice: Number(price) || brand.price,
+    } }),
+    onSuccess: () => toast.success(t("createAlert")),
+    onError: () => toast.error(t("orderFailed")),
+  });
 
   const filteredWL = BRANDS.filter((b) => !q || b.symbol.toLowerCase().includes(q.toLowerCase())).slice(0, 20);
 
@@ -162,13 +194,19 @@ function TradePage() {
               <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
             </div>
             <button
-              className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
+              disabled={orderMutation.isPending}
+              onClick={() => orderMutation.mutate()}
+              className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
             >
-              {side === "buy" ? t("buy") : t("sell")} {brand.symbol}
+              {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
             </button>
             <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
               <span className="font-mono">125,430.00</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button onClick={() => alertMutation.mutate("above")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↑ {t("alertAbove")}</button>
+              <button onClick={() => alertMutation.mutate("below")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↓ {t("alertBelow")}</button>
             </div>
           </div>
 
