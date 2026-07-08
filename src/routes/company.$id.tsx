@@ -4,6 +4,8 @@ import { useI18n } from "@/lib/i18n";
 import { getCompanyBrands, type Brand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { Building2 } from "lucide-react";
+import { ErrorState } from "@/components/error-state";
+import { EmptyState } from "@/components/empty-state";
 
 export const Route = createFileRoute("/company/$id")({
   loader: ({ params }) => {
@@ -16,10 +18,10 @@ export const Route = createFileRoute("/company/$id")({
     meta: [{ title: loaderData ? `${loaderData.nameAr} — قيمة` : "Company — قيمة" }],
   }),
   errorComponent: ({ error, reset }) => (
-    <AppShell><div className="py-16 text-center"><p>{String(error)}</p><button onClick={reset}>retry</button></div></AppShell>
+    <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>
   ),
   notFoundComponent: () => (
-    <AppShell><div className="py-16 text-center text-muted-foreground">Company not found. <Link to="/market" className="text-primary">Market</Link></div></AppShell>
+    <AppShell><div className="py-16"><EmptyState title="الشركة غير موجودة" action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">السوق العام</Link>} /></div></AppShell>
   ),
   component: CompanyPage,
 });

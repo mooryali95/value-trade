@@ -2,9 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, MARKET_STATS, type Sector } from "@/lib/mock-data";
+import { BRANDS, MARKET_STATS, type Sector, type AssetClass } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { Search, ShieldCheck } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 
 export const Route = createFileRoute("/market")({
   head: () => ({
@@ -13,24 +15,34 @@ export const Route = createFileRoute("/market")({
       { name: "description", content: "استكشف 256 براند نشط داخل منظومة قيمة مع بيانات لحظية." },
     ],
   }),
+  errorComponent: ({ reset }) => (<AppShell><ErrorState reset={reset} /></AppShell>),
   component: MarketPage,
 });
 
 const SECTORS: (Sector | "all")[] = ["all","tech","fintech","food","fashion","media","health","energy","logistics","realestate","education","retail","auto"];
 
+const CLASS_TABS: Array<{ id: AssetClass | "all"; label: Record<"ar" | "en", string> }> = [
+  { id: "all", label: { ar: "الكل", en: "All" } },
+  { id: "brand", label: { ar: "العلامات", en: "Brands" } },
+  { id: "stock", label: { ar: "الأسهم", en: "Stocks" } },
+  { id: "sukuk", label: { ar: "الصكوك", en: "Sukuk" } },
+];
+
 function MarketPage() {
   const { t, lang } = useI18n();
   const [q, setQ] = useState("");
   const [sector, setSector] = useState<Sector | "all">("all");
+  const [assetClass, setAssetClass] = useState<AssetClass | "all">("all");
 
   const filtered = useMemo(() => {
     return BRANDS.filter((b) => {
+      if (assetClass !== "all" && (b.assetClass ?? "brand") !== assetClass) return false;
       if (sector !== "all" && b.sector !== sector) return false;
       if (!q) return true;
       const s = q.toLowerCase();
       return b.symbol.toLowerCase().includes(s) || b.nameAr.includes(q) || b.nameEn.toLowerCase().includes(s);
     });
-  }, [q, sector]);
+  }, [q, sector, assetClass]);
 
   return (
     <AppShell>
@@ -44,6 +56,23 @@ function MarketPage() {
         <MetricCard label={t("totalCap")} value={formatCurrency(MARKET_STATS.totalMarketCap, true, lang)} />
         <MetricCard label={t("dayVolume")} value={formatCurrency(MARKET_STATS.dayVolume, true, lang)} />
         <MetricCard label={t("liveMarket")} value="●" tone="bull" />
+      </div>
+
+      {/* Asset-class tabs */}
+      <div className="mb-4 inline-flex rounded-lg border border-border bg-card p-1 text-sm">
+        {CLASS_TABS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setAssetClass(c.id)}
+            className={`rounded-md px-4 py-1.5 text-xs font-semibold transition ${
+              assetClass === c.id
+                ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+                : "text-ink-soft hover:text-ink"
+            }`}
+          >
+            {c.label[lang]}
+          </button>
+        ))}
       </div>
 
       <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -116,7 +145,11 @@ function MarketPage() {
               <div className="w-6 text-end text-muted-foreground">›</div>
             </Link>
           ))}
-          {filtered.length === 0 && <div className="py-16 text-center text-sm text-muted-foreground">—</div>}
+          {filtered.length === 0 && (
+            <div className="p-4">
+              <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

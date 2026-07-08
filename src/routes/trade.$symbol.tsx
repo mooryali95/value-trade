@@ -6,6 +6,8 @@ import { useI18n } from "@/lib/i18n";
 import { BRANDS, getBrand, generateCandles, generateOrderBook } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { ShieldCheck, Search } from "lucide-react";
+import { ErrorState } from "@/components/error-state";
+import { EmptyState } from "@/components/empty-state";
 
 export const Route = createFileRoute("/trade/$symbol")({
   loader: ({ params }) => {
@@ -20,10 +22,10 @@ export const Route = createFileRoute("/trade/$symbol")({
     ],
   }),
   errorComponent: ({ error, reset }) => (
-    <AppShell><div className="py-16 text-center"><p>{String(error)}</p><button onClick={reset}>retry</button></div></AppShell>
+    <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>
   ),
   notFoundComponent: () => (
-    <AppShell><div className="py-16 text-center text-muted-foreground">Not found. <Link to="/market" className="text-primary">Market</Link></div></AppShell>
+    <AppShell><div className="py-16"><EmptyState title="العنصر غير موجود" description="الرمز المطلوب غير مدرج على المنصة." action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">السوق العام</Link>} /></div></AppShell>
   ),
   component: TradePage,
 });
@@ -91,11 +93,30 @@ function TradePage() {
             </div>
           </div>
           <div className="mb-3 flex flex-wrap gap-3 border-b border-border/40 pb-3 text-xs">
-            <MiniStat label={t("open")} v={(brand.price * 0.995).toFixed(2)} />
-            <MiniStat label={t("high")} v={(brand.price * 1.03).toFixed(2)} />
-            <MiniStat label={t("low")} v={(brand.price * 0.96).toFixed(2)} />
-            <MiniStat label={t("volume24h")} v={formatInt(brand.volume24h, true)} />
-            <MiniStat label={t("marketCap")} v={formatCurrency(brand.marketCap, true, lang)} />
+            {brand.assetClass === "sukuk" ? (
+              <>
+                <MiniStat label={t("coupon")} v={`${brand.couponPct?.toFixed(2)}%`} />
+                <MiniStat label={t("ytm")} v={`${brand.ytmPct?.toFixed(2)}%`} />
+                <MiniStat label={t("maturity")} v={brand.maturity ?? "—"} />
+                <MiniStat label={t("tenor")} v={`${brand.tenorYears} ${t("years")}`} />
+                <MiniStat label={t("issuer")} v={brand.issuer ?? "—"} />
+              </>
+            ) : (
+              <>
+                <MiniStat label={t("open")} v={(brand.price * 0.995).toFixed(2)} />
+                <MiniStat label={t("high")} v={(brand.price * 1.03).toFixed(2)} />
+                <MiniStat label={t("low")} v={(brand.price * 0.96).toFixed(2)} />
+                <MiniStat label={t("volume24h")} v={formatInt(brand.volume24h, true)} />
+                <MiniStat label={t("marketCap")} v={formatCurrency(brand.marketCap, true, lang)} />
+                {brand.assetClass === "stock" && (
+                  <>
+                    <MiniStat label={t("pe")} v={brand.pe?.toFixed(1) ?? "—"} />
+                    <MiniStat label={t("divYield")} v={brand.divYield ? `${brand.divYield}%` : "—"} />
+                    <MiniStat label={t("exchange")} v={brand.exchange ?? "—"} />
+                  </>
+                )}
+              </>
+            )}
           </div>
           <CandlestickChart candles={candles} height={460} />
 
