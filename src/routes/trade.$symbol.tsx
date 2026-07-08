@@ -93,11 +93,30 @@ function TradePage() {
             </div>
           </div>
           <div className="mb-3 flex flex-wrap gap-3 border-b border-border/40 pb-3 text-xs">
-            <MiniStat label={t("open")} v={(brand.price * 0.995).toFixed(2)} />
-            <MiniStat label={t("high")} v={(brand.price * 1.03).toFixed(2)} />
-            <MiniStat label={t("low")} v={(brand.price * 0.96).toFixed(2)} />
-            <MiniStat label={t("volume24h")} v={formatInt(brand.volume24h, true)} />
-            <MiniStat label={t("marketCap")} v={formatCurrency(brand.marketCap, true, lang)} />
+            {brand.assetClass === "sukuk" ? (
+              <>
+                <MiniStat label={t("coupon")} v={`${brand.couponPct?.toFixed(2)}%`} />
+                <MiniStat label={t("ytm")} v={`${brand.ytmPct?.toFixed(2)}%`} />
+                <MiniStat label={t("maturity")} v={brand.maturity ?? "—"} />
+                <MiniStat label={t("tenor")} v={`${brand.tenorYears} ${t("years")}`} />
+                <MiniStat label={t("issuer")} v={brand.issuer ?? "—"} />
+              </>
+            ) : (
+              <>
+                <MiniStat label={t("open")} v={(brand.price * 0.995).toFixed(2)} />
+                <MiniStat label={t("high")} v={(brand.price * 1.03).toFixed(2)} />
+                <MiniStat label={t("low")} v={(brand.price * 0.96).toFixed(2)} />
+                <MiniStat label={t("volume24h")} v={formatInt(brand.volume24h, true)} />
+                <MiniStat label={t("marketCap")} v={formatCurrency(brand.marketCap, true, lang)} />
+                {brand.assetClass === "stock" && (
+                  <>
+                    <MiniStat label={t("pe")} v={brand.pe?.toFixed(1) ?? "—"} />
+                    <MiniStat label={t("divYield")} v={brand.divYield ? `${brand.divYield}%` : "—"} />
+                    <MiniStat label={t("exchange")} v={brand.exchange ?? "—"} />
+                  </>
+                )}
+              </>
+            )}
           </div>
           <CandlestickChart candles={candles} height={460} />
 
