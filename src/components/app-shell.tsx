@@ -8,6 +8,7 @@ import {
   Buildings,
   ShieldCheck,
   Vault,
+  Briefcase,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { MARKET_STATS } from "@/lib/mock-data";
@@ -51,6 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/market", label: t("nav_market"), icon: Storefront },
     { to: "/trade/noor001", label: t("nav_trade"), icon: ChartLine },
     { to: "/portfolio", label: t("portfolio"), icon: Vault },
+    { to: "/company/settings", label: t("company"), icon: Briefcase },
     { to: "/workspace", label: t("nav_workspace"), icon: Buildings },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
   ];
