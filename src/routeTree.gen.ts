@@ -21,6 +21,10 @@ import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
+import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
+import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_authenticated/company.submissions'
+import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
+import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 
 const ShariahRoute = ShariahRouteImport.update({
   id: '/shariah',
@@ -82,6 +86,30 @@ const AuthenticatedShariahReviewRoute =
     path: '/shariah/review',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCompanySubmitRoute =
+  AuthenticatedCompanySubmitRouteImport.update({
+    id: '/company/submit',
+    path: '/company/submit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCompanySubmissionsRoute =
+  AuthenticatedCompanySubmissionsRouteImport.update({
+    id: '/company/submissions',
+    path: '/company/submissions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCompanySettingsRoute =
+  AuthenticatedCompanySettingsRouteImport.update({
+    id: '/company/settings',
+    path: '/company/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminSubmissionsRoute =
+  AuthenticatedAdminSubmissionsRouteImport.update({
+    id: '/admin/submissions',
+    path: '/admin/submissions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -93,6 +121,10 @@ export interface FileRoutesByFullPath {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/company/settings': typeof AuthenticatedCompanySettingsRoute
+  '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
+  '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
@@ -106,6 +138,10 @@ export interface FileRoutesByTo {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/company/settings': typeof AuthenticatedCompanySettingsRoute
+  '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
+  '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
@@ -121,6 +157,10 @@ export interface FileRoutesById {
   '/company/$id': typeof CompanyIdRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/_authenticated/company/settings': typeof AuthenticatedCompanySettingsRoute
+  '/_authenticated/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
+  '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
 }
@@ -136,6 +176,10 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/submissions'
+    | '/company/settings'
+    | '/company/submissions'
+    | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
   fileRoutesByTo: FileRoutesByTo
@@ -149,6 +193,10 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/submissions'
+    | '/company/settings'
+    | '/company/submissions'
+    | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
   id:
@@ -163,6 +211,10 @@ export interface FileRouteTypes {
     | '/company/$id'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/_authenticated/admin/submissions'
+    | '/_authenticated/company/settings'
+    | '/_authenticated/company/submissions'
+    | '/_authenticated/company/submit'
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
   fileRoutesById: FileRoutesById
@@ -264,18 +316,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShariahReviewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/company/submit': {
+      id: '/_authenticated/company/submit'
+      path: '/company/submit'
+      fullPath: '/company/submit'
+      preLoaderRoute: typeof AuthenticatedCompanySubmitRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/company/submissions': {
+      id: '/_authenticated/company/submissions'
+      path: '/company/submissions'
+      fullPath: '/company/submissions'
+      preLoaderRoute: typeof AuthenticatedCompanySubmissionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/company/settings': {
+      id: '/_authenticated/company/settings'
+      path: '/company/settings'
+      fullPath: '/company/settings'
+      preLoaderRoute: typeof AuthenticatedCompanySettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/submissions': {
+      id: '/_authenticated/admin/submissions'
+      path: '/admin/submissions'
+      fullPath: '/admin/submissions'
+      preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
+  AuthenticatedCompanySettingsRoute: typeof AuthenticatedCompanySettingsRoute
+  AuthenticatedCompanySubmissionsRoute: typeof AuthenticatedCompanySubmissionsRoute
+  AuthenticatedCompanySubmitRoute: typeof AuthenticatedCompanySubmitRoute
   AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
+  AuthenticatedCompanySettingsRoute: AuthenticatedCompanySettingsRoute,
+  AuthenticatedCompanySubmissionsRoute: AuthenticatedCompanySubmissionsRoute,
+  AuthenticatedCompanySubmitRoute: AuthenticatedCompanySubmitRoute,
   AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
 }
 
@@ -306,13 +394,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
