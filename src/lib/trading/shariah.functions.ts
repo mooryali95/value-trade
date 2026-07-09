@@ -42,8 +42,55 @@ export const listShariahDecisions = createServerFn({ method: "GET" }).handler(as
   );
   const { data } = await client
     .from("shariah_decisions")
-    .select("id, symbol, status, reason, created_at")
+    .select("id, symbol, status, reason, created_at, updated_at")
     .order("created_at", { ascending: false })
     .limit(100);
   return data ?? [];
 });
+
+const UpdateInput = z.object({
+  id: z.string().uuid(),
+  status: z.enum(["halal", "non_halal", "reviewing"]),
+  reason: z.string().max(600).optional(),
+  changeReason: z.string().min(1).max(600),
+});
+export const updateShariahDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: isReviewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" });
+    if (!isReviewer) throw new Error("FORBIDDEN");
+
+    const { error } = await supabase.from("shariah_decisions").update({
+      status: data.status,
+      reason: data.reason ?? null,
+      updated_by: userId,
+    }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+
+    // Attach change_reason to the last-created audit row for this decision
+    const { data: latest } = await supabase
+      .from("shariah_decision_audit")
+      .select("id")
+      .eq("decision_id", data.id)
+      .order("changed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest?.id) {
+      await supabase.from("shariah_decision_audit").update({ change_reason: data.changeReason }).eq("id", latest.id);
+    }
+    return { ok: true };
+  });
+
+export const listDecisionAudit = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ decisionId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: rows } = await context.supabase
+      .from("shariah_decision_audit")
+      .select("*")
+      .eq("decision_id", data.decisionId)
+      .order("changed_at", { ascending: false });
+    return rows ?? [];
+  });
