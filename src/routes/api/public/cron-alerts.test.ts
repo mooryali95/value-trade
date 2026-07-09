@@ -90,7 +90,8 @@ describe("POST /api/public/cron-alerts", () => {
     expect(json.scanned).toBe(3);
     expect(json.triggered).toBe(2);
     expect(updateChain).toHaveBeenCalledTimes(2);
-    const arg = updateChain.mock.calls[0][0] as { active: boolean; triggered_at: string };
+    const calls = updateChain.mock.calls as unknown as Array<[{ active: boolean; triggered_at: string }]>;
+    const arg = calls[0][0];
     expect(arg.active).toBe(false);
     expect(typeof arg.triggered_at).toBe("string");
   });
