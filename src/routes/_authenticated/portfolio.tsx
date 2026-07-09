@@ -233,7 +233,7 @@ function PortfolioPage() {
                 <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancelled")}</button>
                 <button
                   disabled={modifyMut.isPending || editing.qty <= 0 || editing.price <= 0}
-                  onClick={() => modifyMut.mutate(editing)}
+                  onClick={() => modifyMut.mutate({ orderId: editing.id, qty: editing.qty, price: editing.price })}
                   className="rounded-md gold-gradient px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
                 >{t("submit")}</button>
               </div>
