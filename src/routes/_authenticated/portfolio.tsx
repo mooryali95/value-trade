@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -15,7 +17,20 @@ import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { toast } from "sonner";
 
+const SearchSchema = z.object({
+  tab: z.enum(["positions", "orders"]).catch("positions").default("positions"),
+  q: z.string().catch("").default(""),
+  status: z.string().catch("all").default("all"),
+  side: z.string().catch("all").default("all"),
+  sortBy: z.string().catch("symbol").default("symbol"),
+  sortDir: z.enum(["asc", "desc"]).catch("asc").default("asc"),
+  page: z.coerce.number().int().catch(1).default(1),
+  pageSize: z.coerce.number().int().catch(25).default(25),
+});
+type SearchState = z.infer<typeof SearchSchema>;
+
 export const Route = createFileRoute("/_authenticated/portfolio")({
+  validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
       { title: "المحفظة — قيمة | Portfolio — Value Unit" },
@@ -29,6 +44,10 @@ export const Route = createFileRoute("/_authenticated/portfolio")({
 function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const updateSearch = (patch: Partial<SearchState>) =>
+    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
   const fetchPortfolio = useServerFn(getMyPortfolio);
   const cancelFn = useServerFn(cancelOrder);
   const modifyFn = useServerFn(modifyOrder);
@@ -37,9 +56,10 @@ function PortfolioPage() {
     queryFn: () => fetchPortfolio(),
     staleTime: 15_000,
   });
-  const [tab, setTab] = useState<"positions" | "orders">("positions");
-  const [orderFilter, setOrderFilter] = useState({ search: "", status: "all", side: "all" });
   const [editing, setEditing] = useState<null | { id: string; qty: number; price: number }>(null);
+  const tab = search.tab;
+  const pageSize = Math.max(5, Math.min(100, search.pageSize));
+  const page = Math.max(1, search.page);
 
   const cancelMut = useMutation({
     mutationFn: (orderId: string) => cancelFn({ data: { orderId } }),
@@ -83,15 +103,80 @@ function PortfolioPage() {
   const totalValue = cash + positionsValue;
   const totalPnl = enriched.reduce((s, p) => s + p.pnl, 0);
 
+  const dir = search.sortDir === "asc" ? 1 : -1;
+  const cmp = (a: number | string, b: number | string) =>
+    (a < b ? -1 : a > b ? 1 : 0) * dir;
+
+  const sortedPositions = useMemo(() => {
+    const q = search.q.trim().toUpperCase();
+    const filtered = q ? enriched.filter((p) => p.symbol.toUpperCase().includes(q)) : enriched.slice();
+    return filtered.sort((a, b) => {
+      switch (search.sortBy) {
+        case "qty": return cmp(a.qty, b.qty);
+        case "avg": return cmp(a.avg, b.avg);
+        case "last": return cmp(a.last, b.last);
+        case "pnl": return cmp(a.pnl, b.pnl);
+        case "weight": return cmp(a.value, b.value);
+        default: return cmp(a.symbol, b.symbol);
+      }
+    });
+  }, [enriched, search.q, search.sortBy, dir]);
+
   const filteredOrders = useMemo(() => {
-    const q = orderFilter.search.trim().toUpperCase();
-    return data.orders.filter((o) => {
-      if (orderFilter.status !== "all" && o.status !== orderFilter.status) return false;
-      if (orderFilter.side !== "all" && o.side !== orderFilter.side) return false;
+    const q = search.q.trim().toUpperCase();
+    const list = data.orders.filter((o) => {
+      if (search.status !== "all" && o.status !== search.status) return false;
+      if (search.side !== "all" && o.side !== search.side) return false;
       if (q && !o.symbol.toUpperCase().includes(q)) return false;
       return true;
     });
-  }, [data.orders, orderFilter]);
+    return list.sort((a, b) => {
+      switch (search.sortBy) {
+        case "side": return cmp(a.side, b.side);
+        case "qty": return cmp(Number(a.qty), Number(b.qty));
+        case "price": return cmp(Number(a.price ?? a.filled_price ?? 0), Number(b.price ?? b.filled_price ?? 0));
+        case "status": return cmp(a.status, b.status);
+        case "time": return cmp(a.created_at, b.created_at);
+        default: return cmp(a.symbol, b.symbol);
+      }
+    });
+  }, [data.orders, search.q, search.status, search.side, search.sortBy, dir]);
+
+  const activeList = tab === "positions" ? sortedPositions : filteredOrders;
+  const pageCount = Math.max(1, Math.ceil(activeList.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageStart = (safePage - 1) * pageSize;
+  const pagedPositions = tab === "positions" ? sortedPositions.slice(pageStart, pageStart + pageSize) : [];
+  const pagedOrders = tab === "orders" ? filteredOrders.slice(pageStart, pageStart + pageSize) : [];
+
+  const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
+    { key: "symbol", label: "Symbol" },
+    { key: "qty", label: t("qty"), align: "end" },
+    { key: "avg", label: t("avgPrice"), align: "end" },
+    { key: "last", label: t("lastPrice"), align: "end" },
+    { key: "pnl", label: t("pnl"), align: "end" },
+    { key: "weight", label: t("weight"), align: "end" },
+  ];
+  const orderCols: { key: string; label: string; align?: "start"|"end" }[] = [
+    { key: "symbol", label: "Symbol" },
+    { key: "side", label: t("orderType") },
+    { key: "qty", label: t("qty"), align: "end" },
+    { key: "price", label: t("price"), align: "end" },
+    { key: "status", label: "Status", align: "end" },
+    { key: "time", label: "Time", align: "end" },
+  ];
+  const SortHeader = ({ k, label, align }: { k: string; label: string; align?: "start"|"end" }) => (
+    <button
+      onClick={() => updateSearch({
+        sortBy: k,
+        sortDir: search.sortBy === k && search.sortDir === "asc" ? "desc" : "asc",
+        page: 1,
+      })}
+      className={`inline-flex items-center gap-1 uppercase tracking-wider ${align === "end" ? "justify-end w-full" : ""} ${search.sortBy === k ? "text-[var(--gold-deep)]" : ""}`}
+    >
+      {label}{search.sortBy === k && <span>{search.sortDir === "asc" ? "▲" : "▼"}</span>}
+    </button>
+  );
 
   return (
     <AppShell>
@@ -113,15 +198,44 @@ function PortfolioPage() {
         {[["positions", t("tabPositions")], ["orders", t("tabOrders")]].map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setTab(key as never)}
+            onClick={() => updateSearch({ tab: key as "positions"|"orders", page: 1 })}
             className={`border-b-2 px-3 py-2 text-sm font-medium transition ${tab === key ? "border-[var(--gold-deep)] text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}
           >{label}</button>
         ))}
       </div>
 
+      {/* Shared filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={search.q}
+          onChange={(e) => updateSearch({ q: e.target.value, page: 1 })}
+          placeholder={t("searchOrders")}
+          className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+        />
+        {tab === "orders" && (
+          <>
+            <select value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+              <option value="all">{t("filterAll")}</option>
+              <option value="filled">{t("filled")}</option>
+              <option value="pending">{t("pending")}</option>
+              <option value="modified">{t("modified")}</option>
+              <option value="cancelled">{t("cancelled")}</option>
+            </select>
+            <select value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+              <option value="all">{t("filterAll")}</option>
+              <option value="buy">{t("filterBuy")}</option>
+              <option value="sell">{t("filterSell")}</option>
+            </select>
+          </>
+        )}
+        <select value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+          {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
+        </select>
+      </div>
+
       {tab === "positions" ? (
         <section className="mb-8">
-          {enriched.length === 0 ? (
+          {sortedPositions.length === 0 ? (
           <EmptyState
             title={t("emptyPositions")}
             description={t("emptyPositionsDesc")}
@@ -130,15 +244,14 @@ function PortfolioPage() {
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
             <div className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-              <div>Symbol</div>
-              <div className="text-end">{t("qty")}</div>
-              <div className="text-end">{t("avgPrice")}</div>
-              <div className="text-end">{t("lastPrice")}</div>
-              <div className="text-end">{t("pnl")}</div>
-              <div className="text-end">{t("weight")}</div>
+              {positionCols.map((c) => (
+                <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
+                  <SortHeader k={c.key} label={c.label} align={c.align} />
+                </div>
+              ))}
               <div className="w-16" />
             </div>
-            {enriched.map((p) => (
+            {pagedPositions.map((p) => (
               <div key={p.id} className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
@@ -156,44 +269,25 @@ function PortfolioPage() {
                 </div>
               </div>
             ))}
+            <Pager page={safePage} pageCount={pageCount} onPage={(p) => updateSearch({ page: p })} t={t} />
           </div>
         )}
         </section>
       ) : (
         <section>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <input
-              value={orderFilter.search}
-              onChange={(e) => setOrderFilter({ ...orderFilter, search: e.target.value })}
-              placeholder={t("searchOrders")}
-              className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-            />
-            <select value={orderFilter.status} onChange={(e) => setOrderFilter({ ...orderFilter, status: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
-              <option value="all">{t("filterAll")}</option>
-              <option value="filled">{t("filled")}</option>
-              <option value="pending">{t("pending")}</option>
-              <option value="modified">{t("modified")}</option>
-              <option value="cancelled">{t("cancelled")}</option>
-            </select>
-            <select value={orderFilter.side} onChange={(e) => setOrderFilter({ ...orderFilter, side: e.target.value })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
-              <option value="all">{t("filterAll")}</option>
-              <option value="buy">{t("filterBuy")}</option>
-              <option value="sell">{t("filterSell")}</option>
-            </select>
-          </div>
           {filteredOrders.length === 0 ? (
             <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
           ) : (
             <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
               <div className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-                <div>Symbol</div><div>{t("orderType")}</div>
-                <div className="text-end">{t("qty")}</div>
-                <div className="text-end">{t("price")}</div>
-                <div className="text-end">Status</div>
-                <div className="text-end">Time</div>
+                {orderCols.map((c) => (
+                  <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
+                    <SortHeader k={c.key} label={c.label} align={c.align} />
+                  </div>
+                ))}
                 <div className="w-24" />
               </div>
-              {filteredOrders.map((o) => (
+              {pagedOrders.map((o) => (
                 <div key={o.id} className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
                   <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
@@ -213,6 +307,7 @@ function PortfolioPage() {
                   </div>
                 </div>
               ))}
+              <Pager page={safePage} pageCount={pageCount} onPage={(p) => updateSearch({ page: p })} t={t} />
             </div>
           )}
         </section>
@@ -250,6 +345,19 @@ function KPI({ label, value, tone }: { label: string; value: string; tone?: "bul
     <div className="rounded-xl border border-border/60 bg-card p-4">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`mt-1 font-mono text-lg font-semibold ${tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"}`}>{value}</div>
+    </div>
+  );
+}
+
+function Pager({ page, pageCount, onPage, t }: { page: number; pageCount: number; onPage: (p: number) => void; t: (k: never) => string }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2 text-[11px] text-muted-foreground">
+      <span>{t("page" as never)} {page} {t("of" as never)} {pageCount}</span>
+      <div className="flex gap-1">
+        <button disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">{t("prev" as never)}</button>
+        <button disabled={page >= pageCount} onClick={() => onPage(page + 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">{t("next" as never)}</button>
+      </div>
     </div>
   );
 }
