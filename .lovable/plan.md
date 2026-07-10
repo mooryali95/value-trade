@@ -1,114 +1,65 @@
+# Phase 6 — Invitations, Portfolio UX, Cross-Tenant Tests
 
-## المرحلة الخامسة — الحوكمة، تعدد المستأجرين، والطروحات
+Four independent workstreams. Each ships behind existing auth/RLS; no schema-breaking migrations.
 
-### 1) توسعة `/shariah/review` — سجل قرارات كامل مع تدقيق
-- عرض جدول قرارات مع أعمدة: الرمز، الحالة، السبب، المراجع، التاريخ، آخر تعديل.
-- إتاحة **تعديل قرار سابق** (حالة/سبب) عبر modal مع إجبار كتابة سبب التعديل.
-- كل تعديل يُسجَّل صفًا جديدًا في جدول جديد `shariah_decision_audit` (لا استبدال — سجل تاريخي كامل).
-- تصفية: حسب الحالة، حسب المراجع، حسب الفترة الزمنية، بحث بالرمز.
-- عرض "خط زمني" لكل رمز يوضح تسلسل القرارات.
+## 1) Company invitation flow (owner → member → verify access)
 
-**قاعدة البيانات:**
-- `shariah_decision_audit`: `decision_id, previous_status, new_status, previous_reason, new_reason, changed_by, changed_at, change_reason`.
-- Trigger على `shariah_decisions` عند `UPDATE` يكتب تلقائيًا في `shariah_decision_audit`.
-- إضافة `updated_at`, `updated_by` إلى `shariah_decisions`.
-- RLS: القراءة للجميع المصادَق عليهم، الكتابة/التعديل للمراجعين فقط عبر `has_role`.
+**DB migration** (`company_invitations`):
+- Columns: `id`, `company_id`, `email` (lower, unique per pending), `role` (`finance|shariah|trader|viewer`), `token` (uuid, indexed), `invited_by`, `status` (`pending|accepted|revoked|expired`), `expires_at` (default now()+7d), `created_at`, `accepted_at`, `accepted_by`.
+- GRANTs to `authenticated` and `service_role`. RLS:
+  - `SELECT/INSERT/DELETE` for `owner` of `company_id` (via `has_company_role`).
+  - `SELECT` for the invitee when `status='pending'` and `auth.jwt() ->> 'email' = email`.
+  - `UPDATE` only through a `security definer` RPC `accept_company_invitation(_token uuid)` that inserts into `company_members`, marks invite `accepted`, and returns the company row. Enforces expiry and email match.
 
----
+**Server fns** (`src/lib/tenants/invitations.functions.ts`, all `requireSupabaseAuth`):
+- `createInvitation({ companyId, email, role })` — owner only.
+- `listCompanyInvitations({ companyId })` — owner only.
+- `revokeInvitation({ invitationId })` — owner only.
+- `listMyInvitations()` — invitations for the caller's email.
+- `acceptInvitation({ token })` — calls the RPC, returns `{ companyId }`.
 
-### 2) توسعة `/portfolio` — سجل أوامر ومراكز متقدم
-- تبويبان: **المراكز** و**سجل الأوامر** (مفصولان بوضوح، حاليًا مدموجان).
-- سجل الأوامر: بحث بالرمز، تصفية حسب: الحالة (منفّذ/معلّق/ملغى/معدّل)، الجانب (شراء/بيع)، النوع (limit/market)، الفترة.
-- عمود "تتبع الحالة" مع خط زمني مصغّر: `placed → filled/cancelled/modified`.
-- إتاحة **إلغاء أمر معلّق** و**تعديل أمر معلّق** (السعر/الكمية) عبر modal.
-- كل تعديل/إلغاء يُسجَّل في `orders_audit` مع الطابع الزمني والمستخدم.
+**UI**:
+- `/company/settings` — new "Invitations" panel: email + role form, table of pending invites with copy-link and revoke.
+- New route `/invitations` (authenticated) — lists incoming invitations with Accept button; after accept, invalidates `my-companies` and routes to `/company/settings`.
+- Owner list still shows current members (unchanged). Header nav badge count of pending invites (optional, minimal).
 
-**قاعدة البيانات:**
-- إضافة قيمة `modified` إلى `orders.status`.
-- `orders_audit`: `order_id, action (cancel|modify), previous_qty, previous_price, new_qty, new_price, changed_by, changed_at`.
-- Server fns جديدة: `cancelOrder`, `modifyOrder` (تحت `requireSupabaseAuth`، تتحقق أن الأمر ملك المستخدم وحالته `pending`).
+## 2) Portfolio Orders & Positions — pagination, sorting, persisted filters
 
----
+Purely client work in `src/routes/_authenticated/portfolio.tsx`:
+- Move filter/sort/page state into TanStack Router search params via `validateSearch` + `fallback()` so refresh / share URL keeps state. Fields: `tab`, `search`, `status`, `side`, `sortBy`, `sortDir`, `page`, `pageSize`.
+- Sortable column headers (click to cycle asc/desc) for Positions (symbol/qty/avg/last/pnl/weight) and Orders (symbol/side/qty/price/status/time).
+- Pagination footer (Prev / page x / y / Next, page size 10/25/50).
+- Preserve filters while typing via `useNavigate({ search: (prev) => ({...prev, ...}) })`.
 
-### 3) نظام Multi-Tenant للشركات والبراندات
-كل **شركة** (Tenant) تدير حتى 30 براند وعدة مستخدمين بأدوار مختلفة.
+## 3) Cron price-alerts integration test (order → cron → alert fires)
 
-**قاعدة البيانات:**
-- `companies`: `id, name_ar, name_en, slug, created_by, plan (basic|pro|enterprise)`.
-- `company_members`: `company_id, user_id, role (owner|finance|shariah|trader|viewer), invited_by, joined_at` — UNIQUE(company_id, user_id).
-- `company_brands`: `company_id, brand_symbol, added_at` مع CHECK يمنع تجاوز 30 عبر trigger.
-- security definer `has_company_role(_user_id, _company_id, _role)`.
-- RLS: كل الجداول (positions/orders/alerts/decisions/brands) تصبح مقيّدة بـ `company_id` + دور مناسب:
-  - `finance` → قراءة المحفظة والتقارير.
-  - `shariah` → قراءة/كتابة قرارات الشريعة.
-  - `trader` → وضع/تعديل الأوامر.
-  - `owner` → كل الصلاحيات + إدارة الأعضاء.
+New Vitest `src/lib/trading/cron-alerts.integration.test.ts`:
+- Mocks `@/lib/mock-data` `BRANDS` and `@/integrations/supabase/client.server` with an in-memory table (`orders`, `price_alerts`).
+- Places two orders through a small helper that mirrors `place-order.functions` semantics (or imports the pure calc), then seeds a matching `price_alert` for one symbol above and one below.
+- Invokes the `POST` handler from `src/routes/api/public/cron-alerts.ts` with a valid HMAC signature.
+- Asserts: response 200, `triggered` count matches expected, in-memory `price_alerts` rows for firing alerts are updated with `active=false` and `triggered_at` within a small `Date.now()` window; non-firing alerts untouched.
 
-**واجهة:**
-- `/company/settings` (owner فقط): إدارة الأعضاء، تعيين الأدوار، إضافة/إزالة براندات (بحد 30).
-- Selector لتبديل الشركة النشطة في `AppShell` (لمن ينتمي لأكثر من شركة).
-- كل الاستعلامات القائمة تحصل على فلتر `company_id` من السياق النشط.
+## 4) Cross-tenant RLS test suite
 
-**ملاحظة:** يتطلب تعديلاً لكل الجداول القائمة (portfolios/positions/orders/price_alerts) لإضافة `company_id`. Migration ينشئ شركة افتراضية للمستخدمين الحاليين ويربط بياناتهم بها.
+New Vitest `src/lib/security/rls-cross-tenant.test.ts` (skipped unless env vars present):
+- Requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_PUBLISHABLE_KEY`. If missing → `describe.skip` with a warning (keeps CI green locally, opt-in in staging).
+- Uses `supabase-js` admin to create two ephemeral users (A in Company A, B in Company B) via `auth.admin.createUser`, then signs each in via `signInWithPassword` to get JWTs.
+- Seeds one row per user per table: `orders`, `positions`, `product_submissions`, `shariah_decisions`.
+- With user B's JWT, asserts:
+  - `SELECT` on other user's rows returns 0 rows (RLS filters, not error).
+  - `UPDATE` on other user's row returns 0 rows affected.
+  - `DELETE` on other user's row returns 0 rows affected.
+- Cleanup via service role in `afterAll`.
+- Runs with `bunx vitest run src/lib/security`.
 
----
+## Technical notes
 
-### 4) سير عمل اعتماد الطروحات العامة
-عميل (شركة) يقدّم منتجًا (سهم/صك) للنشر في المنصة العامة، والمراجعون يعتمدون/يرفضون.
+- `validateSearch` uses `@tanstack/zod-adapter` with `fallback()` per project rules — no `.catch()`, no `.min`/`.max` bounds; clamp `page`/`pageSize` in the component.
+- Invitation acceptance RPC lives in the migration (security definer, `set search_path = public`). No client can UPDATE the row directly.
+- All new tables include GRANTs before RLS as required.
+- i18n keys added for invitation flow (both `ar` / `en`).
 
-**قاعدة البيانات:**
-- `product_submissions`: `id, company_id, submitted_by, asset_class (stock|sukuk), symbol, name_ar, name_en, sector, prospectus_url, status (pending|approved|rejected), reviewer_id, review_reason, submitted_at, reviewed_at`.
-- عند `approved` يظهر البراند في السوق العام؛ عند `rejected` يبقى داخل مساحة الشركة فقط.
-- RLS: الشركة ترى/تعدّل طروحاتها فقط، المراجعون (`shariah_board` أو دور جديد `platform_reviewer`) يرون كل الطروحات.
+## Files touched
 
-**واجهة:**
-- `/company/submit` (owner/finance): نموذج تقديم منتج جديد.
-- `/company/submissions`: قائمة طروحات الشركة مع حالتها.
-- `/admin/submissions` (reviewer): قائمة طروحات معلّقة مع أزرار قبول/رفض + سبب.
-- شارة "قيد المراجعة/مقبول/مرفوض" على البطاقات ذات الصلة.
-
----
-
-### 5) اختبار تلقائي لمسار `cron-alerts`
-- ملف اختبار `src/routes/api/public/cron-alerts.test.ts` باستخدام Vitest.
-- يحاكي:
-  1. طلب بدون توقيع → 401.
-  2. طلب بتوقيع غير صحيح → 401.
-  3. طلب صحيح مع تنبيه سعري نشط شرطه محقق → يستدعي `supabaseAdmin.update` ويعيّن `active=false, triggered_at`.
-  4. طلب صحيح مع تنبيه شرطه غير محقق → لا تحديث.
-- Mock لـ `supabaseAdmin` و`BRANDS` لعزل الاختبار عن الشبكة.
-- يُضاف script `test:cron` في `package.json` وتُشغَّل في CI عبر `bunx vitest run`.
-
----
-
-### التقنية / الملفات
-
-**Migrations جديدة:**
-- `companies`, `company_members`, `company_brands` (+ `has_company_role`).
-- `product_submissions`.
-- `shariah_decision_audit` + trigger.
-- `orders_audit` + إضافة `modified` لحالة الأمر.
-- إضافة `company_id` لكل جداول البيانات وتحديث RLS.
-
-**ملفات جديدة:**
-- `src/lib/tenants/company.functions.ts` (إدارة أعضاء/براندات).
-- `src/lib/tenants/context.tsx` (Provider للشركة النشطة).
-- `src/lib/trading/order-mutations.functions.ts` (cancel/modify).
-- `src/lib/submissions/submissions.functions.ts`.
-- `src/routes/_authenticated/company.settings.tsx`.
-- `src/routes/_authenticated/company.submit.tsx`.
-- `src/routes/_authenticated/company.submissions.tsx`.
-- `src/routes/_authenticated/admin.submissions.tsx`.
-- `src/routes/api/public/cron-alerts.test.ts`.
-
-**ملفات معدّلة:**
-- `portfolio.tsx` — تبويبات + تصفية + إلغاء/تعديل.
-- `shariah.review.tsx` — تعديل قرار + سجل تدقيق + تصفية.
-- `app-shell.tsx` — Selector للشركة + روابط جديدة.
-- `i18n.tsx` — مفاتيح جديدة.
-- `place-order.functions.ts` — دعم `company_id`.
-
-### خارج النطاق
-- لا مدفوعات لخطط الشركات.
-- لا نظام دعوة عبر البريد (يُضاف عضو عبر email/user_id مباشرة).
-- لا لوحة Super-admin عامة.
+**Add**: migration `20260710_*_invitations.sql`, `src/lib/tenants/invitations.functions.ts`, `src/routes/_authenticated/invitations.tsx`, `src/lib/trading/cron-alerts.integration.test.ts`, `src/lib/security/rls-cross-tenant.test.ts`.
+**Edit**: `src/routes/_authenticated/portfolio.tsx` (search params, sort, pagination), `src/routes/_authenticated/company.settings.tsx` (invitations panel), `src/components/app-shell.tsx` (Invitations nav), `src/lib/i18n.tsx` (keys), `src/integrations/supabase/types.ts` (regenerated after migration).
