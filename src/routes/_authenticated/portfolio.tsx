@@ -47,7 +47,7 @@ function PortfolioPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const updateSearch = (patch: Partial<SearchState>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+    navigate({ search: (prev: SearchState) => ({ ...prev, ...patch }), replace: true });
   const fetchPortfolio = useServerFn(getMyPortfolio);
   const cancelFn = useServerFn(cancelOrder);
   const modifyFn = useServerFn(modifyOrder);
