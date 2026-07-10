@@ -19,6 +19,7 @@ import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
+import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
@@ -75,6 +76,12 @@ const AuthenticatedPortfolioRoute = AuthenticatedPortfolioRouteImport.update({
   path: '/portfolio',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInvitationsRoute =
+  AuthenticatedInvitationsRouteImport.update({
+    id: '/invitations',
+    path: '/invitations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicCronAlertsRoute = ApiPublicCronAlertsRouteImport.update({
   id: '/api/public/cron-alerts',
   path: '/api/public/cron-alerts',
@@ -116,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
@@ -133,6 +141,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
@@ -152,6 +161,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
   '/shariah': typeof ShariahRoute
+  '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/invitations'
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/invitations'
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
@@ -206,6 +218,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/market'
     | '/shariah'
+    | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
     | '/company/$id'
@@ -302,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPortfolioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/invitations': {
+      id: '/_authenticated/invitations'
+      path: '/invitations'
+      fullPath: '/invitations'
+      preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/cron-alerts': {
       id: '/api/public/cron-alerts'
       path: '/api/public/cron-alerts'
@@ -348,6 +368,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
@@ -358,6 +379,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,

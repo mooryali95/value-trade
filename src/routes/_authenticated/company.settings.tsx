@@ -11,6 +11,9 @@ import {
   listMyCompanies, createCompany, getCompanyDetails,
   addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
+import {
+  listCompanyInvitations, createInvitation, revokeInvitation,
+} from "@/lib/tenants/invitations.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/company/settings")({
@@ -34,6 +37,9 @@ function CompanySettings() {
   const removeMemberFn = useServerFn(removeCompanyMember);
   const addBrandFn = useServerFn(addCompanyBrand);
   const removeBrandFn = useServerFn(removeCompanyBrand);
+  const listInvitesFn = useServerFn(listCompanyInvitations);
+  const createInviteFn = useServerFn(createInvitation);
+  const revokeInviteFn = useServerFn(revokeInvitation);
 
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
   const [selected, setSelected] = useState<string | null>(null);
@@ -48,6 +54,24 @@ function CompanySettings() {
   const [newCo, setNewCo] = useState({ slug: "", name_ar: "", name_en: "" });
   const [newMember, setNewMember] = useState({ userId: "", role: "viewer" as const });
   const [newBrand, setNewBrand] = useState("");
+  const [newInvite, setNewInvite] = useState({ email: "", role: "viewer" as "owner"|"finance"|"shariah"|"trader"|"viewer" });
+
+  const invitesQ = useQuery({
+    queryKey: ["company-invitations", activeId],
+    queryFn: () => listInvitesFn({ data: { companyId: activeId! } }),
+    enabled: !!activeId,
+  });
+  const invalidateInvites = () => qc.invalidateQueries({ queryKey: ["company-invitations", activeId] });
+  const inviteMut = useMutation({
+    mutationFn: (v: { email: string; role: "finance"|"shariah"|"trader"|"viewer" }) =>
+      createInviteFn({ data: { companyId: activeId!, email: v.email, role: v.role } }),
+    onSuccess: () => { toast.success(t("inviteSent")); invalidateInvites(); setNewInvite({ email: "", role: "viewer" }); },
+    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "INVITATION_ALREADY_PENDING" ? t("inviteAlreadyPending") : e instanceof Error ? e.message : "Error"),
+  });
+  const revokeInviteMut = useMutation({
+    mutationFn: (invitationId: string) => revokeInviteFn({ data: { invitationId } }),
+    onSuccess: () => { toast.success(t("inviteRevoked")); invalidateInvites(); },
+  });
 
   const createMut = useMutation({
     mutationFn: (v: typeof newCo) => createFn({ data: v }),
@@ -207,6 +231,64 @@ function CompanySettings() {
                         <button onClick={() => removeBrandMut.mutate(b.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
                       </li>
                     ))}
+                  </ul>
+                </section>
+
+                {/* Invitations */}
+                <section className="rounded-xl border border-border/60 bg-card">
+                  <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+                    <h2 className="text-sm font-semibold text-ink">{t("invitations")}</h2>
+                  </div>
+                  <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
+                    <input
+                      type="email"
+                      value={newInvite.email}
+                      onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
+                      placeholder={t("inviteEmail")}
+                      className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                    />
+                    <select
+                      value={newInvite.role}
+                      onChange={(e) => setNewInvite({ ...newInvite, role: e.target.value as never })}
+                      className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                    >
+                      {(["finance","shariah","trader","viewer"] as const).map((r) => (
+                        <option key={r} value={r}>{t(`${r}Role` as never)}</option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={inviteMut.isPending || !newInvite.email || newInvite.role === "owner"}
+                      onClick={() => inviteMut.mutate({ email: newInvite.email, role: newInvite.role as "finance"|"shariah"|"trader"|"viewer" })}
+                      className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                    >{t("inviteMember")}</button>
+                  </div>
+                  <ul>
+                    {(invitesQ.data ?? []).filter((i) => i.status === "pending").map((inv) => {
+                      const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invitations?token=${inv.token}`;
+                      return (
+                        <li key={inv.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
+                          <div className="min-w-0">
+                            <div className="truncate text-ink">{inv.email}</div>
+                            <div className="text-[10px] uppercase text-muted-foreground">{t(`${inv.role}Role` as never)} · {t("inviteExpires")} {new Date(inv.expires_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard?.writeText(link);
+                              toast.success(t("inviteLinkCopied"));
+                            }}
+                            className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
+                          >{t("inviteCopyLink")}</button>
+                          <button
+                            onClick={() => revokeInviteMut.mutate(inv.id)}
+                            className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
+                          >{t("revoke")}</button>
+                          <span className="text-[10px] text-muted-foreground">{new Date(inv.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
+                        </li>
+                      );
+                    })}
+                    {(invitesQ.data ?? []).filter((i) => i.status === "pending").length === 0 && (
+                      <li className="px-4 py-3 text-xs text-muted-foreground">{t("noIncomingInvitations")}</li>
+                    )}
                   </ul>
                 </section>
               </>
