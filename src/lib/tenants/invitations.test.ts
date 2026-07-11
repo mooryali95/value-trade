@@ -110,7 +110,7 @@ describe("invitation lifecycle guards", () => {
 
   it("rejects an expired invitation with INVITATION_EXPIRED", async () => {
     state.rows.push({
-      id: "i1",
+      id: "00000000-0000-0000-0000-0000000000a1",
       status: "pending",
       email: "user@example.com",
       expires_at: new Date(Date.now() - 60_000).toISOString(),
@@ -128,7 +128,7 @@ describe("invitation lifecycle guards", () => {
 
   it("rejects a revoked invitation with INVITATION_NOT_PENDING", async () => {
     state.rows.push({
-      id: "i2",
+      id: "00000000-0000-0000-0000-0000000000a2",
       status: "revoked",
       email: "user@example.com",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
@@ -144,7 +144,7 @@ describe("invitation lifecycle guards", () => {
 
   it("after revoke, a subsequent accept is blocked", async () => {
     state.rows.push({
-      id: "00000000-0000-0000-0000-0000000000i3".replace("i3", "0a3"),
+      id: "00000000-0000-0000-0000-0000000000a3",
       status: "pending",
       email: "user@example.com",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
@@ -163,7 +163,7 @@ describe("invitation lifecycle guards", () => {
 
   it("accepts a pending, non-expired invitation once", async () => {
     state.rows.push({
-      id: "i4",
+      id: "00000000-0000-0000-0000-0000000000a4",
       status: "pending",
       email: "user@example.com",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
