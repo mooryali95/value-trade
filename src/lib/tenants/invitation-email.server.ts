@@ -4,7 +4,7 @@
 // Otherwise we log the acceptance URL server-side and return a status the
 // caller can surface to the UI so the owner can copy the link manually.
 
-import { LOVABLE_CONNECTOR_GATEWAY } from "@/integrations/lovable";
+const LOVABLE_CONNECTOR_GATEWAY = "https://connector-gateway.lovable.dev";
 
 export type InvitationEmailResult =
   | { sent: true; provider: "resend" }
