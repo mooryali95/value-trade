@@ -197,12 +197,16 @@ function TradePage() {
               <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
             </div>
             <button
-              disabled={orderMutation.isPending}
+              disabled={orderMutation.isPending || rolesLoading || !isTrader}
+              title={!isTrader ? t("traderRequired") : undefined}
               onClick={() => orderMutation.mutate()}
               className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
             >
               {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
             </button>
+            {!rolesLoading && !isTrader && (
+              <div className="mt-2 text-[10px] text-[var(--bear)]">{t("traderRequired")}</div>
+            )}
             <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
               <span className="font-mono">125,430.00</span>
