@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -10,9 +11,22 @@ import { useI18n } from "@/lib/i18n";
 import { BRANDS } from "@/lib/mock-data";
 import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit } from "@/lib/trading/shariah.functions";
 import { StatusBadge } from "@/components/status-badge";
+import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import { toast } from "sonner";
 
+const SearchSchema = z.object({
+  q: z.string().catch("").default(""),
+  status: z.string().catch("all").default("all"),
+  sortBy: z.string().catch("updated").default("updated"),
+  sortDir: z.enum(["asc", "desc"]).catch("desc").default("desc"),
+  page: z.coerce.number().int().catch(1).default(1),
+  pageSize: z.coerce.number().int().catch(25).default(25),
+});
+type SearchState = z.infer<typeof SearchSchema>;
+
 export const Route = createFileRoute("/_authenticated/shariah/review")({
+  validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
       { title: "لوحة المراجعة الشرعية — قيمة" },
@@ -26,13 +40,16 @@ export const Route = createFileRoute("/_authenticated/shariah/review")({
 function ReviewPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
+  const { isReviewer, isLoading: rolesLoading } = useMyRoles();
   const listFn = useServerFn(listShariahDecisions);
   const recordFn = useServerFn(recordShariahDecision);
   const updateFn = useServerFn(updateShariahDecision);
   const auditFn = useServerFn(listDecisionAudit);
   const { data: decisions, isLoading } = useQuery({ queryKey: ["shariah-decisions"], queryFn: () => listFn() });
   const [reason, setReason] = useState<Record<string, string>>({});
-  const [filter, setFilter] = useState({ status: "all" as "all" | "halal" | "non_halal" | "reviewing", search: "" });
   const [editing, setEditing] = useState<null | { id: string; status: "halal" | "non_halal" | "reviewing"; reason: string; changeReason: string; symbol: string }>(null);
   const [openAudit, setOpenAudit] = useState<string | null>(null);
   const audit = useQuery({
@@ -47,7 +64,7 @@ function ReviewPage() {
       toast.success(t("submitDecision"));
       qc.invalidateQueries({ queryKey: ["shariah-decisions"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "FORBIDDEN" ? t("reviewerRequired") : e instanceof Error ? e.message : "Error"),
   });
   const editMut = useMutation({
     mutationFn: (v: { id: string; status: "halal" | "non_halal" | "reviewing"; reason?: string; changeReason: string }) => updateFn({ data: v }),
@@ -57,25 +74,46 @@ function ReviewPage() {
       qc.invalidateQueries({ queryKey: ["shariah-audit"] });
       setEditing(null);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "FORBIDDEN" ? t("reviewerRequired") : e instanceof Error ? e.message : "Error"),
   });
 
   const pool = BRANDS.filter((b) => b.assetClass !== "sukuk" || b.shariah === "reviewing").slice(0, 20);
 
+  const cmp = comparator(search.sortDir);
   const filtered = useMemo(() => {
-    const q = filter.search.trim().toUpperCase();
+    const q = search.q.trim().toUpperCase();
     return (decisions ?? []).filter((d) => {
-      if (filter.status !== "all" && d.status !== filter.status) return false;
+      if (search.status !== "all" && d.status !== search.status) return false;
       if (q && !d.symbol.toUpperCase().includes(q)) return false;
       return true;
     });
-  }, [decisions, filter]);
+  }, [decisions, search.q, search.status]);
+  const sorted = useMemo(() => {
+    const list = filtered.slice();
+    list.sort((a, b) => {
+      switch (search.sortBy) {
+        case "symbol": return cmp(a.symbol, b.symbol);
+        case "status": return cmp(a.status, b.status);
+        case "created": return cmp(a.created_at, b.created_at);
+        default: return cmp(a.updated_at ?? a.created_at, b.updated_at ?? b.created_at);
+      }
+    });
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, search.sortBy, search.sortDir]);
+  const pageSize = Math.max(5, Math.min(100, search.pageSize));
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const page = clampPage(search.page, pageCount);
+  const paged = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   return (
     <AppShell>
       <header className="mb-6">
         <div className="mb-3 h-px hairline-gold" />
         <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("shariahReview")}</h1>
+        {!rolesLoading && !isReviewer && (
+          <p className="mt-2 text-xs text-[var(--bear)]">{t("reviewerRequired")}</p>
+        )}
       </header>
 
       <section className="mb-8">
@@ -93,9 +131,9 @@ function ReviewPage() {
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
               />
               <div className="flex gap-2">
-                <button onClick={() => mutation.mutate({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)]">{t("approve")}</button>
-                <button onClick={() => mutation.mutate({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft">{t("requestInfo")}</button>
-                <button onClick={() => mutation.mutate({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)]">{t("reject")}</button>
+                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
+                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
+                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
               </div>
             </div>
           ))}
@@ -107,14 +145,14 @@ function ReviewPage() {
           <h2 className="text-sm font-semibold text-ink">{t("decisions")}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <input
-              value={filter.search}
-              onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+              value={search.q}
+              onChange={(e) => patch({ q: e.target.value, page: 1 })}
               placeholder={t("search")}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
             />
             <select
-              value={filter.status}
-              onChange={(e) => setFilter({ ...filter, status: e.target.value as never })}
+              value={search.status}
+              onChange={(e) => patch({ status: e.target.value, page: 1 })}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs"
             >
               <option value="all">{t("filterAll")}</option>
@@ -122,21 +160,32 @@ function ReviewPage() {
               <option value="reviewing">{t("reviewing")}</option>
               <option value="non_halal">{t("reject")}</option>
             </select>
+            <select value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+              {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
+            </select>
+            <button onClick={() => patch({ q: "", status: "all", page: 1 })} className="rounded-md border border-border px-2 py-1 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
           </div>
         </div>
         {isLoading ? (
           <LuxurySkeleton lines={4} />
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-            {filtered.map((d) => (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Symbol</SortHeader>
+              <div>Reason</div>
+              <SortHeader active={search.sortBy === "updated"} dir={search.sortDir} onClick={() => patch({ sortBy: "updated", sortDir: search.sortBy === "updated" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("lastUpdated")}</SortHeader>
+              <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
+              <div>{t("auditTrail")}</div>
+            </div>
+            {paged.map((d) => (
               <div key={d.id} className="border-b border-border/40 px-4 py-3 last:border-b-0">
                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 text-xs">
                   <span className="font-mono font-semibold text-ink">{d.symbol}</span>
                   <span className="truncate text-muted-foreground">{d.reason ?? "—"}</span>
                   <span className="font-mono text-[10px] text-muted-foreground">
-                    {t("lastUpdated")}: {new Date(d.updated_at ?? d.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
+                    {new Date(d.updated_at ?? d.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
                   </span>
                   <StatusBadge status={d.status} />
                   <div className="flex gap-1">
@@ -145,8 +194,10 @@ function ReviewPage() {
                       className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
                     >{t("auditTrail")}</button>
                     <button
+                      disabled={!isReviewer}
+                      title={!isReviewer ? t("reviewerRequired") : undefined}
                       onClick={() => setEditing({ id: d.id, status: d.status as never, reason: d.reason ?? "", changeReason: "", symbol: d.symbol })}
-                      className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
+                      className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40"
                     >{t("editDecision")}</button>
                   </div>
                 </div>
@@ -171,6 +222,7 @@ function ReviewPage() {
                 )}
               </div>
             ))}
+            <Pager page={page} pageCount={pageCount} onPage={(p) => patch({ page: p })} labels={{ page: t("page"), of: t("of"), prev: t("prev"), next: t("next") }} />
           </div>
         )}
       </section>
