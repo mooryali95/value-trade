@@ -12,6 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/trade/$symbol")({
@@ -48,6 +49,7 @@ function TradePage() {
   const up = brand.change24h >= 0;
 
   const qc = useQueryClient();
+  const { isTrader, isLoading: rolesLoading } = useMyRoles();
   const placeOrderFn = useServerFn(placeOrder);
   const createAlertFn = useServerFn(createPriceAlert);
   const orderMutation = useMutation({
@@ -63,6 +65,7 @@ function TradePage() {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "INSUFFICIENT_CASH") toast.error(t("insufficientCash"));
       else if (msg === "INSUFFICIENT_QTY") toast.error(t("insufficientQty"));
+      else if (msg === "FORBIDDEN_TRADER_REQUIRED") toast.error(t("traderRequired"));
       else toast.error(t("orderFailed"));
     },
   });
@@ -194,12 +197,16 @@ function TradePage() {
               <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
             </div>
             <button
-              disabled={orderMutation.isPending}
+              disabled={orderMutation.isPending || rolesLoading || !isTrader}
+              title={!isTrader ? t("traderRequired") : undefined}
               onClick={() => orderMutation.mutate()}
               className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
             >
               {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
             </button>
+            {!rolesLoading && !isTrader && (
+              <div className="mt-2 text-[10px] text-[var(--bear)]">{t("traderRequired")}</div>
+            )}
             <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
               <span className="font-mono">125,430.00</span>

@@ -7,6 +7,8 @@ export const cancelOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { data: isTrader } = await supabase.rpc("has_role", { _user_id: userId, _role: "trader" });
+    if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
     const { data: existing, error: readErr } = await supabase
       .from("orders").select("id, status, qty, price, user_id").eq("id", data.orderId).single();
     if (readErr || !existing) throw new Error("ORDER_NOT_FOUND");
@@ -35,6 +37,8 @@ export const modifyOrder = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ModifyInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { data: isTrader } = await supabase.rpc("has_role", { _user_id: userId, _role: "trader" });
+    if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
     const { data: existing, error: readErr } = await supabase
       .from("orders").select("id, status, qty, price, user_id").eq("id", data.orderId).single();
     if (readErr || !existing) throw new Error("ORDER_NOT_FOUND");
