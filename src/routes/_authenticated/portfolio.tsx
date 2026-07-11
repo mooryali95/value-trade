@@ -15,6 +15,7 @@ import { getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/_authenticated/portfolio")({
 function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
+  const { isTrader } = useMyRoles();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const updateSearch = (patch: Partial<SearchState>) =>
@@ -298,8 +300,8 @@ function PortfolioPage() {
                   <div className="flex justify-end gap-1">
                     {o.status === "pending" ? (
                       <>
-                        <button onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("modifyOrder")}</button>
-                        <button onClick={() => cancelMut.mutate(o.id)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)]">{t("cancelOrder")}</button>
+                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
+                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => cancelMut.mutate(o.id)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                       </>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
