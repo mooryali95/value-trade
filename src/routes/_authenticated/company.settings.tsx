@@ -13,6 +13,7 @@ import {
 } from "@/lib/tenants/company.functions";
 import {
   listCompanyInvitations, createInvitation, revokeInvitation,
+  resendInvitationEmail,
 } from "@/lib/tenants/invitations.functions";
 import { toast } from "sonner";
 
@@ -40,6 +41,7 @@ function CompanySettings() {
   const listInvitesFn = useServerFn(listCompanyInvitations);
   const createInviteFn = useServerFn(createInvitation);
   const revokeInviteFn = useServerFn(revokeInvitation);
+  const resendInviteFn = useServerFn(resendInvitationEmail);
 
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
   const [selected, setSelected] = useState<string | null>(null);
@@ -64,13 +66,22 @@ function CompanySettings() {
   const invalidateInvites = () => qc.invalidateQueries({ queryKey: ["company-invitations", activeId] });
   const inviteMut = useMutation({
     mutationFn: (v: { email: string; role: "finance"|"shariah"|"trader"|"viewer" }) =>
-      createInviteFn({ data: { companyId: activeId!, email: v.email, role: v.role } }),
-    onSuccess: () => { toast.success(t("inviteSent")); invalidateInvites(); setNewInvite({ email: "", role: "viewer" }); },
+      createInviteFn({ data: { companyId: activeId!, email: v.email, role: v.role, origin: typeof window !== "undefined" ? window.location.origin : undefined } }),
+    onSuccess: (row: { notification?: { sent: boolean; reason?: string } }) => {
+      toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured"));
+      invalidateInvites();
+      setNewInvite({ email: "", role: "viewer" });
+    },
     onError: (e: unknown) => toast.error(e instanceof Error && e.message === "INVITATION_ALREADY_PENDING" ? t("inviteAlreadyPending") : e instanceof Error ? e.message : "Error"),
   });
   const revokeInviteMut = useMutation({
     mutationFn: (invitationId: string) => revokeInviteFn({ data: { invitationId } }),
     onSuccess: () => { toast.success(t("inviteRevoked")); invalidateInvites(); },
+  });
+  const resendMut = useMutation({
+    mutationFn: (invitationId: string) => resendInviteFn({ data: { invitationId, origin: typeof window !== "undefined" ? window.location.origin : undefined } }),
+    onSuccess: (row: { notification?: { sent: boolean } }) => toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured")),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
 
   const createMut = useMutation({
@@ -278,6 +289,11 @@ function CompanySettings() {
                             }}
                             className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
                           >{t("inviteCopyLink")}</button>
+                          <button
+                            disabled={resendMut.isPending}
+                            onClick={() => resendMut.mutate(inv.id)}
+                            className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                          >{t("inviteResendEmail")}</button>
                           <button
                             onClick={() => revokeInviteMut.mutate(inv.id)}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
