@@ -63,3 +63,27 @@ New Vitest `src/lib/security/rls-cross-tenant.test.ts` (skipped unless env vars 
 
 **Add**: migration `20260710_*_invitations.sql`, `src/lib/tenants/invitations.functions.ts`, `src/routes/_authenticated/invitations.tsx`, `src/lib/trading/cron-alerts.integration.test.ts`, `src/lib/security/rls-cross-tenant.test.ts`.
 **Edit**: `src/routes/_authenticated/portfolio.tsx` (search params, sort, pagination), `src/routes/_authenticated/company.settings.tsx` (invitations panel), `src/components/app-shell.tsx` (Invitations nav), `src/lib/i18n.tsx` (keys), `src/integrations/supabase/types.ts` (regenerated after migration).
+
+# Phase 7 — Table UX rollout, role gating, invitation email
+
+## Delivered
+- **Shared table controls** (`src/components/data-table-controls.tsx`): `SortHeader`, `Pager`, `comparator`, `clampPage` — reused by portfolio, admin & company submissions, and shariah review.
+- **Search-param pagination + sorting + persistent filters** now on:
+  - `/admin/submissions` (q, status, asset_class, sortBy, sortDir, page, pageSize)
+  - `/company/submissions` (same + companyId)
+  - `/shariah/review` decisions table
+- **Client role gating** via `useMyRoles()` hook + `getMyRoles()` server fn:
+  - Trade page order button disabled when not `trader` (with tooltip).
+  - Portfolio cancel/modify buttons gated to `trader`.
+  - Shariah review actions + admin/reviewer decision buttons gated to `shariah_board`.
+- **Server role checks (RLS-equivalent)**: `placeOrder`, `cancelOrder`, `modifyOrder` now assert `has_role(uid, 'trader')`; shariah/review server fns already assert `shariah_board`. Failures surface as `FORBIDDEN_TRADER_REQUIRED` / `FORBIDDEN` and are mapped to friendly toasts.
+- **Invitation email step**: `sendInvitationEmailBestEffort` server helper — POSTs through the Resend connector gateway when `LOVABLE_API_KEY` + `RESEND_API_KEY` are present, otherwise logs the accept URL and returns `EMAIL_NOT_CONFIGURED`. `createInvitation` auto-sends; new `resendInvitationEmail` fn lets owners retry from the pending list. UI shows the outcome via toasts.
+- **Vitest cases** (`src/lib/tenants/invitations.test.ts`):
+  1. Expired invitation → `INVITATION_EXPIRED`.
+  2. Revoked invitation → `INVITATION_NOT_PENDING`.
+  3. Revoke-then-accept flow → access denied immediately.
+  4. Happy path accept + double-accept is blocked.
+
+## Tests
+- 9 vitest cases green (invitations, cron unit, cron integration).
+- `tsgo --noEmit` clean.
