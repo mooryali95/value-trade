@@ -144,7 +144,7 @@ describe("invitation lifecycle guards", () => {
 
   it("after revoke, a subsequent accept is blocked", async () => {
     state.rows.push({
-      id: "i3",
+      id: "00000000-0000-0000-0000-0000000000i3".replace("i3", "0a3"),
       status: "pending",
       email: "user@example.com",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
@@ -153,7 +153,7 @@ describe("invitation lifecycle guards", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (state.rows[0] as any).token = "00000000-0000-0000-0000-000000000003";
 
-    await revokeInvitation({ data: { invitationId: "i3" } });
+    await revokeInvitation({ data: { invitationId: state.rows[0].id } });
     expect(state.rows[0].status).toBe("revoked");
 
     await expect(
