@@ -39,11 +39,8 @@ export const createInvitation = createServerFn({ method: "POST" })
     return { ...row, notification };
   });
 
-async function notifyInvite(
-  supabase: { from: (t: string) => { select: (c: string) => { eq: (col: string, v: unknown) => { single: () => Promise<{ data: unknown }> } } } },
-  invite: { id: string; company_id: string; email: string; role: string; token: string; invited_by: string },
-  origin?: string,
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function notifyInvite(supabase: any, invite: { id: string; company_id: string; email: string; role: string; token: string; invited_by: string }, origin?: string) {
   const { sendInvitationEmailBestEffort } = await import("./invitation-email.server");
   const { data: company } = await supabase.from("companies").select("name_en, name_ar").eq("id", invite.company_id).single();
   const co = (company ?? {}) as { name_en?: string; name_ar?: string };
