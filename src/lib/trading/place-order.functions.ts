@@ -23,6 +23,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     const notional = fillPrice * data.qty;
     const { supabase, userId } = context;
 
+    const { data: isTrader } = await supabase.rpc("has_role", { _user_id: userId, _role: "trader" });
+    if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
+
     // Ensure portfolio exists (idempotent).
     await supabase.from("portfolios").upsert(
       { user_id: userId },
