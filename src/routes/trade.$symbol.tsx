@@ -12,6 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/trade/$symbol")({
@@ -48,6 +49,7 @@ function TradePage() {
   const up = brand.change24h >= 0;
 
   const qc = useQueryClient();
+  const { isTrader, isLoading: rolesLoading } = useMyRoles();
   const placeOrderFn = useServerFn(placeOrder);
   const createAlertFn = useServerFn(createPriceAlert);
   const orderMutation = useMutation({
@@ -63,6 +65,7 @@ function TradePage() {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "INSUFFICIENT_CASH") toast.error(t("insufficientCash"));
       else if (msg === "INSUFFICIENT_QTY") toast.error(t("insufficientQty"));
+      else if (msg === "FORBIDDEN_TRADER_REQUIRED") toast.error(t("traderRequired"));
       else toast.error(t("orderFailed"));
     },
   });
