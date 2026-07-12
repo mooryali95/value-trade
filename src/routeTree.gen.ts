@@ -16,10 +16,16 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
+import { Route as LegalTermsRouteImport } from './routes/legal.terms'
+import { Route as LegalShariahDisclosuresRouteImport } from './routes/legal.shariah-disclosures'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
+import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
@@ -61,6 +67,26 @@ const MarketSlugRoute = MarketSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => MarketRoute,
 } as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/legal/terms',
+  path: '/legal/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalShariahDisclosuresRoute = LegalShariahDisclosuresRouteImport.update({
+  id: '/legal/shariah-disclosures',
+  path: '/legal/shariah-disclosures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/legal/cookies',
+  path: '/legal/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CompanyIdRoute = CompanyIdRouteImport.update({
   id: '/company/$id',
   path: '/company/$id',
@@ -82,6 +108,16 @@ const AuthenticatedInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicSitemapDotxmlRoute = ApiPublicSitemapDotxmlRouteImport.update({
+  id: '/api/public/sitemap.xml',
+  path: '/api/public/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRobotsDottxtRoute = ApiPublicRobotsDottxtRouteImport.update({
+  id: '/api/public/robots.txt',
+  path: '/api/public/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronAlertsRoute = ApiPublicCronAlertsRouteImport.update({
   id: '/api/public/cron-alerts',
   path: '/api/public/cron-alerts',
@@ -127,6 +163,10 @@ export interface FileRoutesByFullPath {
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -135,6 +175,8 @@ export interface FileRoutesByFullPath {
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
+  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
+  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -145,6 +187,10 @@ export interface FileRoutesByTo {
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -153,6 +199,8 @@ export interface FileRoutesByTo {
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
+  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
+  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -165,6 +213,10 @@ export interface FileRoutesById {
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
@@ -173,6 +225,8 @@ export interface FileRoutesById {
   '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
+  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
+  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -185,6 +239,10 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
+    | '/legal/cookies'
+    | '/legal/privacy'
+    | '/legal/shariah-disclosures'
+    | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
     | '/admin/submissions'
@@ -193,6 +251,8 @@ export interface FileRouteTypes {
     | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
+    | '/api/public/robots.txt'
+    | '/api/public/sitemap.xml'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -203,6 +263,10 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
+    | '/legal/cookies'
+    | '/legal/privacy'
+    | '/legal/shariah-disclosures'
+    | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
     | '/admin/submissions'
@@ -211,6 +275,8 @@ export interface FileRouteTypes {
     | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
+    | '/api/public/robots.txt'
+    | '/api/public/sitemap.xml'
   id:
     | '__root__'
     | '/'
@@ -222,6 +288,10 @@ export interface FileRouteTypes {
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
     | '/company/$id'
+    | '/legal/cookies'
+    | '/legal/privacy'
+    | '/legal/shariah-disclosures'
+    | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
     | '/_authenticated/admin/submissions'
@@ -230,6 +300,8 @@ export interface FileRouteTypes {
     | '/_authenticated/company/submit'
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
+    | '/api/public/robots.txt'
+    | '/api/public/sitemap.xml'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -239,8 +311,14 @@ export interface RootRouteChildren {
   MarketRoute: typeof MarketRouteWithChildren
   ShariahRoute: typeof ShariahRoute
   CompanyIdRoute: typeof CompanyIdRoute
+  LegalCookiesRoute: typeof LegalCookiesRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalShariahDisclosuresRoute: typeof LegalShariahDisclosuresRoute
+  LegalTermsRoute: typeof LegalTermsRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
   ApiPublicCronAlertsRoute: typeof ApiPublicCronAlertsRoute
+  ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
+  ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -294,6 +372,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketSlugRouteImport
       parentRoute: typeof MarketRoute
     }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/legal/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/shariah-disclosures': {
+      id: '/legal/shariah-disclosures'
+      path: '/legal/shariah-disclosures'
+      fullPath: '/legal/shariah-disclosures'
+      preLoaderRoute: typeof LegalShariahDisclosuresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/legal/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/company/$id': {
       id: '/company/$id'
       path: '/company/$id'
@@ -321,6 +427,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/sitemap.xml': {
+      id: '/api/public/sitemap.xml'
+      path: '/api/public/sitemap.xml'
+      fullPath: '/api/public/sitemap.xml'
+      preLoaderRoute: typeof ApiPublicSitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/robots.txt': {
+      id: '/api/public/robots.txt'
+      path: '/api/public/robots.txt'
+      fullPath: '/api/public/robots.txt'
+      preLoaderRoute: typeof ApiPublicRobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/cron-alerts': {
       id: '/api/public/cron-alerts'
@@ -410,19 +530,15 @@ const rootRouteChildren: RootRouteChildren = {
   MarketRoute: MarketRouteWithChildren,
   ShariahRoute: ShariahRoute,
   CompanyIdRoute: CompanyIdRoute,
+  LegalCookiesRoute: LegalCookiesRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalShariahDisclosuresRoute: LegalShariahDisclosuresRoute,
+  LegalTermsRoute: LegalTermsRoute,
   TradeSymbolRoute: TradeSymbolRoute,
   ApiPublicCronAlertsRoute: ApiPublicCronAlertsRoute,
+  ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
+  ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
