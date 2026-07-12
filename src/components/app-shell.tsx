@@ -133,8 +133,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ValueDots size={20} />
             <span className="truncate">© {new Date().getFullYear()} {t("brand")} — {t("footerRights")}. {t("disclaimer")}.</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Link to="/shariah" className="hover:text-[var(--gold-deep)]">{t("nav_shariah")}</Link>
+            <Link to="/legal/terms" className="hover:text-[var(--gold-deep)]">{t("legalTerms")}</Link>
+            <Link to="/legal/privacy" className="hover:text-[var(--gold-deep)]">{t("legalPrivacy")}</Link>
+            <Link to="/legal/shariah-disclosures" className="hover:text-[var(--gold-deep)]">{t("legalShariahDisclosures")}</Link>
+            <Link to="/legal/cookies" className="hover:text-[var(--gold-deep)]">{t("legalCookies")}</Link>
           </div>
         </div>
       </footer>
