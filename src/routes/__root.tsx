@@ -84,9 +84,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
       { name: "author", content: "Value Unit" },
       { property: "og:title", content: "وحدة القيمة — Value Unit Exchange" },
-      { property: "og:description", content: "Institutional exchange for 256 brands. AAOIFI-aligned, multi-tenant, real-time." },
+      { property: "og:description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "وحدة القيمة — Value Unit Exchange" },
+      { name: "twitter:description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp" },
     ],
     links: [
       {
