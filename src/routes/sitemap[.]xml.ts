@@ -11,7 +11,7 @@ const PUBLIC_PATHS = [
   "/legal/cookies",
 ];
 
-export const Route = createFileRoute("/api/public/sitemap.xml")({
+export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async ({ request }) => {

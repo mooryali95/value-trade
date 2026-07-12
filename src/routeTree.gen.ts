@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShariahRouteImport } from './routes/shariah'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -24,8 +26,6 @@ import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
-import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
-import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
@@ -33,9 +33,19 @@ import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_a
 import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShariahRoute = ShariahRouteImport.update({
   id: '/shariah',
   path: '/shariah',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketRoute = MarketRouteImport.update({
@@ -108,16 +118,6 @@ const AuthenticatedInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiPublicSitemapDotxmlRoute = ApiPublicSitemapDotxmlRouteImport.update({
-  id: '/api/public/sitemap.xml',
-  path: '/api/public/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicRobotsDottxtRoute = ApiPublicRobotsDottxtRouteImport.update({
-  id: '/api/public/robots.txt',
-  path: '/api/public/robots.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicCronAlertsRoute = ApiPublicCronAlertsRouteImport.update({
   id: '/api/public/cron-alerts',
   path: '/api/public/cron-alerts',
@@ -158,7 +158,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -175,14 +177,14 @@ export interface FileRoutesByFullPath {
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -199,8 +201,6 @@ export interface FileRoutesByTo {
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -208,7 +208,9 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
@@ -225,8 +227,6 @@ export interface FileRoutesById {
   '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,7 +234,9 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/market'
+    | '/robots.txt'
     | '/shariah'
+    | '/sitemap.xml'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
@@ -251,14 +253,14 @@ export interface FileRouteTypes {
     | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/market'
+    | '/robots.txt'
     | '/shariah'
+    | '/sitemap.xml'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
@@ -275,15 +277,15 @@ export interface FileRouteTypes {
     | '/company/submit'
     | '/shariah/review'
     | '/api/public/cron-alerts'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/market'
+    | '/robots.txt'
     | '/shariah'
+    | '/sitemap.xml'
     | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
@@ -300,8 +302,6 @@ export interface FileRouteTypes {
     | '/_authenticated/company/submit'
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -309,7 +309,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   MarketRoute: typeof MarketRouteWithChildren
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShariahRoute: typeof ShariahRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   CompanyIdRoute: typeof CompanyIdRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
@@ -317,17 +319,29 @@ export interface RootRouteChildren {
   LegalTermsRoute: typeof LegalTermsRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
   ApiPublicCronAlertsRoute: typeof ApiPublicCronAlertsRoute
-  ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
-  ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shariah': {
       id: '/shariah'
       path: '/shariah'
       fullPath: '/shariah'
       preLoaderRoute: typeof ShariahRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/market': {
@@ -428,20 +442,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/public/sitemap.xml': {
-      id: '/api/public/sitemap.xml'
-      path: '/api/public/sitemap.xml'
-      fullPath: '/api/public/sitemap.xml'
-      preLoaderRoute: typeof ApiPublicSitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/robots.txt': {
-      id: '/api/public/robots.txt'
-      path: '/api/public/robots.txt'
-      fullPath: '/api/public/robots.txt'
-      preLoaderRoute: typeof ApiPublicRobotsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/cron-alerts': {
       id: '/api/public/cron-alerts'
       path: '/api/public/cron-alerts'
@@ -528,7 +528,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   MarketRoute: MarketRouteWithChildren,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   ShariahRoute: ShariahRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   CompanyIdRoute: CompanyIdRoute,
   LegalCookiesRoute: LegalCookiesRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
@@ -536,8 +538,6 @@ const rootRouteChildren: RootRouteChildren = {
   LegalTermsRoute: LegalTermsRoute,
   TradeSymbolRoute: TradeSymbolRoute,
   ApiPublicCronAlertsRoute: ApiPublicCronAlertsRoute,
-  ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
-  ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

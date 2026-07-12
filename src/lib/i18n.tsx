@@ -249,6 +249,10 @@ const dict = {
     rowsPerPage: "صفوف/صفحة",
     sortAsc: "تصاعدي",
     sortDesc: "تنازلي",
+    legalTerms: "الشروط",
+    legalPrivacy: "الخصوصية",
+    legalShariahDisclosures: "إفصاحات شرعية",
+    legalCookies: "ملفات الارتباط",
   },
   en: {
     brand: "Value Unit",
@@ -496,6 +500,10 @@ const dict = {
     rowsPerPage: "Rows/page",
     sortAsc: "Asc",
     sortDesc: "Desc",
+    legalTerms: "Terms",
+    legalPrivacy: "Privacy",
+    legalShariahDisclosures: "Shariah Disclosures",
+    legalCookies: "Cookies",
   },
 } as const;
 
