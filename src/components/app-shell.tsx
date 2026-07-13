@@ -15,6 +15,7 @@ import { useI18n } from "@/lib/i18n";
 import { MARKET_STATS } from "@/lib/mock-data";
 import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
+import { CompanySwitcher } from "@/components/company-switcher";
 
 function LangToggle() {
   const { lang, setLang } = useI18n();
@@ -98,6 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-2">
             <MarketPill />
+            <CompanySwitcher />
             <LangToggle />
             <UserMenu />
           </div>
