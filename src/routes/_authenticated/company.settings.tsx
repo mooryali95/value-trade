@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
+import { useActiveCompany } from "@/hooks/use-active-company";
 import {
   listMyCompanies, createCompany, getCompanyDetails,
   addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
@@ -44,8 +45,9 @@ function CompanySettings() {
   const resendInviteFn = useServerFn(resendInvitationEmail);
 
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
+  const { activeId: globalActiveId, setActive } = useActiveCompany();
   const [selected, setSelected] = useState<string | null>(null);
-  const activeId = selected ?? list.data?.[0]?.company?.id ?? null;
+  const activeId = selected ?? globalActiveId ?? list.data?.[0]?.company?.id ?? null;
 
   const details = useQuery({
     queryKey: ["company-details", activeId],
@@ -91,6 +93,7 @@ function CompanySettings() {
       qc.invalidateQueries({ queryKey: ["my-companies"] });
       setNewCo({ slug: "", name_ar: "", name_en: "" });
       setSelected(row.id);
+      setActive(row.id);
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
@@ -137,7 +140,7 @@ function CompanySettings() {
                   {list.data!.map((m) => (
                     <li key={m.company.id}>
                       <button
-                        onClick={() => setSelected(m.company.id)}
+                        onClick={() => { setSelected(m.company.id); setActive(m.company.id); }}
                         className={`flex w-full items-center justify-between border-b border-border/40 px-4 py-2.5 text-start text-sm last:border-b-0 ${activeId === m.company.id ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink hover:bg-secondary/50"}`}
                       >
                         <span className="truncate">{lang === "ar" ? m.company.name_ar : m.company.name_en}</span>
