@@ -70,6 +70,17 @@ describeIf("RLS prevents cross-tenant reads and writes", () => {
       symbol: "RLSA001", status: "halal", reason: "seed", updated_by: created.userAId,
     });
 
+    // Seed tenant-scoped rows for company A.
+    await admin.from("company_brands").insert({
+      company_id: created.companyAId, brand_symbol: "RLSA001", added_by: created.userAId,
+    });
+    await admin.from("company_invitations").insert({
+      company_id: created.companyAId,
+      email: `invitee-${suffix}@example.com`,
+      role: "trader",
+      invited_by: created.userAId,
+    });
+
     clientA = await signIn(emailA);
     clientB = await signIn(emailB);
   }, 30_000);
@@ -81,6 +92,10 @@ describeIf("RLS prevents cross-tenant reads and writes", () => {
       await admin.from("orders").delete().eq("user_id", created.userAId);
       await admin.from("positions").delete().eq("user_id", created.userAId);
       await admin.from("shariah_decisions").delete().eq("updated_by", created.userAId);
+    }
+    if (created.companyAId) {
+      await admin.from("company_brands").delete().eq("company_id", created.companyAId);
+      await admin.from("company_invitations").delete().eq("company_id", created.companyAId);
     }
     if (created.companyAId) await admin.from("companies").delete().eq("id", created.companyAId);
     if (created.companyBId) await admin.from("companies").delete().eq("id", created.companyBId);
@@ -130,6 +145,44 @@ describeIf("RLS prevents cross-tenant reads and writes", () => {
     const delSub = await clientB.from("product_submissions")
       .delete().eq("company_id", created.companyAId!).select("id");
     expect(delSub.data ?? []).toHaveLength(0);
+  });
+
+  it("user B cannot read company A's brands / members / invitations", async () => {
+    const brands = await clientB.from("company_brands").select("id").eq("company_id", created.companyAId!);
+    expect(brands.data ?? []).toHaveLength(0);
+
+    const members = await clientB.from("company_members").select("id").eq("company_id", created.companyAId!);
+    expect(members.data ?? []).toHaveLength(0);
+
+    const invites = await clientB.from("company_invitations").select("id").eq("company_id", created.companyAId!);
+    expect(invites.data ?? []).toHaveLength(0);
+  });
+
+  it("user B cannot write to company A's tenant tables", async () => {
+    const insBrand = await clientB.from("company_brands").insert({
+      company_id: created.companyAId!, brand_symbol: "HIJACK", added_by: created.userBId!,
+    }).select("id");
+    expect(insBrand.error).toBeTruthy();
+
+    const updMember = await clientB.from("company_members")
+      .update({ role: "owner" }).eq("company_id", created.companyAId!).select("id");
+    expect(updMember.data ?? []).toHaveLength(0);
+
+    const delMember = await clientB.from("company_members")
+      .delete().eq("company_id", created.companyAId!).select("id");
+    expect(delMember.data ?? []).toHaveLength(0);
+
+    const insInvite = await clientB.from("company_invitations").insert({
+      company_id: created.companyAId!,
+      email: `hijack-${suffix}@example.com`,
+      role: "owner",
+      invited_by: created.userBId!,
+    }).select("id");
+    expect(insInvite.error).toBeTruthy();
+
+    const updInvite = await clientB.from("company_invitations")
+      .update({ status: "accepted" }).eq("company_id", created.companyAId!).select("id");
+    expect(updInvite.data ?? []).toHaveLength(0);
   });
 });
 
