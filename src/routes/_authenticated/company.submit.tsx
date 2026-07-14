@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
+import { useActiveCompany } from "@/hooks/use-active-company";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
 import { submitProduct } from "@/lib/submissions/submissions.functions";
 import { toast } from "sonner";
@@ -31,9 +32,10 @@ function SubmitPage() {
   const listFn = useServerFn(listMyCompanies);
   const submitFn = useServerFn(submitProduct);
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
+  const { activeId } = useActiveCompany();
 
   const [form, setForm] = useState({
-    companyId: companyId ?? "",
+    companyId: companyId ?? activeId ?? "",
     asset_class: "stock" as "stock" | "sukuk" | "brand",
     symbol: "",
     name_ar: "",

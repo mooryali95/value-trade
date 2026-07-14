@@ -8,12 +8,13 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
+import { useActiveCompany } from "@/hooks/use-active-company";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 
 const SearchSchema = z.object({
-  companyId: z.string().uuid(),
+  companyId: z.string().uuid().optional(),
   q: z.string().catch("").default(""),
   status: z.string().catch("all").default("all"),
   asset: z.string().catch("all").default("all"),
@@ -39,13 +40,15 @@ export const Route = createFileRoute("/_authenticated/company/submissions")({
 function CompanySubmissions() {
   const { t, lang } = useI18n();
   const search = Route.useSearch();
-  const { companyId } = search;
+  const { activeId } = useActiveCompany();
+  const companyId = search.companyId ?? activeId ?? undefined;
   const navigate = useNavigate({ from: Route.fullPath });
   const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
   const listFn = useServerFn(listCompanySubmissions);
   const { data, isLoading } = useQuery({
     queryKey: ["submissions", companyId],
-    queryFn: () => listFn({ data: { companyId } }),
+    queryFn: () => listFn({ data: { companyId: companyId! } }),
+    enabled: !!companyId,
   });
   const rows = data ?? [];
   const cmp = comparator(search.sortDir);
