@@ -196,7 +196,9 @@ function CompanySettings() {
                         {t("yourRoleHere")}: {t(`${myRole}Role` as never)}
                       </span>
                     )}
-                    <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
+                    {canManageBrands && (
+                      <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
+                    )}
                     <Link to="/company/submissions" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
                   </div>
                 </div>
@@ -326,15 +328,15 @@ function CompanySettings() {
                             }}
                             className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
                           >{t("inviteCopyLink")}</button>
-                          <button
+                          {canManageInvites && <button
                             disabled={resendMut.isPending}
                             onClick={() => resendMut.mutate(inv.id)}
                             className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
-                          >{t("inviteResendEmail")}</button>
-                          <button
+                          >{t("inviteResendEmail")}</button>}
+                          {canManageInvites && <button
                             onClick={() => revokeInviteMut.mutate(inv.id)}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
-                          >{t("revoke")}</button>
+                          >{t("revoke")}</button>}
                           <span className="text-[10px] text-muted-foreground">{new Date(inv.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
                         </li>
                       );
