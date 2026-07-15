@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import {
   listMyCompanies, createCompany, getCompanyDetails,
   addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
@@ -48,6 +49,11 @@ function CompanySettings() {
   const { activeId: globalActiveId, setActive } = useActiveCompany();
   const [selected, setSelected] = useState<string | null>(null);
   const activeId = selected ?? globalActiveId ?? list.data?.[0]?.company?.id ?? null;
+  const { companyRole } = useMyRoles();
+  const myRole = activeId ? companyRole(activeId) : undefined;
+  const canManageMembers = myRole === "owner";
+  const canManageBrands = myRole === "owner" || myRole === "finance";
+  const canManageInvites = myRole === "owner";
 
   const details = useQuery({
     queryKey: ["company-details", activeId],
@@ -184,7 +190,12 @@ function CompanySettings() {
                     <div className="text-lg font-semibold text-ink">{lang === "ar" ? details.data.company.name_ar : details.data.company.name_en}</div>
                     <div className="text-[11px] uppercase text-muted-foreground">{details.data.company.slug} · {details.data.company.plan}</div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {myRole && (
+                      <span className="rounded-full border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--gold-deep)]">
+                        {t("yourRoleHere")}: {t(`${myRole}Role` as never)}
+                      </span>
+                    )}
                     <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
                     <Link to="/company/submissions" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
                   </div>
@@ -194,7 +205,11 @@ function CompanySettings() {
                 <section className="rounded-xl border border-border/60 bg-card">
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("companyMembers")}</h2>
+                    {!canManageMembers && (
+                      <span className="text-[10px] uppercase text-muted-foreground">{t("permMembersOwnerOnly")}</span>
+                    )}
                   </div>
+                  {canManageMembers && (
                   <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
                     <input value={newMember.userId} onChange={(e) => setNewMember({ ...newMember, userId: e.target.value })} placeholder={t("memberUserId")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
                     <select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
@@ -210,12 +225,17 @@ function CompanySettings() {
                       {t("addMember")}
                     </button>
                   </div>
+                  )}
                   <ul>
                     {details.data.members.map((m) => (
                       <li key={m.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
                         <span className="truncate font-mono text-ink-soft">{m.user_id}</span>
                         <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">{t(`${m.role}Role` as never)}</span>
-                        <button onClick={() => removeMemberMut.mutate(m.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                        {canManageMembers ? (
+                          <button onClick={() => removeMemberMut.mutate(m.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                        ) : (
+                          <span />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -225,8 +245,12 @@ function CompanySettings() {
                 <section className="rounded-xl border border-border/60 bg-card">
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("companyBrands")}</h2>
-                    <span className="text-[10px] uppercase text-muted-foreground">{details.data.brands.length}/30 · {t("brandCap")}</span>
+                    <span className="text-[10px] uppercase text-muted-foreground">
+                      {details.data.brands.length}/30 · {t("brandCap")}
+                      {!canManageBrands && <> · {t("permBrandsOwnerFinance")}</>}
+                    </span>
                   </div>
+                  {canManageBrands && (
                   <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_auto]">
                     <input value={newBrand} onChange={(e) => setNewBrand(e.target.value.toUpperCase())} placeholder={t("brandSymbol")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
                     <button
@@ -237,12 +261,17 @@ function CompanySettings() {
                       {t("addBrand")}
                     </button>
                   </div>
+                  )}
                   <ul>
                     {details.data.brands.map((b) => (
                       <li key={b.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
                         <span className="font-mono font-semibold text-ink">{b.brand_symbol}</span>
                         <span className="text-muted-foreground">{new Date(b.added_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
-                        <button onClick={() => removeBrandMut.mutate(b.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                        {canManageBrands ? (
+                          <button onClick={() => removeBrandMut.mutate(b.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                        ) : (
+                          <span />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -252,7 +281,11 @@ function CompanySettings() {
                 <section className="rounded-xl border border-border/60 bg-card">
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("invitations")}</h2>
+                    {!canManageInvites && (
+                      <span className="text-[10px] uppercase text-muted-foreground">{t("permInvitesOwnerOnly")}</span>
+                    )}
                   </div>
+                  {canManageInvites && (
                   <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
                     <input
                       type="email"
@@ -276,6 +309,7 @@ function CompanySettings() {
                       className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
                     >{t("inviteMember")}</button>
                   </div>
+                  )}
                   <ul>
                     {(invitesQ.data ?? []).filter((i) => i.status === "pending").map((inv) => {
                       const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invitations?token=${inv.token}`;
