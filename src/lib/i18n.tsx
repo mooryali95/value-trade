@@ -253,6 +253,11 @@ const dict = {
     legalPrivacy: "الخصوصية",
     legalShariahDisclosures: "إفصاحات شرعية",
     legalCookies: "ملفات الارتباط",
+    yourRoleHere: "دورك في هذه الشركة",
+    permMembersOwnerOnly: "إدارة الأعضاء متاحة لأصحاب الشركة فقط",
+    permBrandsOwnerFinance: "إدارة البرندات متاحة للمالك والمالية فقط",
+    permInvitesOwnerOnly: "الدعوات متاحة لأصحاب الشركة فقط",
+    readOnlyRole: "وصول للقراءة فقط",
   },
   en: {
     brand: "Value Unit",
@@ -504,6 +509,11 @@ const dict = {
     legalPrivacy: "Privacy",
     legalShariahDisclosures: "Shariah Disclosures",
     legalCookies: "Cookies",
+    yourRoleHere: "Your role here",
+    permMembersOwnerOnly: "Only company owners can manage members",
+    permBrandsOwnerFinance: "Only owners and finance can manage brands",
+    permInvitesOwnerOnly: "Only company owners can send invitations",
+    readOnlyRole: "Read-only access",
   },
 } as const;
 
