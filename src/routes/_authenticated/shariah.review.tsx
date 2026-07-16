@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
 import { BRANDS } from "@/lib/mock-data";
 import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit } from "@/lib/trading/shariah.functions";
@@ -44,6 +45,13 @@ function ReviewPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
   const { isReviewer, isLoading: rolesLoading } = useMyRoles();
+  if (!rolesLoading && !isReviewer) {
+    return (
+      <AppShell>
+        <div className="py-16"><AccessDenied /></div>
+      </AppShell>
+    );
+  }
   const listFn = useServerFn(listShariahDecisions);
   const recordFn = useServerFn(recordShariahDecision);
   const updateFn = useServerFn(updateShariahDecision);
