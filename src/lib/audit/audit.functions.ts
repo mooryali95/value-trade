@@ -14,7 +14,7 @@ export type AuditRow = {
   action: string;
   entity: string;
   entity_id: string | null;
-  metadata: Record<string, unknown>;
+  metadata: unknown;
   created_at: string;
 };
 
