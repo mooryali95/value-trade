@@ -7,6 +7,7 @@ const Input = z.object({
   limit: z.number().int().min(1).max(200).optional(),
 });
 
+type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 export type AuditRow = {
   id: string;
   actor_id: string;
@@ -14,7 +15,7 @@ export type AuditRow = {
   action: string;
   entity: string;
   entity_id: string | null;
-  metadata: unknown;
+  metadata: Json;
   created_at: string;
 };
 
@@ -31,5 +32,5 @@ export const listAuditLog = createServerFn({ method: "GET" })
     if (data.companyId) q = q.eq("company_id", data.companyId);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    return (rows ?? []) as AuditRow[];
+    return (rows ?? []) as unknown as AuditRow[];
   });
