@@ -107,6 +107,14 @@ function ReviewPage() {
   const page = clampPage(search.page, pageCount);
   const paged = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
+  if (!rolesLoading && !isReviewer) {
+    return (
+      <AppShell>
+        <div className="py-16"><AccessDenied /></div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <header className="mb-6">
