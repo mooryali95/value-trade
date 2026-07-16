@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
 import { listPendingSubmissions, reviewSubmission } from "@/lib/submissions/submissions.functions";
 import { StatusBadge } from "@/components/status-badge";
@@ -92,6 +93,14 @@ function AdminSubmissions() {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const page = clampPage(search.page, pageCount);
   const paged = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+  if (!rolesLoading && !isReviewer) {
+    return (
+      <AppShell>
+        <div className="py-16"><AccessDenied /></div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
