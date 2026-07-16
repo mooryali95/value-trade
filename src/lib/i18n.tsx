@@ -258,6 +258,9 @@ const dict = {
     permBrandsOwnerFinance: "إدارة البرندات متاحة للمالك والمالية فقط",
     permInvitesOwnerOnly: "الدعوات متاحة لأصحاب الشركة فقط",
     readOnlyRole: "وصول للقراءة فقط",
+    notAuthorizedTitle: "لا تملك صلاحية الوصول",
+    notAuthorizedDesc: "هذه الصفحة متاحة لأدوار محددة داخل الشركة. يرجى التواصل مع مالك الشركة لتعديل صلاحياتك.",
+    backToWorkspace: "عودة إلى منصة الشركة",
   },
   en: {
     brand: "Value Unit",
@@ -514,6 +517,9 @@ const dict = {
     permBrandsOwnerFinance: "Only owners and finance can manage brands",
     permInvitesOwnerOnly: "Only company owners can send invitations",
     readOnlyRole: "Read-only access",
+    notAuthorizedTitle: "You don't have access",
+    notAuthorizedDesc: "This page is restricted to specific company roles. Contact the company owner to adjust your permissions.",
+    backToWorkspace: "Back to workspace",
   },
 } as const;
 
