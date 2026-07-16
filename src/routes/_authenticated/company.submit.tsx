@@ -6,8 +6,10 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
 import { submitProduct } from "@/lib/submissions/submissions.functions";
 import { toast } from "sonner";
@@ -33,6 +35,7 @@ function SubmitPage() {
   const submitFn = useServerFn(submitProduct);
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
   const { activeId } = useActiveCompany();
+  const { companyRole, isLoading: rolesLoading } = useMyRoles();
 
   const [form, setForm] = useState({
     companyId: companyId ?? activeId ?? "",
@@ -43,6 +46,18 @@ function SubmitPage() {
     sector: "",
     prospectus_url: "",
   });
+
+  const targetCompanyId = form.companyId || companyId || activeId || "";
+  const role = targetCompanyId ? companyRole(targetCompanyId) : undefined;
+  const canSubmit = role === "owner" || role === "finance";
+
+  if (!rolesLoading && targetCompanyId && !canSubmit) {
+    return (
+      <AppShell>
+        <div className="py-16"><AccessDenied /></div>
+      </AppShell>
+    );
+  }
 
   const mutation = useMutation({
     mutationFn: () => submitFn({
