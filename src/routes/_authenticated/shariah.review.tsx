@@ -45,13 +45,6 @@ function ReviewPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
   const { isReviewer, isLoading: rolesLoading } = useMyRoles();
-  if (!rolesLoading && !isReviewer) {
-    return (
-      <AppShell>
-        <div className="py-16"><AccessDenied /></div>
-      </AppShell>
-    );
-  }
   const listFn = useServerFn(listShariahDecisions);
   const recordFn = useServerFn(recordShariahDecision);
   const updateFn = useServerFn(updateShariahDecision);
