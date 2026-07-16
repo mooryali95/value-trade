@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { writeAudit } from "@/lib/audit/audit.server";
 
 const Input = z.object({
   symbol: z.string().min(1).max(32),
@@ -30,6 +31,10 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, action: "shariah.decision.create", entity: "shariah_decisions", entityId: row.id,
+      metadata: { symbol: data.symbol, status: data.status },
+    });
     return row;
   });
 
@@ -80,6 +85,10 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
     if (latest?.id) {
       await supabase.from("shariah_decision_audit").update({ change_reason: data.changeReason }).eq("id", latest.id);
     }
+    await writeAudit(supabase, {
+      actorId: userId, action: "shariah.decision.update", entity: "shariah_decisions", entityId: data.id,
+      metadata: { status: data.status, changeReason: data.changeReason },
+    });
     return { ok: true };
   });
 

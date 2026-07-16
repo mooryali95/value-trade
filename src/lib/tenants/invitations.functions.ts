@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { writeAudit } from "@/lib/audit/audit.server";
 
 const CreateInput = z.object({
   companyId: z.string().uuid(),
@@ -36,6 +37,10 @@ export const createInvitation = createServerFn({ method: "POST" })
     }
 
     const notification = await notifyInvite(supabase, row, data.origin);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: data.companyId, action: "invitation.create", entity: "company_invitations", entityId: row.id,
+      metadata: { email: row.email, role: row.role },
+    });
     return { ...row, notification };
   });
 
@@ -76,12 +81,18 @@ export const revokeInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ invitationId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { supabase, userId } = context;
+    const { data: prev } = await supabase.from("company_invitations").select("company_id, email, role").eq("id", data.invitationId).maybeSingle();
+    const { error } = await supabase
       .from("company_invitations")
       .update({ status: "revoked" })
       .eq("id", data.invitationId)
       .eq("status", "pending");
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: prev?.company_id ?? null, action: "invitation.revoke", entity: "company_invitations", entityId: data.invitationId,
+      metadata: { email: prev?.email, role: prev?.role },
+    });
     return { ok: true };
   });
 
@@ -107,6 +118,10 @@ export const resendInvitationEmail = createServerFn({ method: "POST" })
     if (!isOwner) throw new Error("FORBIDDEN");
     if (invite.status !== "pending") throw new Error("INVITATION_NOT_PENDING");
     const notification = await notifyInvite(supabase, invite, data.origin);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: invite.company_id, action: "invitation.resend", entity: "company_invitations", entityId: invite.id,
+      metadata: { email: invite.email, role: invite.role },
+    });
     return { notification };
   });
 
@@ -126,7 +141,12 @@ export const acceptInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ token: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { data: companyId, error } = await context.supabase.rpc("accept_company_invitation", { _token: data.token });
+    const { supabase, userId } = context;
+    const { data: companyId, error } = await supabase.rpc("accept_company_invitation", { _token: data.token });
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: companyId as string | null, action: "invitation.accept", entity: "company_invitations",
+      metadata: { token: data.token },
+    });
     return { companyId };
   });

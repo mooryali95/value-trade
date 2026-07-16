@@ -128,7 +128,15 @@ function CompanySettings() {
     <AppShell>
       <header className="mb-6">
         <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("companySettings")}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("companySettings")}</h1>
+          <Link
+            to="/company/audit"
+            className="hidden items-center rounded-md border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
+          >
+            {t("auditLog")}
+          </Link>
+        </div>
       </header>
 
       {list.isLoading ? (

@@ -31,6 +31,7 @@ import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authen
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
 import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_authenticated/company.submissions'
 import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
+import { Route as AuthenticatedCompanyAuditRouteImport } from './routes/_authenticated/company.audit'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -147,6 +148,12 @@ const AuthenticatedCompanySettingsRoute =
     path: '/company/settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCompanyAuditRoute =
+  AuthenticatedCompanyAuditRouteImport.update({
+    id: '/company/audit',
+    path: '/company/audit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminSubmissionsRoute =
   AuthenticatedAdminSubmissionsRouteImport.update({
     id: '/admin/submissions',
@@ -172,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
@@ -196,6 +204,7 @@ export interface FileRoutesByTo {
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
@@ -222,6 +231,7 @@ export interface FileRoutesById {
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
+  '/_authenticated/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/_authenticated/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/_authenticated/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/market/$slug'
     | '/trade/$symbol'
     | '/admin/submissions'
+    | '/company/audit'
     | '/company/settings'
     | '/company/submissions'
     | '/company/submit'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/market/$slug'
     | '/trade/$symbol'
     | '/admin/submissions'
+    | '/company/audit'
     | '/company/settings'
     | '/company/submissions'
     | '/company/submit'
@@ -297,6 +309,7 @@ export interface FileRouteTypes {
     | '/market/$slug'
     | '/trade/$symbol'
     | '/_authenticated/admin/submissions'
+    | '/_authenticated/company/audit'
     | '/_authenticated/company/settings'
     | '/_authenticated/company/submissions'
     | '/_authenticated/company/submit'
@@ -477,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCompanySettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/company/audit': {
+      id: '/_authenticated/company/audit'
+      path: '/company/audit'
+      fullPath: '/company/audit'
+      preLoaderRoute: typeof AuthenticatedCompanyAuditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/submissions': {
       id: '/_authenticated/admin/submissions'
       path: '/admin/submissions'
@@ -492,6 +512,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
+  AuthenticatedCompanyAuditRoute: typeof AuthenticatedCompanyAuditRoute
   AuthenticatedCompanySettingsRoute: typeof AuthenticatedCompanySettingsRoute
   AuthenticatedCompanySubmissionsRoute: typeof AuthenticatedCompanySubmissionsRoute
   AuthenticatedCompanySubmitRoute: typeof AuthenticatedCompanySubmitRoute
@@ -503,6 +524,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
+  AuthenticatedCompanyAuditRoute: AuthenticatedCompanyAuditRoute,
   AuthenticatedCompanySettingsRoute: AuthenticatedCompanySettingsRoute,
   AuthenticatedCompanySubmissionsRoute: AuthenticatedCompanySubmissionsRoute,
   AuthenticatedCompanySubmitRoute: AuthenticatedCompanySubmitRoute,

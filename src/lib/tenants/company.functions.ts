@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { writeAudit } from "@/lib/audit/audit.server";
 
 const CreateInput = z.object({
   slug: z.string().min(2).max(48).regex(/^[a-z0-9-]+$/),
@@ -19,6 +20,10 @@ export const createCompany = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: row.id, action: "company.create", entity: "companies", entityId: row.id,
+      metadata: { slug: data.slug },
+    });
     return row;
   });
 
@@ -65,6 +70,10 @@ export const addCompanyMember = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: data.companyId, action: "member.add", entity: "company_members", entityId: row.id,
+      metadata: { targetUserId: data.userId, role: data.role },
+    });
     return row;
   });
 
@@ -72,8 +81,14 @@ export const removeCompanyMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ memberId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("company_members").delete().eq("id", data.memberId);
+    const { supabase, userId } = context;
+    const { data: prev } = await supabase.from("company_members").select("company_id, user_id, role").eq("id", data.memberId).maybeSingle();
+    const { error } = await supabase.from("company_members").delete().eq("id", data.memberId);
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: prev?.company_id ?? null, action: "member.remove", entity: "company_members", entityId: data.memberId,
+      metadata: { targetUserId: prev?.user_id, role: prev?.role },
+    });
     return { ok: true };
   });
 
@@ -89,6 +104,10 @@ export const addCompanyBrand = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message === "BRAND_CAP_REACHED" ? "BRAND_CAP_REACHED" : error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: data.companyId, action: "brand.add", entity: "company_brands", entityId: row.id,
+      metadata: { brandSymbol: data.brandSymbol },
+    });
     return row;
   });
 
@@ -96,7 +115,13 @@ export const removeCompanyBrand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ brandId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("company_brands").delete().eq("id", data.brandId);
+    const { supabase, userId } = context;
+    const { data: prev } = await supabase.from("company_brands").select("company_id, brand_symbol").eq("id", data.brandId).maybeSingle();
+    const { error } = await supabase.from("company_brands").delete().eq("id", data.brandId);
     if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: prev?.company_id ?? null, action: "brand.remove", entity: "company_brands", entityId: data.brandId,
+      metadata: { brandSymbol: prev?.brand_symbol },
+    });
     return { ok: true };
   });
