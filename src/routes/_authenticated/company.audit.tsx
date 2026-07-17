@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -34,13 +35,94 @@ function CompanyAuditPage() {
 
   const rows = q.data ?? [];
 
+  return <AuditContent rows={rows} isLoading={q.isLoading} companyName={lang === "ar" ? active.name_ar : active.name_en} />;
+}
+
+function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLoading: boolean; companyName: string }) {
+  const { t, lang } = useI18n();
+  const [actionFilter, setActionFilter] = useState<string>("");
+  const [entityFilter, setEntityFilter] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
+
+  const actions = useMemo(() => Array.from(new Set(rows.map((r) => r.action))).sort(), [rows]);
+  const entities = useMemo(() => Array.from(new Set(rows.map((r) => r.entity))).sort(), [rows]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (actionFilter && r.action !== actionFilter) return false;
+      if (entityFilter && r.entity !== entityFilter) return false;
+      if (q) {
+        const hay = `${r.action} ${r.entity} ${r.entity_id ?? ""} ${r.actor_id} ${JSON.stringify(r.metadata)}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, actionFilter, entityFilter, search]);
+
+  function exportCsv() {
+    const header = ["created_at", "action", "entity", "entity_id", "actor_id", "company_id", "metadata"];
+    const escape = (v: unknown) => {
+      const s = v == null ? "" : typeof v === "string" ? v : JSON.stringify(v);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = [header.join(",")];
+    for (const r of filtered) {
+      lines.push([r.created_at, r.action, r.entity, r.entity_id ?? "", r.actor_id, r.company_id ?? "", r.metadata].map(escape).join(","));
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `audit-${companyName}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <header className="mb-6">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
         <div className="mb-3 h-px w-16 hairline-gold" />
         <h1 className="text-2xl font-semibold text-ink">{t("auditLog")}</h1>
         <p className="mt-1 text-xs text-ink-soft">{t("auditLogDesc")}</p>
+        </div>
+        <button
+          onClick={exportCsv}
+          disabled={filtered.length === 0}
+          className="inline-flex items-center rounded-md border border-border px-4 py-2 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40 disabled:hover:border-border disabled:hover:text-ink"
+        >
+          {t("auditExportCsv")}
+        </button>
       </header>
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("auditSearchPlaceholder")}
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+        />
+        <select
+          value={actionFilter}
+          onChange={(e) => setActionFilter(e.target.value)}
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+        >
+          <option value="">{t("auditFilterAction")} — {t("auditAll")}</option>
+          {actions.map((a) => (<option key={a} value={a}>{a}</option>))}
+        </select>
+        <select
+          value={entityFilter}
+          onChange={(e) => setEntityFilter(e.target.value)}
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+        >
+          <option value="">{t("auditFilterEntity")} — {t("auditAll")}</option>
+          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
+        </select>
+      </div>
       <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
         <table className="w-full text-start text-sm">
           <thead className="bg-secondary/40 text-[11px] uppercase tracking-[0.14em] text-ink-soft">
@@ -53,14 +135,14 @@ function CompanyAuditPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-xs text-ink-soft">
-                  {q.isLoading ? "…" : t("auditEmpty")}
+                  {isLoading ? "…" : rows.length === 0 ? t("auditEmpty") : t("auditNoMatches")}
                 </td>
               </tr>
             ) : (
-              rows.map((r) => (
+              filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border/40">
                   <td className="px-4 py-2 text-xs text-ink-soft">
                     {new Date(r.created_at).toLocaleString(lang === "ar" ? "ar" : "en")}
