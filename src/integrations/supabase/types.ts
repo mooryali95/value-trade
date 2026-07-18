@@ -477,6 +477,24 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          count: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       shariah_decision_audit: {
         Row: {
           change_reason: string | null
@@ -581,6 +599,10 @@ export type Database = {
     }
     Functions: {
       accept_company_invitation: { Args: { _token: string }; Returns: string }
+      check_rate_limit: {
+        Args: { _key: string; _limit: number; _window_seconds: number }
+        Returns: boolean
+      }
       has_company_role: {
         Args: {
           _company_id: string
