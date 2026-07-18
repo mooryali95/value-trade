@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { BRANDS } from "@/lib/mock-data";
+import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
 
 // Public endpoint intended to be called by pg_cron or an external scheduler.
 // Verifies an HMAC signature over the request body, then scans active
@@ -11,6 +12,10 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
       POST: async ({ request }) => {
         const secret = process.env.CRON_ALERTS_SECRET;
         if (!secret) return new Response("Not configured", { status: 503 });
+
+        // 30 requests / minute per source IP. pg_cron hits this at most once/min.
+        const ok = await checkRateLimit(clientKeyFromRequest(request, "cron-alerts"), 30, 60);
+        if (!ok) return new Response("Rate limit exceeded", { status: 429 });
 
         const signature = request.headers.get("x-signature") ?? "";
         const body = await request.text();
