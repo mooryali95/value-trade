@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShariahRouteImport } from './routes/shariah'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
@@ -41,6 +42,11 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
@@ -313,6 +322,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
+    | '/unsubscribe'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
+    | '/unsubscribe'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
+    | '/unsubscribe'
     | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
@@ -412,6 +424,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShariahRoute: typeof ShariahRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   CompanyIdRoute: typeof CompanyIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
@@ -430,6 +443,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -696,6 +716,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShariahRoute: ShariahRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   CompanyIdRoute: CompanyIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LegalCookiesRoute: LegalCookiesRoute,
