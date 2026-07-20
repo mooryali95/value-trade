@@ -1,69 +1,35 @@
 import * as React from 'react'
-
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Preview,
-  Text,
-} from '@react-email/components'
+import { Button, Text } from '@react-email/components'
+import { BrandLayout, styles } from './_brand'
 
 interface RecoveryEmailProps {
   siteName: string
   confirmationUrl: string
 }
 
-export const RecoveryEmail = ({
-  siteName,
-  confirmationUrl,
-}: RecoveryEmailProps) => (
-  <Html lang="en" dir="ltr">
-    <Head />
-    <Preview>Reset your password for {siteName}</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Reset your password</Heading>
-        <Text style={text}>
-          We received a request to reset your password for {siteName}. Click
-          the button below to choose a new password.
-        </Text>
-        <Button style={button} href={confirmationUrl}>
-          Reset Password
-        </Button>
-        <Text style={footer}>
-          If you didn't request a password reset, you can safely ignore this
-          email. Your password will not be changed.
-        </Text>
-      </Container>
-    </Body>
-  </Html>
+export const RecoveryEmail = ({ confirmationUrl }: RecoveryEmailProps) => (
+  <BrandLayout preview="إعادة تعيين كلمة المرور في وحدة القيمة" lang="ar">
+    <Text style={styles.h1En}>Reset your password</Text>
+    <Text style={styles.h1}>إعادة تعيين كلمة المرور</Text>
+    <Text style={styles.text}>
+      وصلنا طلب لإعادة تعيين كلمة مرور حسابك في <strong>وحدة القيمة</strong>. اضغط
+      الزر أدناه لاختيار كلمة مرور جديدة.
+    </Text>
+    <Text style={styles.textEn}>
+      We received a request to reset your Value Unit password. Choose a new one
+      using the button below.
+    </Text>
+    <div style={styles.buttonWrap}>
+      <Button style={styles.button} href={confirmationUrl}>
+        إعادة التعيين · Reset Password
+      </Button>
+    </div>
+    <Text style={{ ...styles.textEn, marginTop: 22 }}>
+      إن لم تطلب ذلك، تجاهل الرسالة ولن يتغير شيء في حسابك.
+      <br />
+      If you didn't request this, ignore the email — nothing will change.
+    </Text>
+  </BrandLayout>
 )
 
 export default RecoveryEmail
-
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
-const container = { padding: '20px 25px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#000000',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '14px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
