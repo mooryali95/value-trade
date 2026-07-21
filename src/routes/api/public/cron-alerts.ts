@@ -27,13 +27,15 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { enqueueTransactionalEmail } = await import("@/lib/email/enqueue.server");
         const { data: alerts } = await supabaseAdmin
           .from("price_alerts")
-          .select("id, symbol, direction, target_price")
+          .select("id, user_id, symbol, direction, target_price")
           .eq("active", true);
 
         const priceBySymbol = new Map(BRANDS.map((b) => [b.symbol, b.price] as const));
         let triggered = 0;
+        let emailed = 0;
         for (const a of alerts ?? []) {
           const p = priceBySymbol.get(a.symbol);
           if (p === undefined) continue;
@@ -45,9 +47,32 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
             .update({ active: false, triggered_at: new Date().toISOString() })
             .eq("id", a.id);
           triggered += 1;
+          try {
+            const { data: u } = await supabaseAdmin.auth.admin.getUserById(a.user_id);
+            const email = u?.user?.email;
+            if (email) {
+              const r = await enqueueTransactionalEmail({
+                templateName: "price-alert",
+                recipientEmail: email,
+                idempotencyKey: `price-alert:${a.id}`,
+                label: "price-alert",
+                templateData: {
+                  symbol: a.symbol,
+                  direction: a.direction,
+                  targetPrice: target.toFixed(2),
+                  currentPrice: p.toFixed(2),
+                  currency: "SAR",
+                  viewUrl: "https://hub.sunkvalue.com/portfolio",
+                },
+              });
+              if (r.sent) emailed += 1;
+            }
+          } catch (err) {
+            console.error("[cron-alerts] email enqueue failed", { alertId: a.id, err });
+          }
         }
 
-        return new Response(JSON.stringify({ scanned: alerts?.length ?? 0, triggered }), {
+        return new Response(JSON.stringify({ scanned: alerts?.length ?? 0, triggered, emailed }), {
           status: 200,
           headers: { "content-type": "application/json" },
         });

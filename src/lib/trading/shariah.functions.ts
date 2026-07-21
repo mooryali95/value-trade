@@ -35,6 +35,17 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
       actorId: userId, action: "shariah.decision.create", entity: "shariah_decisions", entityId: row.id,
       metadata: { symbol: data.symbol, status: data.status },
     });
+    try {
+      const { notifyShariahDecision } = await import("./shariah-notify.server");
+      await notifyShariahDecision({
+        decisionId: row.id,
+        symbol: data.symbol,
+        status: data.status,
+        reason: data.reason ?? null,
+      });
+    } catch (err) {
+      console.error("[shariah] notify failed", err);
+    }
     return row;
   });
 
@@ -89,6 +100,17 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
       actorId: userId, action: "shariah.decision.update", entity: "shariah_decisions", entityId: data.id,
       metadata: { status: data.status, changeReason: data.changeReason },
     });
+    try {
+      const { notifyShariahDecision } = await import("./shariah-notify.server");
+      await notifyShariahDecision({
+        decisionId: data.id,
+        symbol: (await supabase.from("shariah_decisions").select("symbol").eq("id", data.id).maybeSingle()).data?.symbol ?? "",
+        status: data.status,
+        reason: data.reason ?? null,
+      });
+    } catch (err) {
+      console.error("[shariah] notify failed", err);
+    }
     return { ok: true };
   });
 
