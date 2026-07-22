@@ -31,11 +31,13 @@ import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenti
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
+import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
 import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_authenticated/company.submissions'
 import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
 import { Route as AuthenticatedCompanyAuditRouteImport } from './routes/_authenticated/company.audit'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
+import { Route as AuthenticatedAdminEmailLogRouteImport } from './routes/_authenticated/admin.email-log'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -153,6 +155,12 @@ const AuthenticatedShariahReviewRoute =
     path: '/shariah/review',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSettingsNotificationsRoute =
+  AuthenticatedSettingsNotificationsRouteImport.update({
+    id: '/settings/notifications',
+    path: '/settings/notifications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCompanySubmitRoute =
   AuthenticatedCompanySubmitRouteImport.update({
     id: '/company/submit',
@@ -181,6 +189,12 @@ const AuthenticatedAdminSubmissionsRoute =
   AuthenticatedAdminSubmissionsRouteImport.update({
     id: '/admin/submissions',
     path: '/admin/submissions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminEmailLogRoute =
+  AuthenticatedAdminEmailLogRouteImport.update({
+    id: '/admin/email-log',
+    path: '/admin/email-log',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const LovableEmailTransactionalSendRoute =
@@ -231,11 +245,13 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -264,11 +280,13 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/company/submit': typeof AuthenticatedCompanySubmitRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -299,11 +317,13 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/_authenticated/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/_authenticated/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/_authenticated/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
+  '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -334,11 +354,13 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/email-log'
     | '/admin/submissions'
     | '/company/audit'
     | '/company/settings'
     | '/company/submissions'
     | '/company/submit'
+    | '/settings/notifications'
     | '/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
@@ -367,11 +389,13 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/email-log'
     | '/admin/submissions'
     | '/company/audit'
     | '/company/settings'
     | '/company/submissions'
     | '/company/submit'
+    | '/settings/notifications'
     | '/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
@@ -401,11 +425,13 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/_authenticated/admin/email-log'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/company/audit'
     | '/_authenticated/company/settings'
     | '/_authenticated/company/submissions'
     | '/_authenticated/company/submit'
+    | '/_authenticated/settings/notifications'
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
@@ -597,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShariahReviewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings/notifications': {
+      id: '/_authenticated/settings/notifications'
+      path: '/settings/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/company/submit': {
       id: '/_authenticated/company/submit'
       path: '/company/submit'
@@ -630,6 +663,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/submissions'
       fullPath: '/admin/submissions'
       preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/email-log': {
+      id: '/_authenticated/admin/email-log'
+      path: '/admin/email-log'
+      fullPath: '/admin/email-log'
+      preLoaderRoute: typeof AuthenticatedAdminEmailLogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/lovable/email/transactional/send': {
@@ -674,11 +714,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedAdminEmailLogRoute: typeof AuthenticatedAdminEmailLogRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedCompanyAuditRoute: typeof AuthenticatedCompanyAuditRoute
   AuthenticatedCompanySettingsRoute: typeof AuthenticatedCompanySettingsRoute
   AuthenticatedCompanySubmissionsRoute: typeof AuthenticatedCompanySubmissionsRoute
   AuthenticatedCompanySubmitRoute: typeof AuthenticatedCompanySubmitRoute
+  AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
 }
 
@@ -686,11 +728,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedAdminEmailLogRoute: AuthenticatedAdminEmailLogRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedCompanyAuditRoute: AuthenticatedCompanyAuditRoute,
   AuthenticatedCompanySettingsRoute: AuthenticatedCompanySettingsRoute,
   AuthenticatedCompanySubmissionsRoute: AuthenticatedCompanySubmissionsRoute,
   AuthenticatedCompanySubmitRoute: AuthenticatedCompanySubmitRoute,
+  AuthenticatedSettingsNotificationsRoute:
+    AuthenticatedSettingsNotificationsRoute,
   AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
 }
 
