@@ -66,10 +66,10 @@ export async function enqueueTransactionalEmail(input: {
     recipient_email: normalized,
     status: 'pending',
     metadata: {
-      template_data: data,
+      template_data: data as any,
       label: input.label ?? input.templateName,
       idempotency_key: idempotencyKey,
-    },
+    } as any,
   })
 
   const { error } = await supabaseAdmin.rpc('enqueue_email', {
