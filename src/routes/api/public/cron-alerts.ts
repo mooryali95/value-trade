@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { enqueueTransactionalEmail } = await import("@/lib/email/enqueue.server");
+        const { notifySymbolEvent } = await import("@/lib/notifications/notify.server");
         const { data: alerts } = await supabaseAdmin
           .from("price_alerts")
           .select("id, user_id, symbol, direction, target_price")
@@ -48,25 +48,23 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
             .eq("id", a.id);
           triggered += 1;
           try {
-            const { data: u } = await supabaseAdmin.auth.admin.getUserById(a.user_id);
-            const email = u?.user?.email;
-            if (email) {
-              const r = await enqueueTransactionalEmail({
-                templateName: "price-alert",
-                recipientEmail: email,
-                idempotencyKey: `price-alert:${a.id}`,
-                label: "price-alert",
-                templateData: {
-                  symbol: a.symbol,
-                  direction: a.direction,
-                  targetPrice: target.toFixed(2),
-                  currentPrice: p.toFixed(2),
-                  currency: "SAR",
-                  viewUrl: "https://hub.sunkvalue.com/portfolio",
-                },
-              });
-              if (r.sent) emailed += 1;
-            }
+            const r = await notifySymbolEvent({
+              symbol: a.symbol,
+              pref: "price_alerts_email",
+              templateName: "price-alert",
+              idempotencyPrefix: `price-alert:${a.id}`,
+              label: "price-alert",
+              onlyUserId: a.user_id, // alert-owner only; watchers/positions get shariah/other events
+              templateData: {
+                symbol: a.symbol,
+                direction: a.direction,
+                targetPrice: target.toFixed(2),
+                currentPrice: p.toFixed(2),
+                currency: "SAR",
+                viewUrl: "https://hub.sunkvalue.com/portfolio",
+              },
+            });
+            emailed += r.notified;
           } catch (err) {
             console.error("[cron-alerts] email enqueue failed", { alertId: a.id, err });
           }
