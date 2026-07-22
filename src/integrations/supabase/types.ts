@@ -284,6 +284,30 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          position_updates_email: boolean
+          price_alerts_email: boolean
+          shariah_decisions_email: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          position_updates_email?: boolean
+          price_alerts_email?: boolean
+          shariah_decisions_email?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          position_updates_email?: boolean
+          price_alerts_email?: boolean
+          shariah_decisions_email?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           asset_class: string
@@ -680,6 +704,30 @@ export type Database = {
           id?: string
           metadata?: Json | null
           reason?: string
+        }
+        Relationships: []
+      }
+      symbol_watchers: {
+        Row: {
+          asset_class: string
+          created_at: string
+          id: string
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          asset_class?: string
+          created_at?: string
+          id?: string
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          asset_class?: string
+          created_at?: string
+          id?: string
+          symbol?: string
+          user_id?: string
         }
         Relationships: []
       }
