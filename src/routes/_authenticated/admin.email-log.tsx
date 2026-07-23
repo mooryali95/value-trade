@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -19,6 +19,23 @@ export const Route = createFileRoute("/_authenticated/admin/email-log")({
 });
 
 type Status = "all" | "pending" | "sent" | "failed" | "dlq" | "suppressed" | "bounced" | "complained";
+
+const FILTER_KEY = "email-log:filters:v1";
+
+type Filters = { status: Status; template: string; search: string; symbol: string };
+
+const DEFAULT_FILTERS: Filters = { status: "all", template: "", search: "", symbol: "" };
+
+function loadFilters(): Filters {
+  if (typeof window === "undefined") return DEFAULT_FILTERS;
+  try {
+    const raw = window.localStorage.getItem(FILTER_KEY);
+    if (!raw) return DEFAULT_FILTERS;
+    return { ...DEFAULT_FILTERS, ...(JSON.parse(raw) as Partial<Filters>) };
+  } catch {
+    return DEFAULT_FILTERS;
+  }
+}
 
 function AdminEmailLogPage() {
   const { isAdmin, isLoading } = useMyRoles();
@@ -46,15 +63,29 @@ function EmailLogContent() {
   const templates = useServerFn(listEmailTemplates);
   const retry = useServerFn(retryEmail);
 
-  const [status, setStatus] = useState<Status>("all");
-  const [template, setTemplate] = useState<string>("");
-  const [search, setSearch] = useState<string>("");
+  const initial = loadFilters();
+  const [status, setStatus] = useState<Status>(initial.status);
+  const [template, setTemplate] = useState<string>(initial.template);
+  const [search, setSearch] = useState<string>(initial.search);
+  const [symbol, setSymbol] = useState<string>(initial.symbol);
   const [page, setPage] = useState(0);
   const limit = 50;
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        FILTER_KEY,
+        JSON.stringify({ status, template, search, symbol } satisfies Filters),
+      );
+    } catch {
+      // ignore
+    }
+  }, [status, template, search, symbol]);
+
   const tplQ = useQuery({ queryKey: ["email-log-templates"], queryFn: () => templates() });
   const logQ = useQuery({
-    queryKey: ["email-log", status, template, search, page],
+    queryKey: ["email-log", status, template, search, symbol, page],
     queryFn: () =>
       list({
         data: {
@@ -72,8 +103,15 @@ function EmailLogContent() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["email-log"] }),
   });
 
-  const items = logQ.data?.items ?? [];
-  const total = logQ.data?.total ?? 0;
+  const rawItems = logQ.data?.items ?? [];
+  const sym = symbol.trim().toUpperCase();
+  const items = sym
+    ? rawItems.filter((r: any) => {
+        const s = (r?.metadata?.template_data?.symbol ?? "").toString().toUpperCase();
+        return s.includes(sym);
+      })
+    : rawItems;
+  const total = sym ? items.length : logQ.data?.total ?? 0;
 
   return (
     <AppShell>
@@ -116,6 +154,22 @@ function EmailLogContent() {
             className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground"
           />
         </div>
+      </div>
+
+      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+        <input
+          value={symbol}
+          onChange={(e) => { setSymbol(e.target.value); setPage(0); }}
+          placeholder="فلترة بالرمز (مثل ARAMCO)…"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono uppercase text-foreground"
+        />
+        <button
+          type="button"
+          onClick={() => { setStatus("all"); setTemplate(""); setSearch(""); setSymbol(""); setPage(0); }}
+          className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
+        >
+          إعادة تعيين الفلاتر
+        </button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
