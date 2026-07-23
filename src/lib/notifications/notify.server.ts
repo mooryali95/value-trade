@@ -8,8 +8,19 @@ import { enqueueTransactionalEmail } from "@/lib/email/enqueue.server";
 
 type PrefKey = "price_alerts_email" | "shariah_decisions_email" | "position_updates_email";
 
-async function interestedUserIds(symbol: string): Promise<string[]> {
+type Audience = "all" | "positions";
+
+async function interestedUserIds(symbol: string, audience: Audience = "all"): Promise<string[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  if (audience === "positions") {
+    const { data } = await supabaseAdmin
+      .from("positions")
+      .select("user_id")
+      .eq("symbol", symbol);
+    const set = new Set<string>();
+    for (const r of data ?? []) if (r?.user_id) set.add(r.user_id as string);
+    return Array.from(set);
+  }
   const [watchers, positions, alerts] = await Promise.all([
     supabaseAdmin.from("symbol_watchers").select("user_id").eq("symbol", symbol),
     supabaseAdmin.from("positions").select("user_id").eq("symbol", symbol),
@@ -43,11 +54,12 @@ export async function notifySymbolEvent(input: {
   templateData: Record<string, unknown>;
   label?: string;
   onlyUserId?: string; // if set, restrict to this user (e.g. price alert owner)
+  audience?: Audience; // 'positions' restricts to position holders only
 }): Promise<{ notified: number }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const userIds = input.onlyUserId
     ? [input.onlyUserId]
-    : await interestedUserIds(input.symbol);
+    : await interestedUserIds(input.symbol, input.audience ?? "all");
   const allowed = await prefEnabledMap(userIds, input.pref);
   let notified = 0;
   for (const uid of userIds) {

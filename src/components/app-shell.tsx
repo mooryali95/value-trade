@@ -16,6 +16,7 @@ import { MARKET_STATS } from "@/lib/mock-data";
 import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
+import { useMyRoles } from "@/hooks/use-my-roles";
 
 function LangToggle() {
   const { lang, setLang } = useI18n();
@@ -49,6 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
+  const { isAdmin } = useMyRoles();
   const nav = [
     { to: "/", label: t("nav_home"), icon: HouseLine },
     { to: "/market", label: t("nav_market"), icon: Storefront },
@@ -58,6 +60,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
     { to: "/workspace", label: t("nav_workspace"), icon: Buildings },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
+    { to: "/settings/notifications", label: "الإشعارات", icon: EnvelopeSimple },
+    ...(isAdmin
+      ? [{ to: "/admin/email-log", label: "سجل الإرسال", icon: EnvelopeSimple }]
+      : []),
   ];
 
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/")));
