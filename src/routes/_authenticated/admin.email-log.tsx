@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
@@ -115,15 +116,12 @@ function EmailLogContent() {
 
   return (
     <AppShell>
-      <header className="mb-6 grid gap-2">
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--gold-deep)]/30 bg-[var(--gold-soft)]/40 px-3 py-1 text-xs font-medium text-[var(--gold-deep)]">
-          <EnvelopeSimple className="h-3.5 w-3.5" /> Admin
-        </div>
-        <h1 className="text-3xl font-bold text-foreground md:text-4xl">سجل الإرسال · Email send log</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          كل رسالة بريد صادرة، حالتها، والقدرة على إعادة إرسال الفاشل.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Admin"
+        title="سجل الإرسال · Email send log"
+        description="كل رسالة بريد صادرة، حالتها، والقدرة على إعادة إرسال الفاشل."
+        crumbs={[{ label: "Admin" }, { label: "سجل الإرسال" }]}
+      />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[auto_auto_1fr]">
         <select
