@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -48,10 +49,11 @@ function InvitationsPage() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("incomingInvitations")}</h1>
-      </header>
+      <PageHeader
+        eyebrow={t("incomingInvitations")}
+        title={t("incomingInvitations")}
+        crumbs={[{ label: t("incomingInvitations") }]}
+      />
 
       {(!data || data.length === 0) ? (
         <EmptyState title={t("noIncomingInvitations")} description={t("noCompaniesDesc")} />
