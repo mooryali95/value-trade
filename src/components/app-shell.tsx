@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/")));
 
   return (
-    <div dir={dir} className="min-h-screen bg-background text-foreground">
+    <div dir={dir} className="min-h-dvh bg-background text-foreground">
       {/* Top header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 md:px-6">
