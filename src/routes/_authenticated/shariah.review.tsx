@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -117,13 +118,12 @@ function ReviewPage() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="mb-3 h-px hairline-gold" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("shariahReview")}</h1>
-        {!rolesLoading && !isReviewer && (
-          <p className="mt-2 text-xs text-[var(--bear)]">{t("reviewerRequired")}</p>
-        )}
-      </header>
+      <PageHeader
+        eyebrow={t("shariahReview")}
+        title={t("shariahReview")}
+        description={!rolesLoading && !isReviewer ? t("reviewerRequired") : undefined}
+        crumbs={[{ label: t("shariahReview") }]}
+      />
 
       <section className="mb-8">
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">

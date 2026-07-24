@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -182,11 +183,12 @@ function PortfolioPage() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("portfolio")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("myPositions")} · {enriched.length}</p>
-      </header>
+      <PageHeader
+        eyebrow={t("portfolio")}
+        title={t("portfolio")}
+        description={`${t("myPositions")} · ${enriched.length}`}
+        crumbs={[{ label: t("portfolio") }]}
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         <KPI label={t("totalValue")} value={formatCurrency(totalValue, false, lang)} />

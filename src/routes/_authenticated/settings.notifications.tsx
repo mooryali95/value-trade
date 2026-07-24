@@ -3,13 +3,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import {
   getMyNotificationPreferences,
   updateMyNotificationPreferences,
   type NotificationPreferences,
 } from "@/lib/notifications/preferences.functions";
 import { listMyWatchers, addWatcher, removeWatcher } from "@/lib/notifications/watchers.functions";
-import { BellRinging, Trash, Plus } from "@phosphor-icons/react";
+import { Trash, Plus } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/_authenticated/settings/notifications")({
   head: () => ({
@@ -61,15 +62,12 @@ function NotificationsSettings() {
 
   return (
     <AppShell>
-      <header className="mb-8 grid gap-2">
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--gold-deep)]/30 bg-[var(--gold-soft)]/40 px-3 py-1 text-xs font-medium text-[var(--gold-deep)]">
-          <BellRinging className="h-3.5 w-3.5" /> تفضيلات الإشعارات
-        </div>
-        <h1 className="text-3xl font-bold text-foreground md:text-4xl">تفضيلات الإشعارات · Notifications</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          اختر أنواع الرسائل التي تريد استلامها، وتابع الرموز التي تهمّك.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Settings"
+        title="تفضيلات الإشعارات · Notifications"
+        description="اختر أنواع الرسائل التي تريد استلامها، وتابع الرموز التي تهمّك."
+        crumbs={[{ label: "Settings" }, { label: "الإشعارات" }]}
+      />
 
       <section className="mb-10 rounded-xl border border-border/60 bg-card/60 p-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">

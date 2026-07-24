@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -104,13 +105,12 @@ function AdminSubmissions() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("submissionsAdmin")}</h1>
-        {!rolesLoading && !isReviewer && (
-          <p className="mt-2 text-xs text-[var(--bear)]">{t("reviewerRequired")}</p>
-        )}
-      </header>
+      <PageHeader
+        eyebrow="Admin"
+        title={t("submissionsAdmin")}
+        description={!rolesLoading && !isReviewer ? t("reviewerRequired") : undefined}
+        crumbs={[{ label: "Admin" }, { label: t("submissionsAdmin") }]}
+      />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />

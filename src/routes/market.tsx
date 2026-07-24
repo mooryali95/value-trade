@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { useI18n } from "@/lib/i18n";
 import { BRANDS, MARKET_STATS, type Sector, type AssetClass } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
@@ -46,10 +47,12 @@ function MarketPage() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground md:text-3xl">{t("marketOverview")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("brands256")} · {formatCurrency(MARKET_STATS.totalMarketCap, true, lang)} {t("marketCap")}</p>
-      </header>
+      <PageHeader
+        eyebrow={t("marketOverview")}
+        title={t("marketOverview")}
+        description={`${t("brands256")} · ${formatCurrency(MARKET_STATS.totalMarketCap, true, lang)} ${t("marketCap")}`}
+        crumbs={[{ label: t("marketOverview") }]}
+      />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard label={t("activeInstruments")} value={String(MARKET_STATS.activeInstruments)} />

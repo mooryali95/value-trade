@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -83,10 +84,11 @@ function CompanySubmissions() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("submissionsIn")}</h1>
-      </header>
+      <PageHeader
+        eyebrow={t("companies")}
+        title={t("submissionsIn")}
+        crumbs={[{ label: t("companies") }, { label: t("submissionsIn") }]}
+      />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
         <select value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
