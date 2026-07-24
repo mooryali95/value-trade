@@ -54,6 +54,52 @@ function MarketPill() {
   );
 }
 
+function NavGroup({
+  label,
+  icon: Icon,
+  items,
+  active,
+  isActive,
+}: {
+  label: string;
+  icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" | "bold" }>;
+  items: { to: string; label: string; icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" }> }[];
+  active: boolean;
+  isActive: (p: string) => boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition outline-none ${
+          active
+            ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+            : "text-ink-soft hover:bg-secondary/70 hover:text-ink"
+        }`}
+      >
+        <Icon size={16} weight={active ? "duotone" : "regular"} />
+        {label}
+        <CaretDown size={12} weight="bold" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="min-w-[200px]">
+        {items.map((it) => (
+          <DropdownMenuItem key={it.to} asChild>
+            <Link
+              to={it.to}
+              className={`flex items-center gap-2 ${
+                isActive(it.to) ? "text-[var(--gold-deep)]" : "text-ink"
+              }`}
+            >
+              <it.icon size={14} weight={isActive(it.to) ? "duotone" : "regular"} />
+              {it.label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { t, dir } = useI18n();
   const [open, setOpen] = useState(false);
