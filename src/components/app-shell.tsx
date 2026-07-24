@@ -10,6 +10,9 @@ import {
   Vault,
   Briefcase,
   EnvelopeSimple,
+  CaretDown,
+  Bell,
+  Gear,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { MARKET_STATS } from "@/lib/mock-data";
@@ -17,6 +20,12 @@ import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function LangToggle() {
   const { lang, setLang } = useI18n();
@@ -45,31 +54,86 @@ function MarketPill() {
   );
 }
 
+function NavGroup({
+  label,
+  icon: Icon,
+  items,
+  active,
+  isActive,
+}: {
+  label: string;
+  icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" | "bold" }>;
+  items: { to: string; label: string; icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" }> }[];
+  active: boolean;
+  isActive: (p: string) => boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition outline-none ${
+          active
+            ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+            : "text-ink-soft hover:bg-secondary/70 hover:text-ink"
+        }`}
+      >
+        <Icon size={16} weight={active ? "duotone" : "regular"} />
+        {label}
+        <CaretDown size={12} weight="bold" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="min-w-[200px]">
+        {items.map((it) => (
+          <DropdownMenuItem key={it.to} asChild>
+            <Link
+              to={it.to}
+              className={`flex items-center gap-2 ${
+                isActive(it.to) ? "text-[var(--gold-deep)]" : "text-ink"
+              }`}
+            >
+              <it.icon size={14} weight={isActive(it.to) ? "duotone" : "regular"} />
+              {it.label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { t, dir } = useI18n();
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const { isAdmin } = useMyRoles();
-  const nav = [
+  const primary = [
     { to: "/", label: t("nav_home"), icon: HouseLine },
     { to: "/market", label: t("nav_market"), icon: Storefront },
     { to: "/trade/noor001", label: t("nav_trade"), icon: ChartLine },
     { to: "/portfolio", label: t("portfolio"), icon: Vault },
+    { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
+  ];
+
+  const companyGroup = [
     { to: "/company/settings", label: t("company"), icon: Briefcase },
     { to: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
     { to: "/workspace", label: t("nav_workspace"), icon: Buildings },
-    { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
-    { to: "/settings/notifications", label: "الإشعارات", icon: EnvelopeSimple },
+  ];
+
+  const accountGroup = [
+    { to: "/settings/notifications", label: "الإشعارات", icon: Bell },
     ...(isAdmin
       ? [{ to: "/admin/email-log", label: "سجل الإرسال", icon: EnvelopeSimple }]
       : []),
   ];
 
+  const allNav = [...primary, ...companyGroup, ...accountGroup];
+
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/")));
+  const groupActive = (items: { to: string }[]) => items.some((i) => isActive(i.to));
 
   return (
-    <div dir={dir} className="min-h-screen bg-background text-foreground">
+    <div dir={dir} className="min-h-dvh bg-background text-foreground">
       {/* Top header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 md:px-6">
@@ -87,7 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="hidden items-center justify-center gap-0.5 lg:flex">
-            {nav.map((n) => (
+            {primary.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}
@@ -101,6 +165,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {n.label}
               </Link>
             ))}
+
+            <NavGroup
+              label={t("company")}
+              icon={Briefcase}
+              items={companyGroup}
+              active={groupActive(companyGroup)}
+              isActive={isActive}
+            />
+            <NavGroup
+              label={"الإعدادات"}
+              icon={Gear}
+              items={accountGroup}
+              active={groupActive(accountGroup)}
+              isActive={isActive}
+            />
           </nav>
 
           <div className="flex items-center gap-2">
@@ -115,7 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {open && (
           <div className="border-t border-border/60 bg-card lg:hidden">
             <div className="flex flex-col p-2">
-              {nav.map((n) => (
+              {allNav.map((n) => (
                 <Link
                   key={n.to}
                   to={n.to}

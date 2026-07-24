@@ -99,8 +99,8 @@ function AuthPage() {
   }
 
   return (
-    <div dir={dir} className="min-h-screen bg-background text-foreground">
-      <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <div dir={dir} className="min-h-dvh bg-background text-foreground">
+      <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
         {/* Brand side */}
         <aside className="relative hidden overflow-hidden ivory-gradient lg:block">
           <div

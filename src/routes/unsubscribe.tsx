@@ -61,7 +61,7 @@ function UnsubscribePage() {
   }
 
   return (
-    <div dir="rtl" className="mx-auto flex min-h-screen max-w-lg items-center px-6 py-16">
+    <div dir="rtl" className="mx-auto flex min-h-dvh max-w-lg items-center px-6 py-16">
       <div className="w-full rounded-2xl border border-border/60 bg-card p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 h-px w-16 hairline-gold" />
         <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--gold-deep)]">Value · Unit</p>
