@@ -10,7 +10,7 @@ import {
   type NotificationPreferences,
 } from "@/lib/notifications/preferences.functions";
 import { listMyWatchers, addWatcher, removeWatcher } from "@/lib/notifications/watchers.functions";
-import { BellRinging, Trash, Plus } from "@phosphor-icons/react";
+import { Trash, Plus } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/_authenticated/settings/notifications")({
   head: () => ({

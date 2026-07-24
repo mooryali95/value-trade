@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
-import { EnvelopeSimple, ArrowClockwise, MagnifyingGlass } from "@phosphor-icons/react";
+import { ArrowClockwise, MagnifyingGlass } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/_authenticated/admin/email-log")({
   head: () => ({
