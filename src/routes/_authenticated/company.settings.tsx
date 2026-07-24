@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -126,18 +127,19 @@ function CompanySettings() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("companySettings")}</h1>
+      <PageHeader
+        eyebrow={t("companies")}
+        title={t("companySettings")}
+        crumbs={[{ label: t("companies") }, { label: t("companySettings") }]}
+        actions={
           <Link
             to="/company/audit"
             className="hidden items-center rounded-md border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
           >
             {t("auditLog")}
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       {list.isLoading ? (
         <LuxurySkeleton lines={4} />

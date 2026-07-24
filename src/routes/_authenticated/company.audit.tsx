@@ -7,6 +7,7 @@ import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { AccessDenied } from "@/components/access-denied";
 import { listAuditLog, type AuditRow } from "@/lib/audit/audit.functions";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/company/audit")({
   head: () => ({ meta: [{ title: "Audit log — Value" }] }),
@@ -84,20 +85,21 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-        <div className="mb-3 h-px w-16 hairline-gold" />
-        <h1 className="text-2xl font-semibold text-ink">{t("auditLog")}</h1>
-        <p className="mt-1 text-xs text-ink-soft">{t("auditLogDesc")}</p>
-        </div>
-        <button
-          onClick={exportCsv}
-          disabled={filtered.length === 0}
-          className="inline-flex items-center rounded-md border border-border px-4 py-2 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40 disabled:hover:border-border disabled:hover:text-ink"
-        >
-          {t("auditExportCsv")}
-        </button>
-      </header>
+      <PageHeader
+        eyebrow={companyName}
+        title={t("auditLog")}
+        description={t("auditLogDesc")}
+        crumbs={[{ label: t("companies") }, { label: t("auditLog") }]}
+        actions={
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center rounded-md border border-border px-4 py-2 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40 disabled:hover:border-border disabled:hover:text-ink"
+          >
+            {t("auditExportCsv")}
+          </button>
+        }
+      />
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <input
           type="search"

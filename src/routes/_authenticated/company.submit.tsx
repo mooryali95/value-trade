@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
@@ -80,10 +81,11 @@ function SubmitPage() {
 
   return (
     <AppShell>
-      <header className="mb-6">
-        <div className="h-px hairline-gold mb-3" />
-        <h1 className="text-2xl font-bold text-ink md:text-3xl">{t("submitProductForm")}</h1>
-      </header>
+      <PageHeader
+        eyebrow={t("companies")}
+        title={t("submitProductForm")}
+        crumbs={[{ label: t("companies") }, { label: t("submitProductForm") }]}
+      />
 
       {list.isLoading ? (
         <LuxurySkeleton lines={4} />
