@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { useI18n } from "@/lib/i18n";
 import { BRANDS, getBrand, generateCandles, generateOrderBook } from "@/lib/mock-data";
@@ -81,6 +82,15 @@ function TradePage() {
 
   return (
     <AppShell>
+      <PageHeader
+        eyebrow={brand.symbol}
+        title={`${lang === "ar" ? brand.nameAr : brand.nameEn} · ${t("trade" as never) ?? "Trade"}`}
+        crumbs={[
+          { label: t("marketOverview"), to: "/market" },
+          { label: lang === "ar" ? brand.nameAr : brand.nameEn, to: "/market/$slug" },
+          { label: "Trade" },
+        ]}
+      />
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
         {/* Watchlist */}
         <aside className="rounded-xl border border-border/60 bg-card/60 p-3 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
