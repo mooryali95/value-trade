@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader, HeaderLink } from "@/components/page-header";
 import { useI18n } from "@/lib/i18n";
 import { SHARIAH_BOARD, SHARIAH_STANDARDS, BRANDS } from "@/lib/mock-data";
 import { ShieldCheck, ScrollText } from "lucide-react";
@@ -19,16 +20,17 @@ function ShariahPage() {
   const decisions = BRANDS.slice(0, 8);
   return (
     <AppShell>
-      <header className="mb-8 grid gap-3">
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          <ShieldCheck className="h-3.5 w-3.5" /> AAOIFI Aligned
-        </div>
-        <h1 className="text-3xl font-bold text-foreground md:text-4xl">{t("aboutBoard")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground md:text-base">{t("aboutBoardDesc")}</p>
-        <Link to="/shariah/review" className="mt-2 w-fit rounded-md border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]">
-          {t("shariahReview")} →
-        </Link>
-      </header>
+      <PageHeader
+        eyebrow="AAOIFI Aligned"
+        title={t("aboutBoard")}
+        description={t("aboutBoardDesc")}
+        crumbs={[{ label: t("aboutBoard") }]}
+        actions={
+          <HeaderLink to="/shariah/review" variant="primary">
+            <ShieldCheck className="h-3.5 w-3.5" /> {t("shariahReview")}
+          </HeaderLink>
+        }
+      />
 
       <section className="mb-10">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("members")}</h2>

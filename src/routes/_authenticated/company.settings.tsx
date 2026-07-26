@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader, HeaderLink } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
@@ -130,14 +130,11 @@ function CompanySettings() {
       <PageHeader
         eyebrow={t("companies")}
         title={t("companySettings")}
-        crumbs={[{ label: t("companies") }, { label: t("companySettings") }]}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("companySettings") }]}
         actions={
-          <Link
-            to="/company/audit"
-            className="hidden items-center rounded-md border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
-          >
+          <HeaderLink to="/company/audit" variant="secondary">
             {t("auditLog")}
-          </Link>
+          </HeaderLink>
         }
       />
 

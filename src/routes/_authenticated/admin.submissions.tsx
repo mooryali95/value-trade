@@ -109,7 +109,7 @@ function AdminSubmissions() {
         eyebrow="Admin"
         title={t("submissionsAdmin")}
         description={!rolesLoading && !isReviewer ? t("reviewerRequired") : undefined}
-        crumbs={[{ label: "Admin" }, { label: t("submissionsAdmin") }]}
+        crumbs={[{ label: "Admin", to: "/admin/submissions" }, { label: t("submissionsAdmin") }]}
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">

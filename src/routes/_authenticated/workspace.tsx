@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader, HeaderAction } from "@/components/page-header";
 import { useI18n } from "@/lib/i18n";
 import { BRANDS, getCompanyBrands } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
@@ -24,20 +25,16 @@ function WorkspacePage() {
 
   return (
     <AppShell>
-      <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl gold-gradient text-lg font-bold text-[oklch(0.16_0.04_260)]">
-            <Building2 className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-primary">{company.plan} · Tenant</div>
-            <h1 className="truncate text-xl font-bold text-foreground md:text-2xl">{lang === "ar" ? company.nameAr : company.nameEn}</h1>
-          </div>
-        </div>
-        <button className="hidden rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)] sm:inline-flex sm:items-center sm:gap-2">
-          <Plus className="h-3.5 w-3.5" /> {lang === "ar" ? "إضافة براند" : "Add brand"}
-        </button>
-      </header>
+      <PageHeader
+        eyebrow={`${company.plan} · Tenant`}
+        title={lang === "ar" ? company.nameAr : company.nameEn}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: lang === "ar" ? "منصة الشركة" : "Workspace" }]}
+        actions={
+          <HeaderAction variant="primary">
+            <Plus className="h-3.5 w-3.5" /> {lang === "ar" ? "إضافة براند" : "Add brand"}
+          </HeaderAction>
+        }
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         <KPI label={t("brandsCount")} value={String(brands.length)} icon={Building2} />

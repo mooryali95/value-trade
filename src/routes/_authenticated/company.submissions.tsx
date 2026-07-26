@@ -87,7 +87,7 @@ function CompanySubmissions() {
       <PageHeader
         eyebrow={t("companies")}
         title={t("submissionsIn")}
-        crumbs={[{ label: t("companies") }, { label: t("submissionsIn") }]}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submissionsIn") }]}
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { useI18n } from "@/lib/i18n";
 import { getCompanyBrands, type Brand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
@@ -33,17 +34,14 @@ function CompanyPage() {
 
   return (
     <AppShell>
-      <header className="mb-8 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl gold-gradient text-[oklch(0.16_0.04_260)]">
-            <Building2 className="h-7 w-7" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("companyProfile")}</div>
-            <h1 className="truncate text-2xl font-bold text-foreground md:text-3xl">{lang === "ar" ? nameAr : nameEn}</h1>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        eyebrow={t("companyProfile")}
+        title={lang === "ar" ? nameAr : nameEn}
+        crumbs={[
+          { label: t("marketOverview"), to: "/market" },
+          { label: lang === "ar" ? nameAr : nameEn },
+        ]}
+      />
 
       <div className="mb-8 grid gap-3 sm:grid-cols-3">
         <Stat label={t("brandsCount")} value={String(brands.length)} />
