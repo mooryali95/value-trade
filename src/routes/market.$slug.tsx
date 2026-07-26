@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { useI18n } from "@/lib/i18n";
 import { getBrand, generateCandles, generateOrderBook } from "@/lib/mock-data";
@@ -40,8 +41,26 @@ function BrandDetail() {
 
   return (
     <AppShell>
-      {/* Header */}
-      <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+      <PageHeader
+        eyebrow={brand.symbol}
+        title={lang === "ar" ? brand.nameAr : brand.nameEn}
+        description={`${brand.sector} · ${t(brand.instrument === "sukuk" ? "sukuk" : "equity")}`}
+        crumbs={[
+          { label: t("marketOverview"), to: "/market" },
+          { label: lang === "ar" ? brand.nameAr : brand.nameEn },
+        ]}
+        actions={
+          <div className="text-end">
+            <div className="font-mono text-2xl font-bold text-ink md:text-3xl">{brand.price.toFixed(2)}</div>
+            <div className={`mt-1 inline-flex items-center gap-1 font-mono text-sm ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+              {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              {formatPct(brand.change24h)}
+            </div>
+          </div>
+        }
+      />
+      {/* Legacy header (kept for company link) */}
+      <div className="-mt-2 mb-4 hidden">
         <div className="flex min-w-0 items-center gap-4">
           <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-sm font-bold text-ivory shadow-lg" style={{ background: brand.color }}>
             {brand.symbol.slice(0, 3)}
@@ -67,7 +86,7 @@ function BrandDetail() {
             {formatPct(brand.change24h)}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Stats strip */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
