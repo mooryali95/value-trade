@@ -84,10 +84,10 @@ function TradePage() {
     <AppShell>
       <PageHeader
         eyebrow={brand.symbol}
-        title={`${lang === "ar" ? brand.nameAr : brand.nameEn} · ${t("trade" as never) ?? "Trade"}`}
+        title={`${lang === "ar" ? brand.nameAr : brand.nameEn} · Trade`}
         crumbs={[
           { label: t("marketOverview"), to: "/market" },
-          { label: lang === "ar" ? brand.nameAr : brand.nameEn, to: "/market/$slug" },
+          { label: lang === "ar" ? brand.nameAr : brand.nameEn },
           { label: "Trade" },
         ]}
       />
