@@ -66,7 +66,7 @@ function NotificationsSettings() {
         eyebrow="Settings"
         title="تفضيلات الإشعارات · Notifications"
         description="اختر أنواع الرسائل التي تريد استلامها، وتابع الرموز التي تهمّك."
-        crumbs={[{ label: "Settings" }, { label: "الإشعارات" }]}
+        crumbs={[{ label: "Settings", to: "/settings/notifications" }, { label: "الإشعارات" }]}
       />
 
       <section className="mb-10 rounded-xl border border-border/60 bg-card/60 p-6">

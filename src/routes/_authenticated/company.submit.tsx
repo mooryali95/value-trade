@@ -84,7 +84,7 @@ function SubmitPage() {
       <PageHeader
         eyebrow={t("companies")}
         title={t("submitProductForm")}
-        crumbs={[{ label: t("companies") }, { label: t("submitProductForm") }]}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submitProductForm") }]}
       />
 
       {list.isLoading ? (

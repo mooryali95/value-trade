@@ -89,7 +89,7 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
         eyebrow={companyName}
         title={t("auditLog")}
         description={t("auditLogDesc")}
-        crumbs={[{ label: t("companies") }, { label: t("auditLog") }]}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("auditLog") }]}
         actions={
           <button
             onClick={exportCsv}

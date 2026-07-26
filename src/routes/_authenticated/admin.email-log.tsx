@@ -120,7 +120,7 @@ function EmailLogContent() {
         eyebrow="Admin"
         title="سجل الإرسال · Email send log"
         description="كل رسالة بريد صادرة، حالتها، والقدرة على إعادة إرسال الفاشل."
-        crumbs={[{ label: "Admin" }, { label: "سجل الإرسال" }]}
+        crumbs={[{ label: "Admin", to: "/admin/submissions" }, { label: "سجل الإرسال" }]}
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[auto_auto_1fr]">
