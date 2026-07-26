@@ -128,9 +128,9 @@ export function HeaderLink({
   className?: string;
   children: ReactNode;
 }) {
+  const cls = `${base} ${variantClasses[variant]} ${className ?? ""}`;
   return (
-    // @ts-expect-error - dynamic to
-    <Link to={to} params={params} search={search} className={`${base} ${variantClasses[variant]} ${className ?? ""}`}>
+    <Link to={to as never} params={params as never} search={search as never} className={cls}>
       {children}
     </Link>
   );
