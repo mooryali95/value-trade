@@ -315,7 +315,7 @@ function PortfolioPage() {
                     {o.status === "pending" ? (
                       <>
                         <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
-                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => cancelMut.mutate(o.id)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => askCancel(o.id, o.symbol)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                       </>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
