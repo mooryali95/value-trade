@@ -270,8 +270,8 @@ function PortfolioPage() {
             action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>}
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-            <div className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+            <div className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               {positionCols.map((c) => (
                 <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                   <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -280,7 +280,7 @@ function PortfolioPage() {
               <div className="w-16" />
             </div>
             {pagedPositions.map((p) => (
-              <div key={p.id} className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
+              <div key={p.id} className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
                   <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
@@ -306,8 +306,8 @@ function PortfolioPage() {
           {filteredOrders.length === 0 ? (
             <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-              <div className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+              <div className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
                 {orderCols.map((c) => (
                   <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                     <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -316,7 +316,7 @@ function PortfolioPage() {
                 <div className="w-24" />
               </div>
               {pagedOrders.map((o) => (
-                <div key={o.id} className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
+                <div key={o.id} className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
                   <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
                   <div className="text-end font-mono">{Number(o.qty)}</div>
