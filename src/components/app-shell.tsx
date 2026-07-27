@@ -20,6 +20,8 @@ import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { CommandPalette } from "@/components/command-palette";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +37,26 @@ function LangToggle() {
       className="rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
     >
       {lang === "ar" ? "EN" : "عربي"}
+    </button>
+  );
+}
+
+function CommandTrigger() {
+  const { lang } = useI18n();
+  const dispatch = () => {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+    );
+  };
+  return (
+    <button
+      onClick={dispatch}
+      title={lang === "ar" ? "بحث سريع (⌘K)" : "Quick search (⌘K)"}
+      className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
+    >
+      <MagnifyingGlass size={12} weight="bold" />
+      {lang === "ar" ? "بحث" : "Search"}
+      <kbd className="rounded border border-border bg-background px-1 text-[9px] font-mono">⌘K</kbd>
     </button>
   );
 }
@@ -184,6 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-2">
             <MarketPill />
+            <CommandTrigger />
             <CompanySwitcher />
             <LangToggle />
             <UserMenu />
@@ -229,6 +252,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
+      <CommandPalette />
     </div>
   );
 }

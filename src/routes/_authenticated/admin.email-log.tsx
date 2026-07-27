@@ -7,7 +7,10 @@ import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
-import { ArrowClockwise, MagnifyingGlass } from "@phosphor-icons/react";
+import { renderEmailPreview } from "@/lib/admin/email-preview.functions";
+import { ArrowClockwise, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { useConfirm } from "@/components/confirm-dialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/email-log")({
   head: () => ({
@@ -63,6 +66,9 @@ function EmailLogContent() {
   const list = useServerFn(listEmailLog);
   const templates = useServerFn(listEmailTemplates);
   const retry = useServerFn(retryEmail);
+  const preview = useServerFn(renderEmailPreview);
+  const confirm = useConfirm();
+  const [previewOpen, setPreviewOpen] = useState<null | { html: string; subject: string; template: string }>(null);
 
   const initial = loadFilters();
   const [status, setStatus] = useState<Status>(initial.status);
@@ -101,8 +107,37 @@ function EmailLogContent() {
 
   const retryM = useMutation({
     mutationFn: (messageId: string) => retry({ data: { messageId } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-log"] }),
+    onSuccess: () => {
+      toast.success("تم إعادة إرسال الرسالة");
+      qc.invalidateQueries({ queryKey: ["email-log"] });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
+
+  const askRetry = async (row: any) => {
+    if (!row.message_id) return;
+    const ok = await confirm({
+      title: "إعادة إرسال الرسالة؟",
+      description: `${row.template_name} → ${row.recipient_email}`,
+      confirmLabel: "إعادة الإرسال",
+      cancelLabel: "إلغاء",
+    });
+    if (ok) retryM.mutate(row.message_id);
+  };
+
+  const openPreview = async (row: any) => {
+    try {
+      const res = await preview({
+        data: {
+          template: row.template_name,
+          data: (row.metadata?.template_data ?? {}) as Record<string, unknown>,
+        },
+      });
+      setPreviewOpen({ html: res.html, subject: res.subject, template: row.template_name });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "معاينة غير متاحة لهذا القالب");
+    }
+  };
 
   const rawItems = logQ.data?.items ?? [];
   const sym = symbol.trim().toUpperCase();
@@ -202,13 +237,21 @@ function EmailLogContent() {
             <div className="font-mono text-[11px] text-muted-foreground">
               {new Date(r.created_at).toLocaleString()}
             </div>
-            <button
-              onClick={() => r.message_id && retryM.mutate(r.message_id)}
-              disabled={!r.message_id || retryM.isPending || r.status === "sent" || r.status === "pending"}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40"
-            >
-              <ArrowClockwise className="h-3.5 w-3.5" /> إعادة
-            </button>
+            <div className="flex justify-end gap-1">
+                <button
+                  onClick={() => openPreview(r)}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
+                >
+                  <Eye className="h-3.5 w-3.5" /> معاينة
+                </button>
+                <button
+                  onClick={() => askRetry(r)}
+                  disabled={!r.message_id || retryM.isPending || r.status === "sent" || r.status === "pending"}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40"
+                >
+                  <ArrowClockwise className="h-3.5 w-3.5" /> إعادة
+                </button>
+              </div>
           </div>
         ))}
       </div>
@@ -232,6 +275,21 @@ function EmailLogContent() {
           </button>
         </div>
       </div>
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setPreviewOpen(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="flex h-[85dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-luxury">
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{previewOpen.template}</div>
+                <div className="truncate text-sm font-semibold text-ink">{previewOpen.subject}</div>
+              </div>
+              <button onClick={() => setPreviewOpen(null)} className="rounded-md border border-border p-1.5 text-ink-soft hover:border-[var(--gold-deep)]"><X className="h-4 w-4" /></button>
+            </div>
+            <iframe title="email preview" srcDoc={previewOpen.html} className="flex-1 w-full bg-ivory" />
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

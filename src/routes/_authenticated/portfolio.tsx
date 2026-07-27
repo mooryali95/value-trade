@@ -17,6 +17,7 @@ import { formatCurrency, formatPct } from "@/lib/format";
 import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useConfirm } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -47,6 +48,7 @@ function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
   const { isTrader } = useMyRoles();
+  const confirm = useConfirm();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const updateSearch = (patch: Partial<SearchState>) =>
@@ -69,6 +71,16 @@ function PortfolioPage() {
     onSuccess: () => { toast.success(t("orderCancelled")); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
+  const askCancel = async (orderId: string, symbol: string) => {
+    const ok = await confirm({
+      title: t("cancelOrder"),
+      description: `${symbol} — ${t("onlyPendingEditable")}`,
+      confirmLabel: t("cancelOrder"),
+      cancelLabel: t("cancelled"),
+      tone: "danger",
+    });
+    if (ok) cancelMut.mutate(orderId);
+  };
   const modifyMut = useMutation({
     mutationFn: (v: { orderId: string; qty: number; price: number }) => modifyFn({ data: v }),
     onSuccess: () => { toast.success(t("orderModified")); setEditing(null); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
@@ -197,6 +209,18 @@ function PortfolioPage() {
         <KPI label={t("pnl")} value={formatCurrency(totalPnl, false, lang)} tone={totalPnl >= 0 ? "bull" : "bear"} />
       </div>
 
+      {enriched.length > 0 && (
+        <AllocationBar
+          positions={enriched.map((p) => ({
+            symbol: p.symbol,
+            value: p.value,
+            color: p.brand?.color ?? "var(--gold)",
+          }))}
+          total={positionsValue}
+          label={t("weight")}
+        />
+      )}
+
       {/* Tabs */}
       <div className="mb-4 flex gap-2 border-b border-border/60">
         {[["positions", t("tabPositions")], ["orders", t("tabOrders")]].map(([key, label]) => (
@@ -246,8 +270,8 @@ function PortfolioPage() {
             action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>}
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-            <div className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+            <div className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               {positionCols.map((c) => (
                 <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                   <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -256,7 +280,7 @@ function PortfolioPage() {
               <div className="w-16" />
             </div>
             {pagedPositions.map((p) => (
-              <div key={p.id} className="grid grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
+              <div key={p.id} className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
                   <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
@@ -282,8 +306,8 @@ function PortfolioPage() {
           {filteredOrders.length === 0 ? (
             <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-              <div className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
+              <div className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
                 {orderCols.map((c) => (
                   <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                     <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -292,7 +316,7 @@ function PortfolioPage() {
                 <div className="w-24" />
               </div>
               {pagedOrders.map((o) => (
-                <div key={o.id} className="grid grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
+                <div key={o.id} className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
                   <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
                   <div className="text-end font-mono">{Number(o.qty)}</div>
@@ -303,7 +327,7 @@ function PortfolioPage() {
                     {o.status === "pending" ? (
                       <>
                         <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
-                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => cancelMut.mutate(o.id)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => askCancel(o.id, o.symbol)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                       </>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
@@ -349,6 +373,51 @@ function KPI({ label, value, tone }: { label: string; value: string; tone?: "bul
     <div className="rounded-xl border border-border/60 bg-card p-4">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`mt-1 font-mono text-lg font-semibold ${tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"}`}>{value}</div>
+    </div>
+  );
+}
+
+function AllocationBar({
+  positions,
+  total,
+  label,
+}: {
+  positions: { symbol: string; value: number; color: string }[];
+  total: number;
+  label: string;
+}) {
+  if (total <= 0) return null;
+  const top = [...positions].sort((a, b) => b.value - a.value).slice(0, 8);
+  const others = positions.length - top.length;
+  const othersValue = positions.slice(top.length).reduce((s, p) => s + p.value, 0);
+  const segments = [
+    ...top.map((p) => ({ symbol: p.symbol, value: p.value, color: p.color })),
+    ...(others > 0 ? [{ symbol: `+${others}`, value: othersValue, color: "var(--muted-foreground)" }] : []),
+  ];
+  return (
+    <div className="mb-6 rounded-xl border border-border/60 bg-card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-[10px] font-mono text-muted-foreground">{positions.length}</div>
+      </div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+        {segments.map((s, i) => (
+          <span
+            key={`${s.symbol}-${i}`}
+            title={`${s.symbol} · ${((s.value / total) * 100).toFixed(1)}%`}
+            style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
+          />
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+        {segments.map((s, i) => (
+          <span key={`${s.symbol}-lg-${i}`} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
+            <span className="font-mono text-ink-soft">{s.symbol}</span>
+            <span>{((s.value / total) * 100).toFixed(1)}%</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
