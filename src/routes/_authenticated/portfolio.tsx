@@ -377,6 +377,51 @@ function KPI({ label, value, tone }: { label: string; value: string; tone?: "bul
   );
 }
 
+function AllocationBar({
+  positions,
+  total,
+  label,
+}: {
+  positions: { symbol: string; value: number; color: string }[];
+  total: number;
+  label: string;
+}) {
+  if (total <= 0) return null;
+  const top = [...positions].sort((a, b) => b.value - a.value).slice(0, 8);
+  const others = positions.length - top.length;
+  const othersValue = positions.slice(top.length).reduce((s, p) => s + p.value, 0);
+  const segments = [
+    ...top.map((p) => ({ symbol: p.symbol, value: p.value, color: p.color })),
+    ...(others > 0 ? [{ symbol: `+${others}`, value: othersValue, color: "var(--muted-foreground)" }] : []),
+  ];
+  return (
+    <div className="mb-6 rounded-xl border border-border/60 bg-card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-[10px] font-mono text-muted-foreground">{positions.length}</div>
+      </div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+        {segments.map((s, i) => (
+          <span
+            key={`${s.symbol}-${i}`}
+            title={`${s.symbol} · ${((s.value / total) * 100).toFixed(1)}%`}
+            style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
+          />
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+        {segments.map((s, i) => (
+          <span key={`${s.symbol}-lg-${i}`} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
+            <span className="font-mono text-ink-soft">{s.symbol}</span>
+            <span>{((s.value / total) * 100).toFixed(1)}%</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Pager({ page, pageCount, onPage, t }: { page: number; pageCount: number; onPage: (p: number) => void; t: (k: never) => string }) {
   if (pageCount <= 1) return null;
   return (
