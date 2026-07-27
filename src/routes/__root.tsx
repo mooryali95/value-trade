@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider } from "../lib/i18n";
 import { supabase } from "../integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { CookieConsent } from "@/components/cookie-consent";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 
 function NotFoundComponent() {
   return (
@@ -136,8 +138,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <Outlet />
-        <Toaster />
+        <ConfirmProvider>
+          <Outlet />
+          <CookieConsent />
+          <Toaster />
+        </ConfirmProvider>
       </I18nProvider>
     </QueryClientProvider>
   );
