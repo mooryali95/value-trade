@@ -237,8 +237,7 @@ function EmailLogContent() {
             <div className="font-mono text-[11px] text-muted-foreground">
               {new Date(r.created_at).toLocaleString()}
             </div>
-            <button
-              <div className="flex justify-end gap-1">
+            <div className="flex justify-end gap-1">
                 <button
                   onClick={() => openPreview(r)}
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
