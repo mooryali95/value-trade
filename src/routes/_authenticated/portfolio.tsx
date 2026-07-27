@@ -17,6 +17,7 @@ import { formatCurrency, formatPct } from "@/lib/format";
 import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useConfirm } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -47,6 +48,7 @@ function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
   const { isTrader } = useMyRoles();
+  const confirm = useConfirm();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const updateSearch = (patch: Partial<SearchState>) =>
@@ -69,6 +71,16 @@ function PortfolioPage() {
     onSuccess: () => { toast.success(t("orderCancelled")); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
+  const askCancel = async (orderId: string, symbol: string) => {
+    const ok = await confirm({
+      title: t("cancelOrder"),
+      description: `${symbol} — ${t("onlyPendingEditable")}`,
+      confirmLabel: t("cancelOrder"),
+      cancelLabel: t("cancelled"),
+      tone: "danger",
+    });
+    if (ok) cancelMut.mutate(orderId);
+  };
   const modifyMut = useMutation({
     mutationFn: (v: { orderId: string; qty: number; price: number }) => modifyFn({ data: v }),
     onSuccess: () => { toast.success(t("orderModified")); setEditing(null); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
