@@ -209,6 +209,18 @@ function PortfolioPage() {
         <KPI label={t("pnl")} value={formatCurrency(totalPnl, false, lang)} tone={totalPnl >= 0 ? "bull" : "bear"} />
       </div>
 
+      {enriched.length > 0 && (
+        <AllocationBar
+          positions={enriched.map((p) => ({
+            symbol: p.symbol,
+            value: p.value,
+            color: p.brand?.color ?? "var(--gold)",
+          }))}
+          total={positionsValue}
+          label={t("weight")}
+        />
+      )}
+
       {/* Tabs */}
       <div className="mb-4 flex gap-2 border-b border-border/60">
         {[["positions", t("tabPositions")], ["orders", t("tabOrders")]].map(([key, label]) => (
