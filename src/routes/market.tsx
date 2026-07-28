@@ -109,7 +109,7 @@ function MarketPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
-        <div className="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="hidden md:grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
           <div>Brand</div>
           <div className="text-end">{t("price")}</div>
           <div className="hidden text-end md:block">{t("change24h")}</div>
@@ -123,7 +123,7 @@ function MarketPage() {
               key={b.id}
               to="/market/$slug"
               params={{ slug: b.slug }}
-              className="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 px-4 py-3 text-sm transition hover:bg-secondary/40"
+              className="hidden md:grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 px-4 py-3 text-sm transition hover:bg-secondary/40"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>
@@ -146,6 +146,30 @@ function MarketPage() {
               <div className="hidden text-end font-mono text-muted-foreground md:block">{formatInt(b.volume24h, true)}</div>
               <div className="hidden text-end font-mono text-muted-foreground lg:block">{formatCurrency(b.marketCap, true, lang)}</div>
               <div className="w-6 text-end text-muted-foreground">›</div>
+            </Link>
+          ))}
+          {/* mobile cards */}
+          {filtered.map((b) => (
+            <Link
+              key={`m-${b.id}`}
+              to="/market/$slug"
+              params={{ slug: b.slug }}
+              className="md:hidden grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-secondary/40"
+            >
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>
+                {b.symbol.slice(0, 3)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</span>
+                  {b.shariah === "halal" && <ShieldCheck className="h-3 w-3 shrink-0 text-[var(--bull)]" />}
+                </div>
+                <div className="text-[10px] uppercase text-muted-foreground">{b.symbol} · {b.sector}</div>
+              </div>
+              <div className="text-end">
+                <div className="font-mono text-sm text-foreground">{b.price.toFixed(2)}</div>
+                <div className={`font-mono text-[10px] ${b.change24h >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct(b.change24h)}</div>
+              </div>
             </Link>
           ))}
           {filtered.length === 0 && (
