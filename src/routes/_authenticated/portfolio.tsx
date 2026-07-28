@@ -271,7 +271,7 @@ function PortfolioPage() {
           />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-            <div className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="hidden md:grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               {positionCols.map((c) => (
                 <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                   <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -280,7 +280,8 @@ function PortfolioPage() {
               <div className="w-16" />
             </div>
             {pagedPositions.map((p) => (
-              <div key={p.id} className="grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
+              <div key={p.id}>
+                <div className="hidden md:grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
                   <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
@@ -295,6 +296,28 @@ function PortfolioPage() {
                     <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
                   )}
                 </div>
+                </div>
+                {/* mobile card */}
+                <div className="md:hidden border-b border-border/40 px-4 py-3 last:border-b-0">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
+                      <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
+                    </div>
+                    <div className={`shrink-0 font-mono text-xs ${p.pnl >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct((p.last - p.avg) / (p.avg || 1))}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div><span className="text-muted-foreground">{t("qty")}: </span>{p.qty}</div>
+                    <div className="text-end"><span className="text-muted-foreground">{t("weight")}: </span>{weight(p.value, positionsValue)}%</div>
+                    <div><span className="text-muted-foreground">{t("avgPrice")}: </span>{p.avg.toFixed(2)}</div>
+                    <div className="text-end"><span className="text-muted-foreground">{t("lastPrice")}: </span>{p.last.toFixed(2)}</div>
+                  </div>
+                  {p.brand && (
+                    <div className="mt-2 flex justify-end">
+                      <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft">{t("nav_trade")}</Link>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             <Pager page={safePage} pageCount={pageCount} onPage={(p) => updateSearch({ page: p })} t={t} />
@@ -307,7 +330,7 @@ function PortfolioPage() {
             <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-              <div className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
                 {orderCols.map((c) => (
                   <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                     <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -316,7 +339,8 @@ function PortfolioPage() {
                 <div className="w-24" />
               </div>
               {pagedOrders.map((o) => (
-                <div key={o.id} className="grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
+                <div key={o.id}>
+                <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
                   <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
                   <div className="text-end font-mono">{Number(o.qty)}</div>
@@ -334,6 +358,28 @@ function PortfolioPage() {
                     )}
                   </div>
                 </div>
+                {/* mobile card */}
+                <div className="md:hidden border-b border-border/40 px-4 py-3 last:border-b-0">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold text-ink">{o.symbol}</div>
+                      <div className={`text-[10px] font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
+                    </div>
+                    <StatusBadge status={o.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div><span className="text-muted-foreground">{t("qty")}: </span>{Number(o.qty)}</div>
+                    <div className="text-end"><span className="text-muted-foreground">{t("price")}: </span>{o.filled_price ? Number(o.filled_price).toFixed(2) : o.price ? Number(o.price).toFixed(2) : "—"}</div>
+                    <div className="col-span-2 text-muted-foreground">{new Date(o.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</div>
+                  </div>
+                  {o.status === "pending" && (
+                    <div className="mt-2 flex justify-end gap-1">
+                      <button disabled={!isTrader} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft disabled:opacity-40">{t("modifyOrder")}</button>
+                      <button disabled={!isTrader} onClick={() => askCancel(o.id, o.symbol)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                    </div>
+                  )}
+                </div>
+              </div>
               ))}
               <Pager page={safePage} pageCount={pageCount} onPage={(p) => updateSearch({ page: p })} t={t} />
             </div>

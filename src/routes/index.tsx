@@ -1,12 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, MARKET_STATS } from "@/lib/mock-data";
+import { BRANDS, MARKET_STATS, getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { ArrowRight, TrendingUp, ShieldCheck, Building2, LineChart } from "lucide-react";
 import { DotDivider } from "@/components/dot-divider";
 import { DotPattern } from "@/components/dot-pattern";
+import { supabase } from "@/integrations/supabase/client";
+import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
+import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -19,6 +25,7 @@ function Index() {
 
   return (
     <AppShell>
+      <AuthedSummary />
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-border/70 ivory-gradient px-6 py-16 shadow-luxury md:px-12 md:py-24">
         <DotPattern size={22} radius={1} opacity={0.05} color="var(--gold-deep)" />
@@ -94,6 +101,88 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 font-mono text-lg font-semibold text-foreground md:text-xl">{value}</div>
+    </div>
+  );
+}
+
+function AuthedSummary() {
+  const { t, lang } = useI18n();
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setAuthed(!!data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthed(!!session);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+  const fetchPortfolio = useServerFn(getMyPortfolio);
+  const q = useQuery({
+    queryKey: ["portfolio-summary"],
+    queryFn: () => fetchPortfolio(),
+    enabled: authed === true,
+    staleTime: 30_000,
+  });
+  if (!authed || !q.data) return null;
+  const cash = Number(q.data.portfolio?.cash_balance ?? 0);
+  let positionsValue = 0;
+  let pnl = 0;
+  for (const p of q.data.positions) {
+    const b = getBrand(p.symbol.toLowerCase());
+    const last = b?.price ?? Number(p.avg_price);
+    positionsValue += positionValue(Number(p.qty), last);
+    pnl += unrealizedPnl(Number(p.qty), Number(p.avg_price), last);
+  }
+  const total = cash + positionsValue;
+  const openOrders = q.data.orders.filter((o) => o.status === "pending").length;
+  return (
+    <section className="mb-6 rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            {lang === "ar" ? "لوحة الحساب" : "Account snapshot"}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-ink">
+            {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
+          </div>
+        </div>
+        <Link to="/portfolio" className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
+          {t("portfolio")} →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniKPI label={t("totalValue")} value={formatCurrency(total, false, lang)} />
+        <MiniKPI label={t("cashAvailable")} value={formatCurrency(cash, false, lang)} />
+        <MiniKPI label={t("myPositions")} value={String(q.data.positions.length)} />
+        <MiniKPI
+          label={t("pnl")}
+          value={formatCurrency(pnl, false, lang)}
+          tone={pnl >= 0 ? "bull" : "bear"}
+        />
+      </div>
+      <div className="mt-3 text-[11px] text-muted-foreground">
+        {lang === "ar" ? `أوامر قيد الانتظار: ${openOrders}` : `Open orders: ${openOrders}`}
+      </div>
+    </section>
+  );
+}
+
+function MiniKPI({ label, value, tone }: { label: string; value: string; tone?: "bull" | "bear" }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div
+        className={`mt-1 font-mono text-base font-semibold ${
+          tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"
+        }`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
