@@ -105,6 +105,88 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function AuthedSummary() {
+  const { t, lang } = useI18n();
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setAuthed(!!data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthed(!!session);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+  const fetchPortfolio = useServerFn(getMyPortfolio);
+  const q = useQuery({
+    queryKey: ["portfolio-summary"],
+    queryFn: () => fetchPortfolio(),
+    enabled: authed === true,
+    staleTime: 30_000,
+  });
+  if (!authed || !q.data) return null;
+  const cash = Number(q.data.portfolio?.cash_balance ?? 0);
+  let positionsValue = 0;
+  let pnl = 0;
+  for (const p of q.data.positions) {
+    const b = getBrand(p.symbol.toLowerCase());
+    const last = b?.price ?? Number(p.avg_price);
+    positionsValue += positionValue(Number(p.qty), last);
+    pnl += unrealizedPnl(Number(p.qty), Number(p.avg_price), last);
+  }
+  const total = cash + positionsValue;
+  const openOrders = q.data.orders.filter((o) => o.status === "pending").length;
+  return (
+    <section className="mb-6 rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            {lang === "ar" ? "لوحة الحساب" : "Account snapshot"}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-ink">
+            {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
+          </div>
+        </div>
+        <Link to="/portfolio" className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
+          {t("portfolio")} →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniKPI label={t("totalValue")} value={formatCurrency(total, false, lang)} />
+        <MiniKPI label={t("cashAvailable")} value={formatCurrency(cash, false, lang)} />
+        <MiniKPI label={t("myPositions")} value={String(q.data.positions.length)} />
+        <MiniKPI
+          label={t("pnl")}
+          value={formatCurrency(pnl, false, lang)}
+          tone={pnl >= 0 ? "bull" : "bear"}
+        />
+      </div>
+      <div className="mt-3 text-[11px] text-muted-foreground">
+        {lang === "ar" ? `أوامر قيد الانتظار: ${openOrders}` : `Open orders: ${openOrders}`}
+      </div>
+    </section>
+  );
+}
+
+function MiniKPI({ label, value, tone }: { label: string; value: string; tone?: "bull" | "bear" }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div
+        className={`mt-1 font-mono text-base font-semibold ${
+          tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function Feature({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) {
   return (
     <div className="group rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/50 hover:shadow-luxury">
