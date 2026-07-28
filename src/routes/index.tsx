@@ -1,12 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, MARKET_STATS } from "@/lib/mock-data";
+import { BRANDS, MARKET_STATS, getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { ArrowRight, TrendingUp, ShieldCheck, Building2, LineChart } from "lucide-react";
 import { DotDivider } from "@/components/dot-divider";
 import { DotPattern } from "@/components/dot-pattern";
+import { supabase } from "@/integrations/supabase/client";
+import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
+import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -19,6 +25,7 @@ function Index() {
 
   return (
     <AppShell>
+      <AuthedSummary />
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-border/70 ivory-gradient px-6 py-16 shadow-luxury md:px-12 md:py-24">
         <DotPattern size={22} radius={1} opacity={0.05} color="var(--gold-deep)" />
