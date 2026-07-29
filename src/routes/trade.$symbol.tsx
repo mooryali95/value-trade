@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useConfirm } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/trade/$symbol")({
@@ -40,6 +41,7 @@ export const Route = createFileRoute("/trade/$symbol")({
 function TradePage() {
   const { brand } = Route.useLoaderData();
   const { t, lang } = useI18n();
+  const confirm = useConfirm();
   const candles = generateCandles(brand.slug, 200, brand.price);
   const { bids, asks } = generateOrderBook(brand.price, brand.slug);
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -209,7 +211,16 @@ function TradePage() {
             <button
               disabled={orderMutation.isPending || rolesLoading || !isTrader}
               title={!isTrader ? t("traderRequired") : undefined}
-              onClick={() => orderMutation.mutate()}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: t("confirmOrderTitle"),
+                  description: `${t("confirmOrderDesc")} · ${side === "buy" ? t("buy") : t("sell")} ${qty} ${brand.symbol}`,
+                  confirmLabel: side === "buy" ? t("buy") : t("sell"),
+                  cancelLabel: t("cancel"),
+                  tone: side === "sell" ? "danger" : "default",
+                });
+                if (ok) orderMutation.mutate();
+              }}
               className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
             >
               {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}

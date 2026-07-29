@@ -10,6 +10,7 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useConfirm } from "@/components/confirm-dialog";
 import {
   listMyCompanies, createCompany, getCompanyDetails,
   addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/_authenticated/company/settings")({
 function CompanySettings() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const listFn = useServerFn(listMyCompanies);
   const createFn = useServerFn(createCompany);
   const detailsFn = useServerFn(getCompanyDetails);
@@ -241,7 +243,19 @@ function CompanySettings() {
                         <span className="truncate font-mono text-ink-soft">{m.user_id}</span>
                         <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">{t(`${m.role}Role` as never)}</span>
                         {canManageMembers ? (
-                          <button onClick={() => removeMemberMut.mutate(m.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                          <button
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: t("confirmRemoveMemberTitle"),
+                                description: t("confirmRemoveMemberDesc"),
+                                confirmLabel: t("removeMember"),
+                                cancelLabel: t("cancel"),
+                                tone: "danger",
+                              });
+                              if (ok) removeMemberMut.mutate(m.id);
+                            }}
+                            className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
+                          >{t("removeMember")}</button>
                         ) : (
                           <span />
                         )}
@@ -277,7 +291,19 @@ function CompanySettings() {
                         <span className="font-mono font-semibold text-ink">{b.brand_symbol}</span>
                         <span className="text-muted-foreground">{new Date(b.added_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
                         {canManageBrands ? (
-                          <button onClick={() => removeBrandMut.mutate(b.id)} className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]">{t("removeMember")}</button>
+                          <button
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: t("confirmRemoveBrandTitle"),
+                                description: `${t("confirmRemoveBrandDesc")} · ${b.brand_symbol}`,
+                                confirmLabel: t("removeMember"),
+                                cancelLabel: t("cancel"),
+                                tone: "danger",
+                              });
+                              if (ok) removeBrandMut.mutate(b.id);
+                            }}
+                            className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
+                          >{t("removeMember")}</button>
                         ) : (
                           <span />
                         )}
@@ -341,7 +367,16 @@ function CompanySettings() {
                             className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
                           >{t("inviteResendEmail")}</button>}
                           {canManageInvites && <button
-                            onClick={() => revokeInviteMut.mutate(inv.id)}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: t("confirmRevokeInviteTitle"),
+                                description: `${t("confirmRevokeInviteDesc")} · ${inv.email}`,
+                                confirmLabel: t("revoke"),
+                                cancelLabel: t("cancel"),
+                                tone: "danger",
+                              });
+                              if (ok) revokeInviteMut.mutate(inv.id);
+                            }}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
                           >{t("revoke")}</button>}
                           <span className="text-[10px] text-muted-foreground">{new Date(inv.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
