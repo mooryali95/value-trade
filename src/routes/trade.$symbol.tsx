@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
+import { NotFoundBlock } from "@/components/not-found-block";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { CandlestickChart } from "@/components/candlestick-chart";
@@ -32,9 +33,7 @@ export const Route = createFileRoute("/trade/$symbol")({
   errorComponent: ({ error, reset }) => (
     <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>
   ),
-  notFoundComponent: () => (
-    <AppShell><div className="py-16"><EmptyState title="العنصر غير موجود" description="الرمز المطلوب غير مدرج على المنصة." action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">السوق العام</Link>} /></div></AppShell>
-  ),
+  notFoundComponent: () => <NotFoundBlock kind="symbol" />,
   component: TradePage,
 });
 
