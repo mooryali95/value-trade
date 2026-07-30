@@ -8,9 +8,15 @@ import { ShieldCheck, ScrollText } from "lucide-react";
 export const Route = createFileRoute("/shariah")({
   head: () => ({
     meta: [
-      { title: "الهيئة الشرعية — قيمة | Shariah Board — Value Unit" },
+      { title: "الهيئة الشرعية — وحدة القيمة | Shariah Board — Value Unit" },
       { name: "description", content: "هيئة رقابة شرعية مستقلة وفق معايير AAOIFI." },
+      { property: "og:title", content: "Shariah Board — Value Unit" },
+      { property: "og:description", content: "Independent Shariah supervisory board aligned with AAOIFI standards." },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://hub.sunkvalue.com/shariah" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [{ rel: "canonical", href: "https://hub.sunkvalue.com/shariah" }],
   }),
   component: ShariahPage,
 });

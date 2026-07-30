@@ -30,8 +30,11 @@ export const Route = createFileRoute("/_authenticated/company/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "طروحات الشركة — قيمة" },
+      { title: "طروحات الشركة — وحدة القيمة" },
       { name: "description", content: "حالة الطروحات المقدَّمة للاعتماد." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),

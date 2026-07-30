@@ -24,8 +24,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/company/settings")({
   head: () => ({
     meta: [
-      { title: "إعدادات الشركة — قيمة" },
+      { title: "إعدادات الشركة — وحدة القيمة" },
       { name: "description", content: "أدر أعضاء شركتك وبرانداتها وطروحاتها." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),

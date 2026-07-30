@@ -20,8 +20,11 @@ export const Route = createFileRoute("/_authenticated/company/submit")({
     z.object({ companyId: z.string().uuid().optional() }).parse(s),
   head: () => ({
     meta: [
-      { title: "طرح منتج — قيمة" },
+      { title: "طرح منتج — وحدة القيمة" },
       { name: "description", content: "قدّم منتج شركتك للاعتماد الشرعي والنشر في السوق." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),

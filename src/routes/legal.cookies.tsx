@@ -5,8 +5,8 @@ import { useI18n } from "@/lib/i18n";
 export const Route = createFileRoute("/legal/cookies")({
   head: () => ({
     meta: [
-      { title: "سياسة ملفات الارتباط — قيمة | Cookie Policy — Value Unit" },
-      { name: "description", content: "كيف تستخدم منصة قيمة ملفات الارتباط والتخزين المحلي." },
+      { title: "سياسة ملفات الارتباط — وحدة القيمة | Cookie Policy — Value Unit" },
+      { name: "description", content: "كيف تستخدم منصة وحدة القيمة ملفات الارتباط والتخزين المحلي." },
       { property: "og:title", content: "Cookie Policy — Value Unit" },
       { property: "og:description", content: "How Value Unit uses cookies and browser storage." },
       { name: "robots", content: "index,follow" },

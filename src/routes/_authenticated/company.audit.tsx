@@ -10,7 +10,17 @@ import { listAuditLog, type AuditRow } from "@/lib/audit/audit.functions";
 import { PageHeader, HeaderAction } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/company/audit")({
-  head: () => ({ meta: [{ title: "Audit log — Value" }] }),
+  head: () => ({
+    meta: [
+      { title: "سجل التدقيق · Audit Log — Value Unit" },
+      { name: "description", content: "سجل عمليات الشركة الزمني. · Chronological company activity trail." },
+      { property: "og:title", content: "Audit Log — Value Unit" },
+      { property: "og:description", content: "Chronological company activity trail." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
+    ],
+  }),
   component: CompanyAuditPage,
   errorComponent: () => <AuditFallback kind="error" />,
   notFoundComponent: () => <AuditFallback kind="notFound" />,

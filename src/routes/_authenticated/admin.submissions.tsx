@@ -31,8 +31,11 @@ export const Route = createFileRoute("/_authenticated/admin/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "لوحة اعتماد الطروحات — قيمة" },
+      { title: "لوحة اعتماد الطروحات — وحدة القيمة" },
       { name: "description", content: "مراجعة طروحات الشركات واعتمادها أو رفضها." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),

@@ -31,8 +31,11 @@ export const Route = createFileRoute("/_authenticated/shariah/review")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "لوحة المراجعة الشرعية — قيمة" },
+      { title: "لوحة المراجعة الشرعية — وحدة القيمة" },
       { name: "description", content: "اعتماد أو رفض أو طلب معلومات عن الأدوات المدرجة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),

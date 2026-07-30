@@ -5,8 +5,8 @@ import { useI18n } from "@/lib/i18n";
 export const Route = createFileRoute("/legal/terms")({
   head: () => ({
     meta: [
-      { title: "الشروط والأحكام — قيمة | Terms of Service — Value Unit" },
-      { name: "description", content: "الشروط والأحكام لاستخدام منصة قيمة لتداول وحدة القيمة." },
+      { title: "الشروط والأحكام — وحدة القيمة | Terms of Service — Value Unit" },
+      { name: "description", content: "الشروط والأحكام لاستخدام منصة وحدة القيمة لتداول وحدة القيمة." },
       { property: "og:title", content: "Terms of Service — Value Unit" },
       { property: "og:description", content: "Terms governing the use of the Value Unit exchange platform." },
       { name: "robots", content: "index,follow" },

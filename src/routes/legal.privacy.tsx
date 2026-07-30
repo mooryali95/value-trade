@@ -5,8 +5,8 @@ import { useI18n } from "@/lib/i18n";
 export const Route = createFileRoute("/legal/privacy")({
   head: () => ({
     meta: [
-      { title: "سياسة الخصوصية — قيمة | Privacy Policy — Value Unit" },
-      { name: "description", content: "كيفية جمع واستخدام وحماية بياناتك في منصة قيمة." },
+      { title: "سياسة الخصوصية — وحدة القيمة | Privacy Policy — Value Unit" },
+      { name: "description", content: "كيفية جمع واستخدام وحماية بياناتك في منصة وحدة القيمة." },
       { property: "og:title", content: "Privacy Policy — Value Unit" },
       { property: "og:description", content: "How Value Unit collects, uses, and protects your data." },
       { name: "robots", content: "index,follow" },

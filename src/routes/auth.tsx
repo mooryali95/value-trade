@@ -13,8 +13,13 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (s) => searchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "دخول — قيمة | Sign in — Value Unit" },
-      { name: "description", content: "دخول أو إنشاء حساب في منصة قيمة." },
+      { title: "دخول — وحدة القيمة | Sign in — Value Unit" },
+      { name: "description", content: "دخول أو إنشاء حساب في منصة وحدة القيمة. · Sign in to the Value Unit exchange." },
+      { property: "og:title", content: "Sign in — Value Unit" },
+      { property: "og:description", content: "Access your Value Unit trading account." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   component: AuthPage,

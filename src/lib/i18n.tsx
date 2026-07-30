@@ -4,7 +4,7 @@ type Lang = "ar" | "en";
 
 const dict = {
   ar: {
-    brand: "قيمة",
+    brand: "وحدة القيمة",
     tagline: "منصة تداول وحدة القيمة",
     subTagline: "منظومة متكاملة لإنشاء وضبط وتقييم وتبادل القيمة",
     nav_home: "الرئيسية",

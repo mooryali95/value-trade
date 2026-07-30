@@ -28,7 +28,10 @@ export function PageHeader({
     />
   );
   // Responsive: on small screens, collapse the middle of long trails to keep one line.
-  const trail = crumbs ?? [];
+  const rawTrail = crumbs ?? [];
+  // Avoid visual duplication: a single crumb identical to the title adds nothing.
+  const trail = rawTrail.length === 1 && rawTrail[0].label === title ? [] : rawTrail;
+  const showEyebrow = eyebrow && eyebrow !== title;
   const collapse = trail.length > 3;
   return (
     <header className="mb-6 border-b border-border/60 pb-5">
@@ -63,7 +66,7 @@ export function PageHeader({
       )}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <div className="min-w-0">
-          {eyebrow && (
+          {showEyebrow && (
             <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--gold-deep)]">
               {eyebrow}
             </div>
