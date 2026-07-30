@@ -12,9 +12,15 @@ import { ErrorState } from "@/components/error-state";
 export const Route = createFileRoute("/market")({
   head: () => ({
     meta: [
-      { title: "السوق العام — قيمة | Market — Value Unit" },
-      { name: "description", content: "استكشف 256 براند نشط داخل منظومة قيمة مع بيانات لحظية." },
+      { title: "السوق العام — وحدة القيمة | Market — Value Unit" },
+      { name: "description", content: "استكشف 256 براند نشط داخل منظومة وحدة القيمة مع بيانات لحظية." },
+      { property: "og:title", content: "Market — Value Unit" },
+      { property: "og:description", content: "Live market board for brand units, equities and sukuk." },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://hub.sunkvalue.com/market" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [{ rel: "canonical", href: "https://hub.sunkvalue.com/market" }],
   }),
   errorComponent: ({ reset }) => (<AppShell><ErrorState reset={reset} /></AppShell>),
   component: MarketPage,

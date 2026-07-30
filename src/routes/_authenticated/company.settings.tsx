@@ -24,8 +24,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/company/settings")({
   head: () => ({
     meta: [
-      { title: "إعدادات الشركة — قيمة" },
+      { title: "إعدادات الشركة — وحدة القيمة" },
       { name: "description", content: "أدر أعضاء شركتك وبرانداتها وطروحاتها." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),
@@ -208,7 +211,7 @@ function CompanySettings() {
                     {canManageBrands && (
                       <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
                     )}
-                    <Link to="/company/submissions" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
+                    <Link to="/company/submissions" search={{ companyId: activeId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc" as const, page: 1, pageSize: 25 }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
                   </div>
                 </div>
 

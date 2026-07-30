@@ -19,10 +19,18 @@ export const Route = createFileRoute("/market/$slug")({
   head: ({ loaderData }) => ({
     meta: loaderData
       ? [
-          { title: `${loaderData.brand.nameAr} (${loaderData.brand.symbol}) — قيمة` },
-          { name: "description", content: `تداول ${loaderData.brand.nameAr} على منصة قيمة. القطاع: ${loaderData.brand.sector}.` },
+          { title: `${loaderData.brand.nameAr} (${loaderData.brand.symbol}) — وحدة القيمة` },
+          { name: "description", content: `تداول ${loaderData.brand.nameAr} على منصة وحدة القيمة. القطاع: ${loaderData.brand.sector}.` },
+          { property: "og:title", content: `${loaderData.brand.nameEn} (${loaderData.brand.symbol}) — Value Unit` },
+          { property: "og:description", content: `Trade ${loaderData.brand.nameEn} on Value Unit. Sector: ${loaderData.brand.sector}.` },
+          { property: "og:type", content: "website" },
+          { property: "og:url", content: `https://hub.sunkvalue.com/market/${loaderData.brand.slug}` },
+          { name: "twitter:card", content: "summary_large_image" },
         ]
-      : [{ title: "براند — قيمة" }],
+      : [{ title: "براند — وحدة القيمة" }],
+    links: loaderData
+      ? [{ rel: "canonical", href: `https://hub.sunkvalue.com/market/${loaderData.brand.slug}` }]
+      : [],
   }),
   errorComponent: ({ error, reset }) => (
     <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>

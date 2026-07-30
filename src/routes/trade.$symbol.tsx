@@ -26,8 +26,23 @@ export const Route = createFileRoute("/trade/$symbol")({
   },
   head: ({ loaderData }) => ({
     meta: [
-      { title: loaderData ? `${loaderData.brand.symbol} · Trade — قيمة` : "Trade — قيمة" },
-      { name: "description", content: "داشبورد تداول احترافي." },
+      { title: loaderData ? `${loaderData.brand.symbol} · تداول — وحدة القيمة` : "تداول — وحدة القيمة" },
+      {
+        name: "description",
+        content: loaderData
+          ? `منصة تداول ${loaderData.brand.nameAr} مع دفتر أوامر لحظي وحوكمة شرعية. · Professional trading desk for ${loaderData.brand.nameEn}.`
+          : "منصة تداول احترافية بحوكمة شرعية. · Professional Shariah-governed trading desk.",
+      },
+      {
+        property: "og:title",
+        content: loaderData ? `Trade ${loaderData.brand.symbol} — Value Unit` : "Trade — Value Unit",
+      },
+      {
+        property: "og:description",
+        content: "Professional trading desk with live order book and Shariah governance.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   errorComponent: ({ error, reset }) => (

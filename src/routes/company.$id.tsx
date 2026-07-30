@@ -17,7 +17,19 @@ export const Route = createFileRoute("/company/$id")({
     return { companyId: params.id, nameAr: first.companyNameAr, nameEn: first.companyNameEn, brands };
   },
   head: ({ loaderData }) => ({
-    meta: [{ title: loaderData ? `${loaderData.nameAr} — قيمة` : "Company — قيمة" }],
+    meta: [
+      { title: loaderData ? `${loaderData.nameAr} — وحدة القيمة` : "Company — وحدة القيمة" },
+      {
+        name: "description",
+        content: loaderData
+          ? `ملف شركة ${loaderData.nameAr} وبرانداتها المدرجة في وحدة القيمة. · ${loaderData.nameEn} issuer profile.`
+          : "ملف الشركة المدرجة في وحدة القيمة. · Issuer profile on Value Unit.",
+      },
+      { property: "og:title", content: loaderData ? `${loaderData.nameEn} — Value Unit` : "Company — Value Unit" },
+      { property: "og:description", content: "Issuer profile and listed brand units on Value Unit." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
   }),
   errorComponent: ({ error, reset }) => (
     <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>

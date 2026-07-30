@@ -9,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useI18n } from "@/lib/i18n";
 
 type Tone = "default" | "danger";
 
@@ -27,6 +28,7 @@ type Ctx = {
 const ConfirmContext = React.createContext<Ctx | null>(null);
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   const [state, setState] = React.useState<
     (Options & { resolve: (v: boolean) => void }) | null
   >(null);
@@ -57,7 +59,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => close(false)}>
-              {state?.cancelLabel ?? "إلغاء"}
+              {state?.cancelLabel ?? t("cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => close(true)}
@@ -67,7 +69,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                   : "gold-gradient text-ink"
               }
             >
-              {state?.confirmLabel ?? "تأكيد"}
+              {state?.confirmLabel ?? t("confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

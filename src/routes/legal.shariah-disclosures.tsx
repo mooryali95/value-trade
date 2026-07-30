@@ -5,8 +5,8 @@ import { useI18n } from "@/lib/i18n";
 export const Route = createFileRoute("/legal/shariah-disclosures")({
   head: () => ({
     meta: [
-      { title: "الإفصاحات الشرعية — قيمة | Shariah Disclosures — Value Unit" },
-      { name: "description", content: "الإفصاحات الشرعية والمعايير المرجعية لمنصة قيمة." },
+      { title: "الإفصاحات الشرعية — وحدة القيمة | Shariah Disclosures — Value Unit" },
+      { name: "description", content: "الإفصاحات الشرعية والمعايير المرجعية لمنصة وحدة القيمة." },
       { property: "og:title", content: "Shariah Disclosures — Value Unit" },
       { property: "og:description", content: "Shariah governance disclosures and reference standards used by Value Unit." },
       { name: "robots", content: "index,follow" },

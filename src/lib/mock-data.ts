@@ -224,7 +224,8 @@ export const SUKUK: Brand[] = generateSukuk();
 export const BRANDS: Brand[] = [...BASE_BRANDS, ...STOCKS, ...SUKUK];
 
 export function getBrand(slug: string): Brand | undefined {
-  return BRANDS.find((b) => b.slug === slug);
+  const key = slug.toLowerCase();
+  return BRANDS.find((b) => b.slug === key || b.symbol.toLowerCase() === key);
 }
 
 export function getCompanyBrands(companyId: string): Brand[] {

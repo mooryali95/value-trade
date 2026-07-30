@@ -20,8 +20,11 @@ export const Route = createFileRoute("/_authenticated/company/submit")({
     z.object({ companyId: z.string().uuid().optional() }).parse(s),
   head: () => ({
     meta: [
-      { title: "طرح منتج — قيمة" },
+      { title: "طرح منتج — وحدة القيمة" },
       { name: "description", content: "قدّم منتج شركتك للاعتماد الشرعي والنشر في السوق." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),
@@ -74,7 +77,7 @@ function SubmitPage() {
     }),
     onSuccess: () => {
       toast.success(t("submissionSubmitted"));
-      navigate({ to: "/company/submissions", search: { companyId: form.companyId } });
+      navigate({ to: "/company/submissions", search: { companyId: form.companyId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc", page: 1, pageSize: 25 } });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });

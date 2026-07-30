@@ -15,6 +15,25 @@ import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "وحدة القيمة — Value Unit | سوق العلامات والصكوك" },
+      {
+        name: "description",
+        content:
+          "منصة وحدة القيمة لتداول العلامات التجارية والأسهم والصكوك وفق حوكمة شرعية مستقلة. · Shariah-governed exchange for brands, equities and sukuk.",
+      },
+      { property: "og:title", content: "وحدة القيمة — Value Unit" },
+      {
+        property: "og:description",
+        content: "Shariah-governed exchange for brand units, equities and sukuk.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://hub.sunkvalue.com/" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+    links: [{ rel: "canonical", href: "https://hub.sunkvalue.com/" }],
+  }),
   component: Index,
 });
 
@@ -151,7 +170,7 @@ function AuthedSummary() {
             {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
           </div>
         </div>
-        <Link to="/portfolio" className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
+        <Link to="/portfolio" search={{ tab: "positions", q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }} className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
           {t("portfolio")} →
         </Link>
       </div>

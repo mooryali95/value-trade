@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
@@ -36,8 +36,11 @@ export const Route = createFileRoute("/_authenticated/portfolio")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "المحفظة — قيمة | Portfolio — Value Unit" },
+      { title: "المحفظة — وحدة القيمة | Portfolio — Value Unit" },
       { name: "description", content: "مراكزك، رصيدك النقدي، وسجل أوامرك." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),
@@ -122,7 +125,7 @@ function PortfolioPage() {
   const cmp = (a: number | string, b: number | string) =>
     (a < b ? -1 : a > b ? 1 : 0) * dir;
 
-  const sortedPositions = useMemo(() => {
+  const sortedPositions = (() => {
     const q = search.q.trim().toUpperCase();
     const filtered = q ? enriched.filter((p) => p.symbol.toUpperCase().includes(q)) : enriched.slice();
     return filtered.sort((a, b) => {
@@ -135,9 +138,9 @@ function PortfolioPage() {
         default: return cmp(a.symbol, b.symbol);
       }
     });
-  }, [enriched, search.q, search.sortBy, dir]);
+  })();
 
-  const filteredOrders = useMemo(() => {
+  const filteredOrders = (() => {
     const q = search.q.trim().toUpperCase();
     const list = data.orders.filter((o) => {
       if (search.status !== "all" && o.status !== search.status) return false;
@@ -155,7 +158,7 @@ function PortfolioPage() {
         default: return cmp(a.symbol, b.symbol);
       }
     });
-  }, [data.orders, search.q, search.status, search.side, search.sortBy, dir]);
+  })();
 
   const activeList = tab === "positions" ? sortedPositions : filteredOrders;
   const pageCount = Math.max(1, Math.ceil(activeList.length / pageSize));

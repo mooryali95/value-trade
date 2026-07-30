@@ -9,8 +9,11 @@ import { Building2, Users, TrendingUp, Plus, Send } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
     meta: [
-      { title: "منصة الشركة — قيمة | Workspace — Value Unit" },
+      { title: "منصة الشركة — وحدة القيمة | Workspace — Value Unit" },
       { name: "description", content: "منصة تداول داخلية للشركات المستأجرة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   component: WorkspacePage,

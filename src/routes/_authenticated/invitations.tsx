@@ -13,8 +13,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/invitations")({
   head: () => ({
     meta: [
-      { title: "الدعوات — قيمة | Invitations — Value Unit" },
+      { title: "الدعوات — وحدة القيمة | Invitations — Value Unit" },
       { name: "description", content: "دعوات الانضمام إلى الشركات." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
   errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),
