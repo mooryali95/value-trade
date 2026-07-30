@@ -15,7 +15,7 @@ import {
   Gear,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
-import { MARKET_STATS } from "@/lib/mock-data";
+import { MARKET_STATS, BRANDS } from "@/lib/mock-data";
 import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const primary = [
     { to: "/", label: t("nav_home"), icon: HouseLine },
     { to: "/market", label: t("nav_market"), icon: Storefront },
-    { to: "/trade/noor001", label: t("nav_trade"), icon: ChartLine },
+    { to: `/trade/${BRANDS[0].slug}`, label: t("nav_trade"), icon: ChartLine },
     { to: "/portfolio", label: t("portfolio"), icon: Vault },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
   ];
