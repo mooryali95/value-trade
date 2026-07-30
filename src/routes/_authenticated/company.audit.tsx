@@ -12,8 +12,8 @@ import { PageHeader, HeaderAction } from "@/components/page-header";
 export const Route = createFileRoute("/_authenticated/company/audit")({
   head: () => ({ meta: [{ title: "Audit log — Value" }] }),
   component: CompanyAuditPage,
-  errorComponent: () => <div className="p-8 text-sm text-ink-soft">Failed to load audit log.</div>,
-  notFoundComponent: () => <div className="p-8 text-sm text-ink-soft">Not found.</div>,
+  errorComponent: () => <AuditFallback kind="error" />,
+  notFoundComponent: () => <AuditFallback kind="notFound" />,
 });
 
 function CompanyAuditPage() {
@@ -157,6 +157,14 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+function AuditFallback({ kind }: { kind: "error" | "notFound" }) {
+  const { t } = useI18n();
+  return (
+    <div className="p-8 text-sm text-ink-soft">
+      {kind === "error" ? t("loadFailed") : t("notFoundTitle")}
     </div>
   );
 }
