@@ -211,7 +211,7 @@ function CompanySettings() {
                     {canManageBrands && (
                       <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
                     )}
-                    <Link to="/company/submissions" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
+                    <Link to="/company/submissions" search={{ companyId: activeId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc" as const, page: 1, pageSize: 25 }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
                   </div>
                 </div>
 

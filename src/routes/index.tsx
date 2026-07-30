@@ -170,7 +170,7 @@ function AuthedSummary() {
             {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
           </div>
         </div>
-        <Link to="/portfolio" className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
+        <Link to="/portfolio" search={{ tab: "positions", q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }} className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
           {t("portfolio")} →
         </Link>
       </div>

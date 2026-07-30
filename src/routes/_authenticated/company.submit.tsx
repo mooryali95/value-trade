@@ -77,7 +77,7 @@ function SubmitPage() {
     }),
     onSuccess: () => {
       toast.success(t("submissionSubmitted"));
-      navigate({ to: "/company/submissions", search: { companyId: form.companyId } });
+      navigate({ to: "/company/submissions", search: { companyId: form.companyId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc", page: 1, pageSize: 25 } });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
