@@ -17,6 +17,7 @@ function makeQuery(rows: Row[]) {
       update: (patch: Partial<Row>) => typeof chain;
       select: () => typeof chain;
       single: () => Promise<{ data: Row | null; error: null | { message: string } }>;
+      maybeSingle: () => Promise<{ data: Row | null; error: null }>;
       then: (resolve: (v: { data: Row[]; error: null }) => unknown) => Promise<unknown>;
     } = {
       _filter: [],
@@ -27,6 +28,10 @@ function makeQuery(rows: Row[]) {
         const match = currentRows.find((r) => this._filter.every((f) => (r as unknown as Record<string, unknown>)[f.col] === f.val));
         if (!match) return { data: null, error: { message: "not found" } };
         return { data: match, error: null };
+      },
+      async maybeSingle() {
+        const match = currentRows.find((r) => this._filter.every((f) => (r as unknown as Record<string, unknown>)[f.col] === f.val));
+        return { data: match ?? null, error: null };
       },
       then(resolve) {
         const filtered = currentRows.filter((r) => this._filter.every((f) => (r as unknown as Record<string, unknown>)[f.col] === f.val));
