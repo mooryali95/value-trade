@@ -285,6 +285,11 @@ const dict = {
     confirmRemoveBrandDesc: "سيتم إزالة البراند من قائمة الشركة.",
     confirmRevokeInviteTitle: "تراجع عن الدعوة",
     confirmRevokeInviteDesc: "لن يتمكن المستلم من قبول الدعوة بعد الآن.",
+    notFoundSymbolTitle: "العنصر غير موجود",
+    notFoundSymbolDesc: "الرمز المطلوب غير مدرج على المنصة.",
+    notFoundCompanyTitle: "الشركة غير موجودة",
+    goToMarket: "السوق العام",
+    loadFailed: "تعذّر تحميل البيانات.",
   },
   en: {
     brand: "Value Unit",
@@ -568,6 +573,11 @@ const dict = {
     confirmRemoveBrandDesc: "This brand will be removed from your company's roster.",
     confirmRevokeInviteTitle: "Revoke invitation",
     confirmRevokeInviteDesc: "The recipient will no longer be able to accept this invite.",
+    notFoundSymbolTitle: "Instrument not found",
+    notFoundSymbolDesc: "This symbol is not listed on the platform.",
+    notFoundCompanyTitle: "Company not found",
+    goToMarket: "Public market",
+    loadFailed: "Failed to load data.",
   },
 } as const;
 
