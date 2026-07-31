@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pick } from "@/lib/i18n";
 import { BRANDS } from "@/lib/mock-data";
 import {
   HouseLine,
