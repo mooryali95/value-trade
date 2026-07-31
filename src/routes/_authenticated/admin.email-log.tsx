@@ -194,12 +194,12 @@ function EmailLogContent() {
           ))}
         </select>
         <div className="relative">
-          <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <MagnifyingGlass className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             placeholder={ar ? "بحث بالبريد…" : "Search by email…"}
-            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground"
+            className="w-full rounded-md border border-border bg-background py-2 pe-3 ps-9 text-sm text-foreground"
           />
         </div>
       </div>

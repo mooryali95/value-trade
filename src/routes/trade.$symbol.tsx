@@ -117,7 +117,7 @@ function TradePage() {
             <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground start-2" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} className="w-full rounded-md border border-border bg-background px-8 py-1.5 text-xs focus:border-primary/50 focus:outline-none" />
           </div>
-          <div className="max-h-[calc(100vh-14rem)] space-y-0.5 overflow-y-auto pr-1">
+          <div className="max-h-[calc(100dvh-14rem)] space-y-0.5 overflow-y-auto pe-1">
             {filteredWL.map((b) => (
               <Link
                 key={b.id}

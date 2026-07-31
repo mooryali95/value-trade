@@ -42,7 +42,7 @@ function LangToggle() {
 }
 
 function CommandTrigger() {
-  const { lang } = useI18n();
+  const { t } = useI18n();
   const dispatch = () => {
     window.dispatchEvent(
       new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
@@ -51,11 +51,12 @@ function CommandTrigger() {
   return (
     <button
       onClick={dispatch}
-      title={lang === "ar" ? "بحث سريع (⌘K)" : "Quick search (⌘K)"}
+      title={t("shell_quickSearch")}
+      aria-label={t("shell_quickSearch")}
       className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
     >
       <MagnifyingGlass size={12} weight="bold" />
-      {lang === "ar" ? "بحث" : "Search"}
+      {t("shell_search")}
       <kbd className="rounded border border-border bg-background px-1 text-[9px] font-mono">⌘K</kbd>
     </button>
   );
@@ -128,13 +129,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const { isAdmin } = useMyRoles();
-  const primary = [
+  const publicGroup = [
     { to: "/", label: t("nav_home"), icon: HouseLine },
     { to: "/market", label: t("nav_market"), icon: Storefront },
-    { to: `/trade/${BRANDS[0].slug}`, label: t("nav_trade"), icon: ChartLine },
-    { to: "/portfolio", label: t("portfolio"), icon: Vault },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
   ];
+
+  const operateGroup = [
+    { to: `/trade/${BRANDS[0].slug}`, label: t("nav_trade"), icon: ChartLine },
+    { to: "/portfolio", label: t("portfolio"), icon: Vault },
+  ];
+
+  const primary = [...publicGroup, ...operateGroup];
 
   const companyGroup = [
     { to: "/company/settings", label: t("company"), icon: Briefcase },
@@ -143,27 +149,39 @@ export function AppShell({ children }: { children: ReactNode }) {
   ];
 
   const accountGroup = [
-    { to: "/settings/notifications", label: "الإشعارات", icon: Bell },
+    { to: "/settings/notifications", label: t("nav_notifications"), icon: Bell },
     ...(isAdmin
-      ? [{ to: "/admin/email-log", label: "سجل الإرسال", icon: EnvelopeSimple }]
+      ? [{ to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple }]
       : []),
   ];
 
-  const allNav = [...primary, ...companyGroup, ...accountGroup];
+  const mobileSections = [
+    { heading: t("navGroupPublic"), items: publicGroup },
+    { heading: t("navGroupOperate"), items: operateGroup },
+    { heading: t("navGroupAdmin"), items: [...companyGroup, ...accountGroup] },
+  ];
 
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/")));
   const groupActive = (items: { to: string }[]) => items.some((i) => isActive(i.to));
 
   return (
     <div dir={dir} className="min-h-dvh bg-background text-foreground">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-[70] focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-caption focus:font-semibold focus:text-ink focus:shadow-luxury"
+      >
+        {t("skipToContent")}
+      </a>
       {/* Top header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <button
-              className="rounded-md border border-border p-2 text-ink-soft lg:hidden"
+              className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border text-ink-soft lg:hidden"
               onClick={() => setOpen((v) => !v)}
-              aria-label="menu"
+              aria-label={t("nav_menu")}
+              aria-expanded={open}
+              aria-controls="mobile-nav"
             >
               {open ? <X size={16} weight="bold" /> : <List size={16} weight="bold" />}
             </button>
@@ -172,7 +190,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
 
-          <nav className="hidden items-center justify-center gap-0.5 lg:flex">
+          <nav aria-label={t("nav_primary")} className="hidden items-center justify-center gap-0.5 lg:flex">
             {primary.map((n) => (
               <Link
                 key={n.to}
@@ -196,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               isActive={isActive}
             />
             <NavGroup
-              label={"الإعدادات"}
+              label={t("nav_settings")}
               icon={Gear}
               items={accountGroup}
               active={groupActive(accountGroup)}
@@ -215,27 +233,34 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile nav */}
         {open && (
-          <div className="border-t border-border/60 bg-card lg:hidden">
-            <div className="flex flex-col p-2">
-              {allNav.map((n) => (
-                <Link
-                  key={n.to}
-                  to={n.to}
-                  onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm ${
-                    isActive(n.to) ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink-soft"
-                  }`}
-                >
-                  <n.icon size={16} weight={isActive(n.to) ? "duotone" : "regular"} />
-                  {n.label}
-                </Link>
+          <div id="mobile-nav" className="border-t border-border/60 bg-card lg:hidden">
+            <div className="flex flex-col gap-1 p-2">
+              {mobileSections.map((section) => (
+                <div key={section.heading} className="flex flex-col">
+                  <div className="px-3 pb-1 pt-2 text-label text-ink-soft/70">{section.heading}</div>
+                  {section.items.map((n) => (
+                    <Link
+                      key={n.to}
+                      to={n.to}
+                      onClick={() => setOpen(false)}
+                      className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-body ${
+                        isActive(n.to) ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink-soft"
+                      }`}
+                    >
+                      <n.icon size={16} weight={isActive(n.to) ? "duotone" : "regular"} />
+                      {n.label}
+                    </Link>
+                  ))}
+                </div>
               ))}
             </div>
           </div>
         )}
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-4 py-6 md:px-6">{children}</main>
+      <main id="main-content" className="mx-auto max-w-[1600px] px-4 py-6 md:px-6">
+        {children}
+      </main>
 
       <footer className="mt-16 border-t border-border/60 bg-stone">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-6 text-xs text-muted-foreground md:px-6">

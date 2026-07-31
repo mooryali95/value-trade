@@ -33,7 +33,7 @@ function Ar() {
       <h1 className="text-3xl font-bold text-ink">سياسة ملفات الارتباط</h1>
       <p className="text-xs text-muted-foreground">آخر تحديث: 2026-07-12</p>
       <h2 className="mt-8 text-lg font-semibold">أنواع الملفات المستخدمة</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li><b>ضرورية:</b> جلسة المصادقة، تفضيل اللغة، حماية CSRF.</li>
         <li><b>وظيفية:</b> تفضيلات العرض (فلاتر الجداول، حجم الصفحة).</li>
         <li><b>تحليلية (اختيارية):</b> عدّاد مجهول للاستخدام لتحسين الأداء.</li>
@@ -52,7 +52,7 @@ function En() {
       <h1 className="text-3xl font-bold text-ink">Cookie Policy</h1>
       <p className="text-xs text-muted-foreground">Last updated: 2026-07-12</p>
       <h2 className="mt-8 text-lg font-semibold">Types We Use</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li><b>Strictly necessary:</b> auth session, language preference, CSRF protection.</li>
         <li><b>Functional:</b> UI preferences (table filters, page size).</li>
         <li><b>Analytics (optional):</b> anonymous usage counters for performance.</li>

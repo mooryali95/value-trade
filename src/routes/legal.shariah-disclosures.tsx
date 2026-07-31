@@ -39,7 +39,7 @@ function Ar() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">المعايير المرجعية</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>معيار الصكوك (AAOIFI 17)</li>
         <li>معيار المشاركة (AAOIFI 12)</li>
         <li>معيار الأسهم (AAOIFI 21)</li>
@@ -47,7 +47,7 @@ function Ar() {
       </ul>
 
       <h2 className="mt-6 text-lg font-semibold">المحظورات</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>الربا بجميع صوره.</li>
         <li>الرافعة المالية والبيع على المكشوف.</li>
         <li>الأنشطة المخالفة (كحول، ميسر، محرمات).</li>
@@ -73,7 +73,7 @@ function En() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">Reference Standards</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>Sukuk (AAOIFI 17)</li>
         <li>Musharakah (AAOIFI 12)</li>
         <li>Equity Screening (AAOIFI 21)</li>
@@ -81,7 +81,7 @@ function En() {
       </ul>
 
       <h2 className="mt-6 text-lg font-semibold">Prohibitions</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>Riba in all forms.</li>
         <li>Leverage and short-selling.</li>
         <li>Non-permissible business activities (alcohol, gambling, etc.).</li>

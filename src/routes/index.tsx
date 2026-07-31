@@ -159,15 +159,38 @@ function AuthedSummary() {
   }
   const total = cash + positionsValue;
   const openOrders = q.data.orders.filter((o) => o.status === "pending").length;
+  const losingPositions = q.data.positions.filter((p) => {
+    const b = getBrand(p.symbol.toLowerCase());
+    const last = b?.price ?? Number(p.avg_price);
+    return unrealizedPnl(Number(p.qty), Number(p.avg_price), last) < 0;
+  }).length;
+  const attention = [
+    openOrders > 0
+      ? {
+          key: "orders",
+          label: t("attnOpenOrders"),
+          count: openOrders,
+          tab: "orders" as const,
+        }
+      : null,
+    losingPositions > 0
+      ? {
+          key: "losing",
+          label: t("attnLosingPositions"),
+          count: losingPositions,
+          tab: "positions" as const,
+        }
+      : null,
+  ].filter(Boolean) as { key: string; label: string; count: number; tab: "orders" | "positions" }[];
   return (
     <section className="mb-6 rounded-2xl border border-border/70 bg-card/70 p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            {lang === "ar" ? "لوحة الحساب" : "Account snapshot"}
+            {t("acct_snapshot")}
           </div>
           <div className="mt-1 text-sm font-semibold text-ink">
-            {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
+            {t("acct_snapshotSub")}
           </div>
         </div>
         <Link to="/portfolio" search={{ tab: "positions", q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }} className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
@@ -184,8 +207,30 @@ function AuthedSummary() {
           tone={pnl >= 0 ? "bull" : "bear"}
         />
       </div>
-      <div className="mt-3 text-[11px] text-muted-foreground">
-        {lang === "ar" ? `أوامر قيد الانتظار: ${openOrders}` : `Open orders: ${openOrders}`}
+      {/* Decision-oriented: what needs the user to act, not just numbers. */}
+      <div className="mt-4 rounded-xl border border-border/60 bg-background/60 p-3">
+        <div className="mb-2 text-label text-muted-foreground">{t("needsAttention")}</div>
+        {attention.length === 0 ? (
+          <p className="text-caption text-muted-foreground">{t("allClear")}</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {attention.map((a) => (
+              <li key={a.key} className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-caption text-ink">
+                  <span className="num me-2 text-[var(--gold-deep)]">{a.count}</span>
+                  {a.label}
+                </span>
+                <Link
+                  to="/portfolio"
+                  search={{ tab: a.tab, q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }}
+                  className="shrink-0 text-caption font-semibold text-[var(--gold-deep)] hover:underline"
+                >
+                  {t("reviewNow")} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

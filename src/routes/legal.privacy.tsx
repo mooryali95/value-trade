@@ -34,7 +34,7 @@ function Ar() {
       <p className="text-xs text-muted-foreground">آخر تحديث: 2026-07-12</p>
 
       <h2 className="mt-8 text-lg font-semibold">1. البيانات التي نجمعها</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>بيانات الحساب: البريد، الاسم، الدور، الشركة المرتبطة.</li>
         <li>بيانات التداول والاستخدام: الأوامر، التنبيهات، سجلات النشاط.</li>
         <li>البيانات التقنية: عنوان IP، نوع المتصفح، ملفات ارتباط ضرورية للجلسة.</li>
@@ -51,7 +51,7 @@ function Ar() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">4. حقوقك</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>الاطلاع على بياناتك وتعديلها.</li>
         <li>طلب حذف الحساب.</li>
         <li>سحب الموافقة على معالجة اختيارية.</li>
@@ -75,7 +75,7 @@ function En() {
       <p className="text-xs text-muted-foreground">Last updated: 2026-07-12</p>
 
       <h2 className="mt-8 text-lg font-semibold">1. Data We Collect</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>Account data: email, name, role, linked company.</li>
         <li>Trading & usage data: orders, alerts, activity logs.</li>
         <li>Technical data: IP, browser type, session cookies.</li>
@@ -92,7 +92,7 @@ function En() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">4. Your Rights</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>Access and correct your data.</li>
         <li>Request account deletion.</li>
         <li>Withdraw optional processing consents.</li>

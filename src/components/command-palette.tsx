@@ -9,7 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, pick } from "@/lib/i18n";
 import { BRANDS } from "@/lib/mock-data";
 import {
   HouseLine,
@@ -53,36 +53,36 @@ export function CommandPalette() {
       { path: "/workspace", label: t("nav_workspace"), icon: Buildings },
       { path: "/company/settings", label: t("companySettings"), icon: Briefcase },
       { path: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
-      { path: "/settings/notifications", label: lang === "ar" ? "الإشعارات" : "Notifications", icon: Bell },
+      { path: "/settings/notifications", label: t("cmd_notifications"), icon: Bell },
     ],
     [t, lang],
   );
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder={lang === "ar" ? "ابحث عن صفحة أو رمز…" : "Search page or symbol…"} />
+      <CommandInput placeholder={t("cmd_placeholder")} />
       <CommandList>
         <CommandEmpty>{t("emptyTitle")}</CommandEmpty>
-        <CommandGroup heading={lang === "ar" ? "الصفحات" : "Pages"}>
+        <CommandGroup heading={t("cmd_pages")}>
           {routes.map((r) => (
             <CommandItem key={r.path} value={`${r.label} ${r.path}`} onSelect={() => go(r.path)}>
               <r.icon size={14} weight="duotone" />
               <span>{r.label}</span>
-              <span className="ms-auto text-[10px] uppercase text-muted-foreground">{r.path}</span>
+              <span className="ms-auto text-label text-muted-foreground">{r.path}</span>
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading={lang === "ar" ? "الأدوات" : "Instruments"}>
+        <CommandGroup heading={t("cmd_instruments")}>
           {BRANDS.slice(0, 40).map((b) => (
             <CommandItem
               key={b.id}
               value={`${b.symbol} ${b.nameEn} ${b.nameAr}`}
               onSelect={() => go(`/trade/${b.slug}`)}
             >
-              <span className="font-mono text-[11px] text-[var(--gold-deep)]">{b.symbol}</span>
-              <span className="truncate">{lang === "ar" ? b.nameAr : b.nameEn}</span>
-              <span className="ms-auto text-[10px] uppercase text-muted-foreground">{b.sector}</span>
+              <span className="num text-caption text-[var(--gold-deep)]">{b.symbol}</span>
+              <span className="truncate">{pick(lang, b.nameAr, b.nameEn)}</span>
+              <span className="ms-auto text-label text-muted-foreground">{b.sector}</span>
             </CommandItem>
           ))}
         </CommandGroup>
