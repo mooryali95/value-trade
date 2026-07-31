@@ -31,10 +31,10 @@ function WorkspacePage() {
       <PageHeader
         eyebrow={`${company.plan} · Tenant`}
         title={lang === "ar" ? company.nameAr : company.nameEn}
-        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: lang === "ar" ? "منصة الشركة" : "Workspace" }]}
+        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("ws_workspace") }]}
         actions={
           <HeaderAction variant="primary">
-            <Plus className="h-3.5 w-3.5" /> {lang === "ar" ? "إضافة براند" : "Add brand"}
+            <Plus className="h-3.5 w-3.5" /> {t("ws_addBrand")}
           </HeaderAction>
         }
       />
@@ -49,8 +49,8 @@ function WorkspacePage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">{lang === "ar" ? "براندات الشركة" : "Company brands"}</h2>
-            <button className="text-xs text-primary hover:underline">{lang === "ar" ? "دعوة مسؤول براند" : "Invite brand manager"} →</button>
+            <h2 className="text-sm font-semibold text-foreground">{t("companyBrands")}</h2>
+            <button className="text-xs text-primary hover:underline">{t("ws_inviteBrandManager")} →</button>
           </div>
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
             {brands.map((b) => (
@@ -74,20 +74,20 @@ function WorkspacePage() {
 
         <aside className="space-y-4">
           <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">{lang === "ar" ? "دعوة مسؤول براند" : "Invite brand manager"}</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("ws_inviteBrandManager")}</h3>
             <p className="mb-3 text-xs text-muted-foreground">
-              {lang === "ar" ? "أرسل رابط دعوة للمسؤول المالي ليكمل ملف البراند وطرح الاكتتاب." : "Send an invite link so the brand manager can complete the profile and launch an offering."}
+              {t("ws_inviteDesc")}
             </p>
             <input placeholder="brand@company.com" className="mb-2 w-full rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-primary/50 focus:outline-none" />
             <button className="inline-flex w-full items-center justify-center gap-2 rounded-md gold-gradient py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)]">
-              <Send className="h-3.5 w-3.5" /> {lang === "ar" ? "إرسال دعوة" : "Send invite"}
+              <Send className="h-3.5 w-3.5" /> {t("ws_sendInvite")}
             </button>
           </div>
 
           <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">{lang === "ar" ? "الطرح للسوق العام" : "Publish to public market"}</h3>
+            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("ws_publishPublic")}</h3>
             <p className="text-xs text-muted-foreground">
-              {lang === "ar" ? "بعد الموافقة الشرعية، يمكن ترقية البراند للسوق العام في قيمة." : "After Shariah approval, brands can be promoted to Value Unit public market."}
+              {t("ws_publishDesc")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
               <div className="rounded border border-border/50 bg-secondary/30 py-2">

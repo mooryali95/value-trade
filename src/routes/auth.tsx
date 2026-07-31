@@ -71,7 +71,7 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        setNotice(lang === "ar" ? "تم إنشاء الحساب. جارٍ تسجيل الدخول..." : "Account created. Signing you in...");
+        setNotice(t("auth_accountCreated"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -194,7 +194,7 @@ function AuthPage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"
-                    placeholder={lang === "ar" ? "الاسم الكامل" : "Full name"}
+                    placeholder={t("auth_fullName")}
                   />
                 </Field>
               )}

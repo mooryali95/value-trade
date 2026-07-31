@@ -60,7 +60,7 @@ function CompanyPage() {
         <Stat label={t("established")} value="2018" />
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-foreground">{lang === "ar" ? "براندات الشركة" : "Brands"}</h2>
+      <h2 className="mb-3 text-sm font-semibold text-foreground">{t("companyBrands")}</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {brands.map((b) => (
           <Link
