@@ -660,3 +660,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 }
 
 export const useI18n = () => useContext(I18nContext);
+
+/**
+ * Localized *data* field picker (not UI copy).
+ * Use for records that carry both `*_ar`/`*_en` (or `nameAr`/`nameEn`) values.
+ */
+export function pick(lang: Lang, ar: string | null | undefined, en: string | null | undefined) {
+  return (lang === "ar" ? ar || en : en || ar) ?? "";
+}
+
+/** Locale tag for Intl / toLocaleString calls. */
+export const localeTag = (lang: Lang) => (lang === "ar" ? "ar" : "en-US");
