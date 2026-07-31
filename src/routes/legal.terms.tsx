@@ -44,7 +44,7 @@ function Ar() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">3. الحسابات والأدوار</h2>
-      <ul className="list-disc pr-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>يتحمل صاحب الحساب مسؤولية سرية بيانات الدخول.</li>
         <li>تختلف الصلاحيات وفق الدور: مالك شركة، مالي، مراجع شرعي، متداول، مطّلع.</li>
         <li>يحق للمنصة تعليق أو إنهاء أي حساب في حالات الاحتيال أو مخالفة الأنظمة.</li>
@@ -90,7 +90,7 @@ function En() {
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">3. Accounts & Roles</h2>
-      <ul className="list-disc pl-5 text-sm text-ink-soft">
+      <ul className="list-disc ps-5 text-sm text-ink-soft">
         <li>You are responsible for the confidentiality of your credentials.</li>
         <li>Access follows your role: company owner, finance, shariah reviewer, trader, viewer.</li>
         <li>We may suspend accounts for fraud or violation of applicable laws.</li>
