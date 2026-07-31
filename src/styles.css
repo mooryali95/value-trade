@@ -82,6 +82,11 @@
   --color-bull: var(--bull);
   --color-bear: var(--bear);
   --color-halal: var(--halal);
+  --color-state-pending: var(--state-pending);
+  --color-state-approved: var(--state-approved);
+  --color-state-rejected: var(--state-rejected);
+  --color-state-info: var(--state-info);
+  --color-state-neutral: var(--state-neutral);
 }
 
 :root {
@@ -98,6 +103,12 @@
   --bull: oklch(0.5 0.13 158);
   --bear: oklch(0.46 0.18 28);
   --halal: oklch(0.5 0.13 158);
+  /* Semantic state tokens — every status surface consumes these only. */
+  --state-pending: oklch(0.52 0.13 72);
+  --state-approved: oklch(0.5 0.13 158);
+  --state-rejected: oklch(0.46 0.18 28);
+  --state-info: oklch(0.45 0.09 250);
+  --state-neutral: oklch(0.48 0.02 260);
   --navy: oklch(0.18 0.04 260);
   --navy-deep: oklch(0.13 0.04 262);
 
@@ -142,6 +153,11 @@
 
 .dark {
   --background: oklch(0.129 0.042 264.695);
+  --state-pending: oklch(0.78 0.11 80);
+  --state-approved: oklch(0.75 0.14 158);
+  --state-rejected: oklch(0.72 0.17 26);
+  --state-info: oklch(0.74 0.1 250);
+  --state-neutral: oklch(0.72 0.02 260);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
