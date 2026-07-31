@@ -164,10 +164,10 @@ function AuthedSummary() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            {lang === "ar" ? "لوحة الحساب" : "Account snapshot"}
+            {t("acct_snapshot")}
           </div>
           <div className="mt-1 text-sm font-semibold text-ink">
-            {lang === "ar" ? "مرحباً بعودتك · نظرة سريعة على محفظتك" : "Welcome back · quick portfolio glance"}
+            {t("acct_snapshotSub")}
           </div>
         </div>
         <Link to="/portfolio" search={{ tab: "positions", q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }} className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
