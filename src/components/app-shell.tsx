@@ -42,7 +42,7 @@ function LangToggle() {
 }
 
 function CommandTrigger() {
-  const { lang } = useI18n();
+  const { t } = useI18n();
   const dispatch = () => {
     window.dispatchEvent(
       new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
@@ -51,11 +51,12 @@ function CommandTrigger() {
   return (
     <button
       onClick={dispatch}
-      title={lang === "ar" ? "بحث سريع (⌘K)" : "Quick search (⌘K)"}
+      title={t("shell_quickSearch")}
+      aria-label={t("shell_quickSearch")}
       className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] md:inline-flex"
     >
       <MagnifyingGlass size={12} weight="bold" />
-      {lang === "ar" ? "بحث" : "Search"}
+      {t("shell_search")}
       <kbd className="rounded border border-border bg-background px-1 text-[9px] font-mono">⌘K</kbd>
     </button>
   );
