@@ -16,6 +16,7 @@ import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
+import { PermissionHint } from "@/components/permission-hint";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/trade/$symbol")({
@@ -218,30 +219,55 @@ function TradePage() {
             <Field label={t("qty")}>
               <input value={qty} onChange={(e) => setQty(e.target.value)} className="w-full bg-transparent text-end font-mono text-sm outline-none" />
             </Field>
-            <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{t("total")}</span>
-              <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
+            <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-3">
+              <div className="mb-1.5 text-label text-ink-soft">{t("orderPreview")}</div>
+              <dl className="space-y-1 text-caption">
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-soft">{t("orderType")}</dt>
+                  <dd className="font-semibold text-ink">
+                    {side === "buy" ? t("buy") : t("sell")} · {orderType === "limit" ? t("limit") : t("market")}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-soft">{t("qty")}</dt>
+                  <dd className="num font-semibold text-ink">{qty || "0"} {brand.symbol}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-soft">{t("price")}</dt>
+                  <dd className="num font-semibold text-ink">
+                    {orderType === "limit" ? Number(price || 0).toFixed(2) : t("market")}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-1">
+                  <dt className="text-ink-soft">{t("total")}</dt>
+                  <dd className="num font-semibold text-ink">
+                    {((orderType === "limit" ? Number(price) : brand.price) * Number(qty) || 0).toFixed(2)}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <button
-              disabled={orderMutation.isPending || rolesLoading || !isTrader}
-              title={!isTrader ? t("traderRequired") : undefined}
-              onClick={async () => {
-                const ok = await confirm({
-                  title: t("confirmOrderTitle"),
-                  description: `${t("confirmOrderDesc")} · ${side === "buy" ? t("buy") : t("sell")} ${qty} ${brand.symbol}`,
-                  confirmLabel: side === "buy" ? t("buy") : t("sell"),
-                  cancelLabel: t("cancel"),
-                  tone: side === "sell" ? "danger" : "default",
-                });
-                if (ok) orderMutation.mutate();
-              }}
-              className={`mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
-            >
-              {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
-            </button>
-            {!rolesLoading && !isTrader && (
-              <div className="mt-2 text-[10px] text-[var(--bear)]">{t("traderRequired")}</div>
-            )}
+            <PermissionHint allowed={rolesLoading || isTrader} reason={t("traderRequired")}>
+              <button
+                disabled={orderMutation.isPending || rolesLoading || !isTrader}
+                title={!isTrader ? t("traderRequired") : undefined}
+                onClick={async () => {
+                  const unit = orderType === "limit" ? Number(price) : brand.price;
+                  const ok = await confirm({
+                    title: t("confirmOrderTitle"),
+                    description: `${side === "buy" ? t("buy") : t("sell")} ${qty} ${brand.symbol} @ ${
+                      orderType === "limit" ? Number(price || 0).toFixed(2) : t("market")
+                    } · ${t("total")} ${(unit * Number(qty) || 0).toFixed(2)} — ${t("confirmOrderDesc")}`,
+                    confirmLabel: side === "buy" ? t("buy") : t("sell"),
+                    cancelLabel: t("cancel"),
+                    tone: side === "sell" ? "danger" : "default",
+                  });
+                  if (ok) orderMutation.mutate();
+                }}
+                className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
+              >
+                {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
+              </button>
+            </PermissionHint>
             <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
               <span className="font-mono">125,430.00</span>
