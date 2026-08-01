@@ -219,10 +219,6 @@ function TradePage() {
             <Field label={t("qty")}>
               <input value={qty} onChange={(e) => setQty(e.target.value)} className="w-full bg-transparent text-end font-mono text-sm outline-none" />
             </Field>
-            <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{t("total")}</span>
-              <span className="font-mono text-foreground">{(Number(price) * Number(qty) || 0).toFixed(2)}</span>
-            </div>
             <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-3">
               <div className="mb-1.5 text-label text-ink-soft">{t("orderPreview")}</div>
               <dl className="space-y-1 text-caption">
