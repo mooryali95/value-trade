@@ -27,12 +27,6 @@ export const cancelOrder = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const ModifyInput = z.object({
-  orderId: z.string().uuid(),
-  qty: z.number().positive().max(1_000_000),
-  price: z.number().positive(),
-});
-
 /** Undo a cancellation: returns a cancelled order back to pending. */
 export const restoreOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
