@@ -50,7 +50,8 @@ const dict = {
     search: "بحث عن براند...",
     all: "الكل",
     heroHeadline: "وحدة القيمة كما لم تُبنَ من قبل",
-    heroSub: "منصة تداول مؤسسية لـ 256 براند داخل منظومة قيمة، بمعايير عالمية ومتوافقة مع الشريعة الإسلامية.",
+    heroSub:
+      "منصة تداول مؤسسية لـ 256 براند داخل منظومة قيمة، بمعايير عالمية ومتوافقة مع الشريعة الإسلامية.",
     ctaPrimary: "ادخل السوق",
     ctaSecondary: "أنشئ منصتك",
     featTitle1: "محرك تداول احترافي",
@@ -222,7 +223,8 @@ const dict = {
     ws_sendInvite: "إرسال دعوة",
     ws_publishPublic: "الطرح للسوق العام",
     ws_publishDesc: "بعد الموافقة الشرعية، يمكن ترقية البراند للسوق العام في وحدة القيمة.",
-    cc_text: "نستخدم ملفات ارتباط أساسية لتشغيل المنصة وقياس الأداء بشكل مجهّل. باستمرارك تعتبر موافقاً على ",
+    cc_text:
+      "نستخدم ملفات ارتباط أساسية لتشغيل المنصة وقياس الأداء بشكل مجهّل. باستمرارك تعتبر موافقاً على ",
     cc_essentials: "الأساسي فقط",
     cc_accept: "قبول",
     shell_quickSearch: "بحث سريع (⌘K)",
@@ -318,10 +320,12 @@ const dict = {
     permInvitesOwnerOnly: "الدعوات متاحة لأصحاب الشركة فقط",
     readOnlyRole: "وصول للقراءة فقط",
     notAuthorizedTitle: "لا تملك صلاحية الوصول",
-    notAuthorizedDesc: "هذه الصفحة متاحة لأدوار محددة داخل الشركة. يرجى التواصل مع مالك الشركة لتعديل صلاحياتك.",
+    notAuthorizedDesc:
+      "هذه الصفحة متاحة لأدوار محددة داخل الشركة. يرجى التواصل مع مالك الشركة لتعديل صلاحياتك.",
     backToWorkspace: "عودة إلى منصة الشركة",
     requestUpgradeTitle: "اطلب ترقية صلاحياتك",
-    requestUpgradeDesc: "أرسل طلباً لمالك الشركة لمنحك الدور المطلوب من صفحة إعدادات الشركة والأعضاء.",
+    requestUpgradeDesc:
+      "أرسل طلباً لمالك الشركة لمنحك الدور المطلوب من صفحة إعدادات الشركة والأعضاء.",
     requestUpgradeCta: "إعدادات الشركة والأعضاء",
     roleRequiredLabel: "الدور المطلوب",
     wizardStep: "خطوة",
@@ -330,7 +334,8 @@ const dict = {
     wizardBack: "السابق",
     wizardReview: "مراجعة وتأكيد",
     wizardWillHappen: "ما سيحدث بعد التأكيد",
-    wizardSubmitEffect: "سيُرسل الطرح إلى فريق المراجعة الشرعية بحالة «معلّق»، وستصلك إشعارات عند تغيّر الحالة.",
+    wizardSubmitEffect:
+      "سيُرسل الطرح إلى فريق المراجعة الشرعية بحالة «معلّق»، وستصلك إشعارات عند تغيّر الحالة.",
     wizardStepCompany: "الشركة ونوع الأصل",
     wizardStepDetails: "بيانات المنتج",
     orderPreview: "ملخص الأمر",
@@ -349,6 +354,31 @@ const dict = {
     notFoundCompanyTitle: "الشركة غير موجودة",
     goToMarket: "السوق العام",
     loadFailed: "تعذّر تحميل البيانات.",
+    requestAccess: "طلب انضمام",
+    requestAccessTitle: "طلب الانضمام إلى وحدة القيمة",
+    requestAccessDesc: "التسجيل يتم عبر الموافقة — أرسل طلبك وسيراجعه المسؤول المختص.",
+    joinExistingCompany: "الانضمام إلى شركة قائمة",
+    registerNewCompany: "تسجيل شركة جديدة",
+    searchCompanyPlaceholder: "ابحث باسم الشركة...",
+    newCompanyNameAr: "اسم الشركة (عربي)",
+    newCompanyNameEn: "اسم الشركة (إنجليزي)",
+    submitRequest: "إرسال الطلب",
+    requestSubmitted: "تم إرسال طلبك بنجاح. سيصلك بريد إلكتروني عند الموافقة.",
+    requestRateLimited: "عدد المحاولات كبير، حاول لاحقًا.",
+    prefilledCompany: "الشركة المطلوب الانضمام إليها",
+    accessRequestsQueue: "طلبات الانضمام المعلّقة",
+    accessRequestsQueueDesc:
+      "راجع طلبات الانضمام إلى شركتك، أو الشركات الجديدة إن كنت مسؤول المنصة.",
+    assignRole: "الدور المطلوب تعيينه",
+    classifySector: "القطاع",
+    companySlug: "المعرّف الفريد (slug)",
+    newCompanyRequest: "طلب شركة جديدة",
+    joinCompanyRequest: "طلب انضمام",
+    noAccessRequests: "لا توجد طلبات معلّقة حاليًا.",
+    accessRequestApproved: "تمت الموافقة على الطلب.",
+    accessRequestRejected: "تم رفض الطلب.",
+    signupLegacyNote: "أو سجّل حسابًا مباشرًا (وضع الاختبار)",
+    recommendedPath: "الطريقة الموصى بها للانضمام:",
   },
   en: {
     brand: "Value Unit",
@@ -397,7 +427,8 @@ const dict = {
     search: "Search brands...",
     all: "All",
     heroHeadline: "Value Unit, engineered like never before.",
-    heroSub: "An institutional trading platform for 256 brands inside the Value Unit ecosystem — global standards, fully Shariah compliant.",
+    heroSub:
+      "An institutional trading platform for 256 brands inside the Value Unit ecosystem — global standards, fully Shariah compliant.",
     ctaPrimary: "Enter the market",
     ctaSecondary: "Build your platform",
     featTitle1: "Institutional matching engine",
@@ -418,7 +449,8 @@ const dict = {
     footerRights: "All rights reserved",
     disclaimer: "Demo data shown for preview purposes",
     aboutBoard: "Shariah Supervisory Board",
-    aboutBoardDesc: "Independent board reviewing every brand, offering and instrument per AAOIFI standards",
+    aboutBoardDesc:
+      "Independent board reviewing every brand, offering and instrument per AAOIFI standards",
     standards: "Reference standards",
     decisions: "Recent decisions",
     members: "Board members",
@@ -565,11 +597,14 @@ const dict = {
     ws_workspace: "Workspace",
     ws_addBrand: "Add brand",
     ws_inviteBrandManager: "Invite brand manager",
-    ws_inviteDesc: "Send an invite link so the brand manager can complete the profile and launch an offering.",
+    ws_inviteDesc:
+      "Send an invite link so the brand manager can complete the profile and launch an offering.",
     ws_sendInvite: "Send invite",
     ws_publishPublic: "Publish to public market",
-    ws_publishDesc: "After Shariah approval, brands can be promoted to the Value Unit public market.",
-    cc_text: "We use essential cookies to operate the platform and measure anonymized performance. By continuing you agree to our ",
+    ws_publishDesc:
+      "After Shariah approval, brands can be promoted to the Value Unit public market.",
+    cc_text:
+      "We use essential cookies to operate the platform and measure anonymized performance. By continuing you agree to our ",
     cc_essentials: "Essentials only",
     cc_accept: "Accept",
     shell_quickSearch: "Quick search (⌘K)",
@@ -665,10 +700,12 @@ const dict = {
     permInvitesOwnerOnly: "Only company owners can send invitations",
     readOnlyRole: "Read-only access",
     notAuthorizedTitle: "You don't have access",
-    notAuthorizedDesc: "This page is restricted to specific company roles. Contact the company owner to adjust your permissions.",
+    notAuthorizedDesc:
+      "This page is restricted to specific company roles. Contact the company owner to adjust your permissions.",
     backToWorkspace: "Back to workspace",
     requestUpgradeTitle: "Request a role upgrade",
-    requestUpgradeDesc: "Ask your company owner to grant the required role from the company members page.",
+    requestUpgradeDesc:
+      "Ask your company owner to grant the required role from the company members page.",
     requestUpgradeCta: "Company & members settings",
     roleRequiredLabel: "Role required",
     wizardStep: "Step",
@@ -677,7 +714,8 @@ const dict = {
     wizardBack: "Back",
     wizardReview: "Review & confirm",
     wizardWillHappen: "What happens after you confirm",
-    wizardSubmitEffect: "The listing is sent to the Shariah review team as “pending”, and you'll be notified on every status change.",
+    wizardSubmitEffect:
+      "The listing is sent to the Shariah review team as “pending”, and you'll be notified on every status change.",
     wizardStepCompany: "Company & asset class",
     wizardStepDetails: "Product details",
     orderPreview: "Order summary",
@@ -696,6 +734,32 @@ const dict = {
     notFoundCompanyTitle: "Company not found",
     goToMarket: "Public market",
     loadFailed: "Failed to load data.",
+    requestAccess: "Request access",
+    requestAccessTitle: "Request access to Value Unit",
+    requestAccessDesc:
+      "Registration is approval-based — submit your request and the relevant reviewer will approve it.",
+    joinExistingCompany: "Join an existing company",
+    registerNewCompany: "Register a new company",
+    searchCompanyPlaceholder: "Search by company name...",
+    newCompanyNameAr: "Company name (Arabic)",
+    newCompanyNameEn: "Company name (English)",
+    submitRequest: "Submit request",
+    requestSubmitted: "Your request was submitted. You'll get an email once it's approved.",
+    requestRateLimited: "Too many attempts, please try again later.",
+    prefilledCompany: "Company you're requesting to join",
+    accessRequestsQueue: "Pending access requests",
+    accessRequestsQueueDesc:
+      "Review requests to join your company, or new companies if you're a platform admin.",
+    assignRole: "Role to assign",
+    classifySector: "Sector",
+    companySlug: "Unique slug",
+    newCompanyRequest: "New company request",
+    joinCompanyRequest: "Join request",
+    noAccessRequests: "No pending requests right now.",
+    accessRequestApproved: "Request approved.",
+    accessRequestRejected: "Request rejected.",
+    signupLegacyNote: "Or create a direct account (testing mode)",
+    recommendedPath: "Recommended way to join:",
   },
 } as const;
 
@@ -712,7 +776,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("ar");
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? (localStorage.getItem("qeema:lang") as Lang | null) : null;
+    const saved =
+      typeof window !== "undefined" ? (localStorage.getItem("qeema:lang") as Lang | null) : null;
     if (saved === "ar" || saved === "en") setLangState(saved);
   }, []);
 

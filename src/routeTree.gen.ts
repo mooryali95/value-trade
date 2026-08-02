@@ -13,6 +13,7 @@ import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShariahRouteImport } from './routes/shariah'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as RequestAccessRouteImport } from './routes/request-access'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -23,11 +24,13 @@ import { Route as LegalTermsRouteImport } from './routes/legal.terms'
 import { Route as LegalShariahDisclosuresRouteImport } from './routes/legal.shariah-disclosures'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
+import { Route as JoinSlugRouteImport } from './routes/join.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
+import { Route as AuthenticatedAccessRequestsRouteImport } from './routes/_authenticated/access-requests'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
@@ -62,6 +65,11 @@ const ShariahRoute = ShariahRouteImport.update({
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestAccessRoute = RequestAccessRouteImport.update({
+  id: '/request-access',
+  path: '/request-access',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketRoute = MarketRouteImport.update({
@@ -113,6 +121,11 @@ const LegalCookiesRoute = LegalCookiesRouteImport.update({
   path: '/legal/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JoinSlugRoute = JoinSlugRouteImport.update({
+  id: '/join/$slug',
+  path: '/join/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
@@ -137,6 +150,12 @@ const AuthenticatedInvitationsRoute =
   AuthenticatedInvitationsRouteImport.update({
     id: '/invitations',
     path: '/invitations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAccessRequestsRoute =
+  AuthenticatedAccessRequestsRouteImport.update({
+    id: '/access-requests',
+    path: '/access-requests',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
@@ -230,15 +249,18 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
@@ -265,15 +287,18 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
@@ -302,15 +327,18 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/market': typeof MarketRouteWithChildren
+  '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/_authenticated/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
@@ -339,15 +367,18 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/market'
+    | '/request-access'
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
     | '/unsubscribe'
+    | '/access-requests'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
     | '/email/unsubscribe'
+    | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
     | '/legal/shariah-disclosures'
@@ -374,15 +405,18 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/market'
+    | '/request-access'
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
     | '/unsubscribe'
+    | '/access-requests'
     | '/invitations'
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
     | '/email/unsubscribe'
+    | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
     | '/legal/shariah-disclosures'
@@ -410,15 +444,18 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/market'
+    | '/request-access'
     | '/robots.txt'
     | '/shariah'
     | '/sitemap.xml'
     | '/unsubscribe'
+    | '/_authenticated/access-requests'
     | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
     | '/company/$id'
     | '/email/unsubscribe'
+    | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
     | '/legal/shariah-disclosures'
@@ -447,12 +484,14 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   MarketRoute: typeof MarketRouteWithChildren
+  RequestAccessRoute: typeof RequestAccessRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShariahRoute: typeof ShariahRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   CompanyIdRoute: typeof CompanyIdRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  JoinSlugRoute: typeof JoinSlugRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
   LegalShariahDisclosuresRoute: typeof LegalShariahDisclosuresRoute
@@ -495,6 +534,13 @@ declare module '@tanstack/react-router' {
       path: '/robots.txt'
       fullPath: '/robots.txt'
       preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/request-access': {
+      id: '/request-access'
+      path: '/request-access'
+      fullPath: '/request-access'
+      preLoaderRoute: typeof RequestAccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/market': {
@@ -567,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalCookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/join/$slug': {
+      id: '/join/$slug'
+      path: '/join/$slug'
+      fullPath: '/join/$slug'
+      preLoaderRoute: typeof JoinSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
       path: '/email/unsubscribe'
@@ -600,6 +653,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations'
       fullPath: '/invitations'
       preLoaderRoute: typeof AuthenticatedInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/access-requests': {
+      id: '/_authenticated/access-requests'
+      path: '/access-requests'
+      fullPath: '/access-requests'
+      preLoaderRoute: typeof AuthenticatedAccessRequestsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/lovable/email/suppression': {
@@ -711,6 +771,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAccessRequestsRoute: typeof AuthenticatedAccessRequestsRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
@@ -725,6 +786,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAccessRequestsRoute: AuthenticatedAccessRequestsRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
@@ -758,12 +820,14 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   MarketRoute: MarketRouteWithChildren,
+  RequestAccessRoute: RequestAccessRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShariahRoute: ShariahRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   CompanyIdRoute: CompanyIdRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  JoinSlugRoute: JoinSlugRoute,
   LegalCookiesRoute: LegalCookiesRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
   LegalShariahDisclosuresRoute: LegalShariahDisclosuresRoute,
@@ -780,3 +844,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
