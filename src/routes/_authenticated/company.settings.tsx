@@ -16,7 +16,7 @@ import {
   addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
 import {
-  listCompanyInvitations, createInvitation, revokeInvitation,
+  listCompanyInvitations, createInvitation, revokeInvitation, unrevokeInvitation,
   resendInvitationEmail,
 } from "@/lib/tenants/invitations.functions";
 import { toast } from "sonner";
@@ -49,6 +49,7 @@ function CompanySettings() {
   const listInvitesFn = useServerFn(listCompanyInvitations);
   const createInviteFn = useServerFn(createInvitation);
   const revokeInviteFn = useServerFn(revokeInvitation);
+  const unrevokeInviteFn = useServerFn(unrevokeInvitation);
   const resendInviteFn = useServerFn(resendInvitationEmail);
 
   const list = useQuery({ queryKey: ["my-companies"], queryFn: () => listFn() });
@@ -90,7 +91,23 @@ function CompanySettings() {
   });
   const revokeInviteMut = useMutation({
     mutationFn: (invitationId: string) => revokeInviteFn({ data: { invitationId } }),
-    onSuccess: () => { toast.success(t("inviteRevoked")); invalidateInvites(); },
+    onSuccess: (_res, invitationId) => {
+      invalidateInvites();
+      toast.success(t("inviteRevoked"), {
+        action: {
+          label: t("undo"),
+          onClick: async () => {
+            try {
+              await unrevokeInviteFn({ data: { invitationId } });
+              toast.success(t("undone"));
+              invalidateInvites();
+            } catch {
+              toast.error(t("undoFailed"));
+            }
+          },
+        },
+      });
+    },
   });
   const resendMut = useMutation({
     mutationFn: (invitationId: string) => resendInviteFn({ data: { invitationId, origin: typeof window !== "undefined" ? window.location.origin : undefined } }),

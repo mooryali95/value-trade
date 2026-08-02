@@ -11,7 +11,7 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
-import { cancelOrder, modifyOrder } from "@/lib/trading/order-mutations.functions";
+import { cancelOrder, modifyOrder, restoreOrder } from "@/lib/trading/order-mutations.functions";
 import { getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
 import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
@@ -58,6 +58,7 @@ function PortfolioPage() {
     navigate({ search: (prev: SearchState) => ({ ...prev, ...patch }), replace: true });
   const fetchPortfolio = useServerFn(getMyPortfolio);
   const cancelFn = useServerFn(cancelOrder);
+  const restoreFn = useServerFn(restoreOrder);
   const modifyFn = useServerFn(modifyOrder);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["portfolio"],
@@ -71,7 +72,23 @@ function PortfolioPage() {
 
   const cancelMut = useMutation({
     mutationFn: (orderId: string) => cancelFn({ data: { orderId } }),
-    onSuccess: () => { toast.success(t("orderCancelled")); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
+    onSuccess: (_res, orderId) => {
+      qc.invalidateQueries({ queryKey: ["portfolio"] });
+      toast.success(t("orderCancelled"), {
+        action: {
+          label: t("undo"),
+          onClick: async () => {
+            try {
+              await restoreFn({ data: { orderId } });
+              toast.success(t("undone"));
+              qc.invalidateQueries({ queryKey: ["portfolio"] });
+            } catch {
+              toast.error(t("undoFailed"));
+            }
+          },
+        },
+      });
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
   const askCancel = async (orderId: string, symbol: string) => {
