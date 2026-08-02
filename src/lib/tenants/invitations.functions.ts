@@ -100,6 +100,39 @@ const ResendInput = z.object({
   invitationId: z.string().uuid(),
   origin: z.string().url().optional(),
 });
+
+/** Undo a revoke: returns a revoked, non-expired invitation back to pending. */
+export const unrevokeInvitation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ invitationId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: prev } = await supabase
+      .from("company_invitations")
+      .select("company_id, email, role, status, expires_at")
+      .eq("id", data.invitationId)
+      .maybeSingle();
+    if (!prev) throw new Error("INVITATION_NOT_FOUND");
+    const { data: isOwner } = await supabase.rpc("is_company_owner", {
+      _user_id: userId,
+      _company_id: prev.company_id,
+    });
+    if (!isOwner) throw new Error("FORBIDDEN");
+    if (prev.status !== "revoked") throw new Error("INVITATION_NOT_REVOKED");
+    if (new Date(prev.expires_at as string).getTime() < Date.now()) throw new Error("INVITATION_EXPIRED");
+    const { error } = await supabase
+      .from("company_invitations")
+      .update({ status: "pending" })
+      .eq("id", data.invitationId)
+      .eq("status", "revoked");
+    if (error) throw new Error(error.message);
+    await writeAudit(supabase, {
+      actorId: userId, companyId: prev.company_id, action: "invitation.unrevoke", entity: "company_invitations", entityId: data.invitationId,
+      metadata: { email: prev.email, role: prev.role },
+    });
+    return { ok: true };
+  });
+
 export const resendInvitationEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ResendInput.parse(input))
