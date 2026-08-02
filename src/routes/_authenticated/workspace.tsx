@@ -99,7 +99,15 @@ function WorkspacePage() {
     return (
       <AppShell>
         <div className="py-16">
-          <EmptyState title={t("ws_workspace")} description={t("wsNoCompany")} actionLabel={t("companySettings")} actionTo="/company/settings" />
+          <EmptyState
+            title={t("ws_workspace")}
+            description={t("wsNoCompany")}
+            action={
+              <Link to="/company/settings" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)]">
+                {t("companySettings")}
+              </Link>
+            }
+          />
         </div>
       </AppShell>
     );
@@ -184,7 +192,7 @@ function WorkspacePage() {
                         const ok = await confirm({
                           title: t("brandRemoved"),
                           description: r.symbol,
-                          confirmLabel: t("remove"),
+                          confirmLabel: t("wsRemove"),
                           cancelLabel: t("cancel"),
                           tone: "danger",
                         });
@@ -192,7 +200,7 @@ function WorkspacePage() {
                       }}
                       className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40"
                     >
-                      {t("remove")}
+                      {t("wsRemove")}
                     </button>
                   </div>
                 </div>
@@ -221,7 +229,7 @@ function WorkspacePage() {
                 onClick={async () => {
                   const ok = await confirm({
                     title: t("ws_sendInvite"),
-                    description: `${inviteEmail} · ${t("finance")}`,
+                    description: `${inviteEmail} · ${t("financeRole")}`,
                     confirmLabel: t("ws_sendInvite"),
                     cancelLabel: t("cancel"),
                   });
