@@ -21,6 +21,7 @@ import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { CommandPalette } from "@/components/command-palette";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import {
   DropdownMenu,
@@ -74,6 +75,21 @@ function MarketPill() {
         {MARKET_STATS.isOpen ? t("liveMarket") : t("closed")}
       </span>
     </div>
+  );
+}
+
+function MotionToggle() {
+  const { t } = useI18n();
+  const { reduced, toggle } = useReducedMotion();
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={reduced}
+      className="inline-flex min-h-9 items-center rounded-md px-1 hover:text-[var(--gold-deep)]"
+    >
+      {t("reduceMotion")} · {reduced ? t("motionReduced") : t("motionEnabled")}
+    </button>
   );
 }
 
@@ -274,6 +290,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/legal/privacy" className="hover:text-[var(--gold-deep)]">{t("legalPrivacy")}</Link>
             <Link to="/legal/shariah-disclosures" className="hover:text-[var(--gold-deep)]">{t("legalShariahDisclosures")}</Link>
             <Link to="/legal/cookies" className="hover:text-[var(--gold-deep)]">{t("legalCookies")}</Link>
+            <MotionToggle />
           </div>
         </div>
       </footer>
