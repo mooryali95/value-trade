@@ -203,13 +203,13 @@ function TradePage() {
         {/* Order panel */}
         <aside className="space-y-4">
           <div className="rounded-xl border border-border/60 bg-card/60 p-4">
-            <div className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold">
-              <button onClick={() => setSide("buy")} className={`rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
-              <button onClick={() => setSide("sell")} className={`rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
+            <div role="group" aria-label={t("a11yOrderSide")} className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold">
+              <button type="button" aria-pressed={side === "buy"} onClick={() => setSide("buy")} className={`min-h-11 rounded-md transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
+              <button type="button" aria-pressed={side === "sell"} onClick={() => setSide("sell")} className={`min-h-11 rounded-md transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
             </div>
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-              <button onClick={() => setOrderType("limit")} className={`rounded border px-2 py-1.5 ${orderType === "limit" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("limit")}</button>
-              <button onClick={() => setOrderType("market")} className={`rounded border px-2 py-1.5 ${orderType === "market" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("market")}</button>
+            <div role="group" aria-label={t("a11yOrderTypeGroup")} className="mb-3 grid grid-cols-2 gap-2 text-xs">
+              <button type="button" aria-pressed={orderType === "limit"} onClick={() => setOrderType("limit")} className={`min-h-11 rounded border px-2 ${orderType === "limit" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("limit")}</button>
+              <button type="button" aria-pressed={orderType === "market"} onClick={() => setOrderType("market")} className={`min-h-11 rounded border px-2 ${orderType === "market" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("market")}</button>
             </div>
             {orderType === "limit" && (
               <Field label={t("price")}>
@@ -273,8 +273,8 @@ function TradePage() {
               <span className="font-mono">125,430.00</span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button onClick={() => alertMutation.mutate("above")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↑ {t("alertAbove")}</button>
-              <button onClick={() => alertMutation.mutate("below")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↓ {t("alertBelow")}</button>
+              <button type="button" onClick={() => alertMutation.mutate("above")} className="min-h-11 rounded border border-border px-2 text-caption text-ink-soft hover:border-[var(--gold-deep)]"><span aria-hidden>↑ </span>{t("alertAbove")}</button>
+              <button type="button" onClick={() => alertMutation.mutate("below")} className="min-h-11 rounded border border-border px-2 text-caption text-ink-soft hover:border-[var(--gold-deep)]"><span aria-hidden>↓ </span>{t("alertBelow")}</button>
             </div>
           </div>
 
