@@ -379,6 +379,9 @@ const dict = {
     accessRequestRejected: "تم رفض الطلب.",
     signupLegacyNote: "أو سجّل حسابًا مباشرًا (وضع الاختبار)",
     recommendedPath: "الطريقة الموصى بها للانضمام:",
+    methodSearch: "بحث",
+    methodLink: "رابط مباشر",
+    methodNewCompany: "شركة جديدة",
   },
   en: {
     brand: "Value Unit",
@@ -760,6 +763,9 @@ const dict = {
     accessRequestRejected: "Request rejected.",
     signupLegacyNote: "Or create a direct account (testing mode)",
     recommendedPath: "Recommended way to join:",
+    methodSearch: "Search",
+    methodLink: "Direct link",
+    methodNewCompany: "New company",
   },
 } as const;
 

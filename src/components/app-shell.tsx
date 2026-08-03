@@ -13,6 +13,7 @@ import {
   CaretDown,
   Bell,
   Gear,
+  UserPlus,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { MARKET_STATS, BRANDS } from "@/lib/mock-data";
@@ -44,9 +45,7 @@ function LangToggle() {
 function CommandTrigger() {
   const { t } = useI18n();
   const dispatch = () => {
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
-    );
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
   };
   return (
     <button
@@ -86,7 +85,11 @@ function NavGroup({
 }: {
   label: string;
   icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" | "bold" }>;
-  items: { to: string; label: string; icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" }> }[];
+  items: {
+    to: string;
+    label: string;
+    icon: React.ComponentType<{ size?: number; weight?: "regular" | "duotone" }>;
+  }[];
   active: boolean;
   isActive: (p: string) => boolean;
 }) {
@@ -145,6 +148,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const companyGroup = [
     { to: "/company/settings", label: t("company"), icon: Briefcase },
     { to: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
+    { to: "/access-requests", label: t("accessRequestsQueue"), icon: UserPlus },
     { to: "/workspace", label: t("nav_workspace"), icon: Buildings },
   ];
 
@@ -161,7 +165,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     { heading: t("navGroupAdmin"), items: [...companyGroup, ...accountGroup] },
   ];
 
-  const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/")));
+  const isActive = (p: string) =>
+    p === "/" ? pathname === "/" : pathname.startsWith(p.split("/").slice(0, 2).join("/"));
   const groupActive = (items: { to: string }[]) => items.some((i) => isActive(i.to));
 
   return (
@@ -190,7 +195,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
 
-          <nav aria-label={t("nav_primary")} className="hidden items-center justify-center gap-0.5 lg:flex">
+          <nav
+            aria-label={t("nav_primary")}
+            className="hidden items-center justify-center gap-0.5 lg:flex"
+          >
             {primary.map((n) => (
               <Link
                 key={n.to}
@@ -237,14 +245,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex flex-col gap-1 p-2">
               {mobileSections.map((section) => (
                 <div key={section.heading} className="flex flex-col">
-                  <div className="px-3 pb-1 pt-2 text-label text-ink-soft/70">{section.heading}</div>
+                  <div className="px-3 pb-1 pt-2 text-label text-ink-soft/70">
+                    {section.heading}
+                  </div>
                   {section.items.map((n) => (
                     <Link
                       key={n.to}
                       to={n.to}
                       onClick={() => setOpen(false)}
                       className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-body ${
-                        isActive(n.to) ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink-soft"
+                        isActive(n.to)
+                          ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+                          : "text-ink-soft"
                       }`}
                     >
                       <n.icon size={16} weight={isActive(n.to) ? "duotone" : "regular"} />
@@ -266,14 +278,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-6 text-xs text-muted-foreground md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <ValueDots size={20} />
-            <span className="truncate">© {new Date().getFullYear()} {t("brand")} — {t("footerRights")}. {t("disclaimer")}.</span>
+            <span className="truncate">
+              © {new Date().getFullYear()} {t("brand")} — {t("footerRights")}. {t("disclaimer")}.
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <Link to="/shariah" className="hover:text-[var(--gold-deep)]">{t("nav_shariah")}</Link>
-            <Link to="/legal/terms" className="hover:text-[var(--gold-deep)]">{t("legalTerms")}</Link>
-            <Link to="/legal/privacy" className="hover:text-[var(--gold-deep)]">{t("legalPrivacy")}</Link>
-            <Link to="/legal/shariah-disclosures" className="hover:text-[var(--gold-deep)]">{t("legalShariahDisclosures")}</Link>
-            <Link to="/legal/cookies" className="hover:text-[var(--gold-deep)]">{t("legalCookies")}</Link>
+            <Link to="/shariah" className="hover:text-[var(--gold-deep)]">
+              {t("nav_shariah")}
+            </Link>
+            <Link to="/legal/terms" className="hover:text-[var(--gold-deep)]">
+              {t("legalTerms")}
+            </Link>
+            <Link to="/legal/privacy" className="hover:text-[var(--gold-deep)]">
+              {t("legalPrivacy")}
+            </Link>
+            <Link to="/legal/shariah-disclosures" className="hover:text-[var(--gold-deep)]">
+              {t("legalShariahDisclosures")}
+            </Link>
+            <Link to="/legal/cookies" className="hover:text-[var(--gold-deep)]">
+              {t("legalCookies")}
+            </Link>
           </div>
         </div>
       </footer>
