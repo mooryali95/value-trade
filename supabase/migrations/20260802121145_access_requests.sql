@@ -174,6 +174,12 @@ BEGIN
   WHERE id = _request_id;
 
   RETURN QUERY SELECT inv.id, inv.token, new_co_id;
+EXCEPTION
+  WHEN unique_violation THEN
+    -- company_invitations_unique_pending (company_id, lower(email)) WHERE
+    -- status='pending' -- the applicant already has a separate pending
+    -- invite to this company (e.g. the owner invited them directly too).
+    RAISE EXCEPTION 'INVITATION_ALREADY_PENDING';
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.approve_access_request(uuid, public.company_role, text, text) FROM PUBLIC, anon;

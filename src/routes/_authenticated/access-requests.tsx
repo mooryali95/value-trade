@@ -86,7 +86,7 @@ function AccessRequestsPage() {
       toast.success(t("accessRequestApproved"));
       qc.invalidateQueries({ queryKey: ["access-requests"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "INVITATION_ALREADY_PENDING" ? t("inviteAlreadyPending") : e instanceof Error ? e.message : "Error"),
   });
 
   const reject = useMutation({
