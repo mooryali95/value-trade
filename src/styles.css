@@ -388,3 +388,26 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* User-controlled motion preference (persisted, mirrors prefers-reduced-motion). */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Unified motion vocabulary: one easing, three durations. */
+:root {
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@utility motion-base {
+  transition-duration: var(--motion-base);
+  transition-timing-function: var(--motion-ease);
+}
