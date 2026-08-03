@@ -16,6 +16,14 @@ import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const SearchSchema = z.object({
   q: z.string().catch("").default(""),
@@ -137,6 +145,7 @@ function ReviewPage() {
                 <div className="text-[10px] uppercase text-muted-foreground">{b.symbol} · {b.sector}</div>
               </div>
               <input
+                aria-label={`${t("a11yDecisionReason")} — ${b.symbol}`}
                 placeholder={t("reason")}
                 value={reason[b.symbol] ?? ""}
                 onChange={(e) => setReason((r) => ({ ...r, [b.symbol]: e.target.value }))}
@@ -155,14 +164,16 @@ function ReviewPage() {
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-ink">{t("decisions")}</h2>
-          <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label={t("a11yFilters")} className="flex flex-wrap items-center gap-2">
             <input
+              aria-label={t("a11ySearchLabel")}
               value={search.q}
               onChange={(e) => patch({ q: e.target.value, page: 1 })}
               placeholder={t("search")}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
             />
             <select
+              aria-label={t("a11yStatusFilter")}
               value={search.status}
               onChange={(e) => patch({ status: e.target.value, page: 1 })}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs"
@@ -172,7 +183,7 @@ function ReviewPage() {
               <option value="reviewing">{t("reviewing")}</option>
               <option value="non_halal">{t("reject")}</option>
             </select>
-            <select value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+            <select aria-label={t("a11yRowsPerPage")} value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1 text-xs">
               {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
             </select>
             <button onClick={() => patch({ q: "", status: "all", page: 1 })} className="rounded-md border border-border px-2 py-1 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
@@ -181,7 +192,21 @@ function ReviewPage() {
         {isLoading ? (
           <LuxurySkeleton lines={4} />
         ) : sorted.length === 0 ? (
-          <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+          <EmptyState
+            title={search.q || search.status !== "all" ? t("emptyTitle") : t("emptyDecisionsTitle")}
+            description={search.q || search.status !== "all" ? t("emptyDesc") : t("emptyDecisionsDesc")}
+            hint={search.q || search.status !== "all" ? t("emptyHint") : undefined}
+            action={
+              search.q || search.status !== "all" ? (
+                <button
+                  onClick={() => patch({ q: "", status: "all", page: 1 })}
+                  className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+                >
+                  {t("clearFiltersCta")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -239,30 +264,33 @@ function ReviewPage() {
         )}
       </section>
 
-      {editing && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold text-ink">{t("editDecision")} · {editing.symbol}</h3>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        {editing && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-sm">{t("editDecision")} · {editing.symbol}</DialogTitle>
+              <DialogDescription className="text-caption">{t("changeReason")}</DialogDescription>
+            </DialogHeader>
             <div className="grid gap-2">
-              <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+              <select aria-label={t("status")} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
                 <option value="halal">{t("halal")}</option>
                 <option value="reviewing">{t("reviewing")}</option>
                 <option value="non_halal">{t("reject")}</option>
               </select>
-              <textarea value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-              <textarea value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />
-              <div className="mt-2 flex justify-end gap-2">
-                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancelled")}</button>
-                <button
-                  disabled={editMut.isPending || !editing.changeReason.trim()}
-                  onClick={() => editMut.mutate({ id: editing.id, status: editing.status, reason: editing.reason || undefined, changeReason: editing.changeReason })}
-                  className="rounded-md gold-gradient px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
-                >{t("submitDecision")}</button>
-              </div>
+              <textarea autoFocus aria-label={t("reason")} value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
+              <textarea aria-label={t("changeReason")} value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />
             </div>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <button onClick={() => setEditing(null)} className="min-h-11 rounded border border-border px-3 text-xs text-ink-soft">{t("cancel")}</button>
+              <button
+                disabled={editMut.isPending || !editing.changeReason.trim()}
+                onClick={() => editMut.mutate({ id: editing.id, status: editing.status, reason: editing.reason || undefined, changeReason: editing.changeReason })}
+                className="min-h-11 rounded-md gold-gradient px-3 text-xs font-semibold text-ink disabled:opacity-50"
+              >{t("submitDecision")}</button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </AppShell>
   );
 }
