@@ -262,21 +262,21 @@ function PortfolioPage() {
         />
         {tab === "orders" && (
           <>
-            <select value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("a11yStatusFilter")} value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="filled">{t("filled")}</option>
               <option value="pending">{t("pending")}</option>
               <option value="modified">{t("modified")}</option>
               <option value="cancelled">{t("cancelled")}</option>
             </select>
-            <select value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("a11yOrderSide")} value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="buy">{t("filterBuy")}</option>
               <option value="sell">{t("filterSell")}</option>
             </select>
           </>
         )}
-        <select value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("a11yRowsPerPage")} value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
       </div>
