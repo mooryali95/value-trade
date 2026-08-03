@@ -68,12 +68,14 @@ function MarketPage() {
       </div>
 
       {/* Asset-class tabs */}
-      <div className="mb-4 inline-flex rounded-lg border border-border bg-card p-1 text-sm">
+      <div role="group" aria-label={t("a11yAssetTabs")} className="mb-4 inline-flex rounded-lg border border-border bg-card p-1 text-sm">
         {CLASS_TABS.map((c) => (
           <button
             key={c.id}
+            type="button"
+            aria-pressed={assetClass === c.id}
             onClick={() => setAssetClass(c.id)}
-            className={`rounded-md px-4 py-1.5 text-xs font-semibold transition ${
+            className={`min-h-11 rounded-md px-4 text-xs font-semibold transition ${
               assetClass === c.id
                 ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
                 : "text-ink-soft hover:text-ink"
@@ -88,6 +90,7 @@ function MarketPage() {
         <div className="relative min-w-0">
           <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground start-3" />
           <input
+            aria-label={t("a11ySearchLabel")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("search")}
@@ -97,12 +100,14 @@ function MarketPage() {
         <div className="hidden text-xs text-muted-foreground md:block">{filtered.length} / 256</div>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div role="group" aria-label={t("a11ySectorFilter")} className="mb-6 flex flex-wrap gap-2">
         {SECTORS.map((s) => (
           <button
             key={s}
+            type="button"
+            aria-pressed={sector === s}
             onClick={() => setSector(s)}
-            className={`rounded-full border px-3 py-1 text-xs transition ${
+            className={`min-h-9 rounded-full border px-3 text-xs transition ${
               sector === s
                 ? "border-primary bg-primary/15 text-primary"
                 : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
@@ -139,7 +144,10 @@ function MarketPage() {
                   <div className="flex items-center gap-2">
                     <span className="truncate font-semibold text-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</span>
                     {b.shariah === "halal" && (
-                      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--bull)]" aria-label="halal" />
+                      <>
+                        <ShieldCheck aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--bull)]" />
+                        <span className="sr-only">{t("a11yHalal")}</span>
+                      </>
                     )}
                   </div>
                   <div className="text-[10px] uppercase text-muted-foreground">{b.symbol} · {b.sector} · {b.instrument}</div>
@@ -180,7 +188,20 @@ function MarketPage() {
           ))}
           {filtered.length === 0 && (
             <div className="p-4">
-              <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+              <EmptyState
+                title={t("emptyTitle")}
+                description={t("emptyDesc")}
+                hint={t("emptyHint")}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => { setQ(""); setSector("all"); setAssetClass("all"); }}
+                    className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+                  >
+                    {t("clearFiltersCta")}
+                  </button>
+                }
+              />
             </div>
           )}
         </div>

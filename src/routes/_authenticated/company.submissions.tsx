@@ -93,20 +93,20 @@ function CompanySubmissions() {
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submissionsIn") }]}
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-        <select value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <input aria-label={t("a11ySearchLabel")} value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
+        <select aria-label={t("a11yStatusFilter")} value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
           <option value="pending">{t("pending")}</option>
           <option value="approved">{t("approve")}</option>
           <option value="rejected">{t("reject")}</option>
         </select>
-        <select value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("a11yAssetTabs")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
           <option value="stock">stock</option>
           <option value="sukuk">sukuk</option>
           <option value="brand">brand</option>
         </select>
-        <select value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("a11yRowsPerPage")} value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
         <button onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })} className="rounded-md border border-border px-2 py-1.5 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
@@ -114,7 +114,20 @@ function CompanySubmissions() {
       {isLoading ? (
         <LuxurySkeleton lines={5} />
       ) : sorted.length === 0 ? (
-        <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+        <EmptyState
+          title={t("emptyTitle")}
+          description={t("emptyDesc")}
+          hint={t("emptyHint")}
+          action={
+            <button
+              type="button"
+              onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })}
+              className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+            >
+              {t("clearFiltersCta")}
+            </button>
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">

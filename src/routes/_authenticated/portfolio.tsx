@@ -262,21 +262,21 @@ function PortfolioPage() {
         />
         {tab === "orders" && (
           <>
-            <select value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("a11yStatusFilter")} value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="filled">{t("filled")}</option>
               <option value="pending">{t("pending")}</option>
               <option value="modified">{t("modified")}</option>
               <option value="cancelled">{t("cancelled")}</option>
             </select>
-            <select value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("a11yOrderSide")} value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="buy">{t("filterBuy")}</option>
               <option value="sell">{t("filterSell")}</option>
             </select>
           </>
         )}
-        <select value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("a11yRowsPerPage")} value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
       </div>
@@ -347,7 +347,20 @@ function PortfolioPage() {
       ) : (
         <section>
           {filteredOrders.length === 0 ? (
-            <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+            <EmptyState
+              title={t("emptyTitle")}
+              description={t("emptyDesc")}
+              hint={t("emptyHint")}
+              action={
+                <button
+                  type="button"
+                  onClick={() => updateSearch({ q: "", status: "all", side: "all", page: 1 })}
+                  className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+                >
+                  {t("clearFiltersCta")}
+                </button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
               <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
