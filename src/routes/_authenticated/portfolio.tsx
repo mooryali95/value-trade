@@ -347,7 +347,20 @@ function PortfolioPage() {
       ) : (
         <section>
           {filteredOrders.length === 0 ? (
-            <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+            <EmptyState
+              title={t("emptyTitle")}
+              description={t("emptyDesc")}
+              hint={t("emptyHint")}
+              action={
+                <button
+                  type="button"
+                  onClick={() => updateSearch({ q: "", status: "all", side: "all", page: 1 })}
+                  className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+                >
+                  {t("clearFiltersCta")}
+                </button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
               <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">

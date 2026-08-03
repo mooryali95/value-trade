@@ -188,7 +188,20 @@ function MarketPage() {
           ))}
           {filtered.length === 0 && (
             <div className="p-4">
-              <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+              <EmptyState
+                title={t("emptyTitle")}
+                description={t("emptyDesc")}
+                hint={t("emptyHint")}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => { setQ(""); setSector("all"); setAssetClass("all"); }}
+                    className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink"
+                  >
+                    {t("clearFiltersCta")}
+                  </button>
+                }
+              />
             </div>
           )}
         </div>
