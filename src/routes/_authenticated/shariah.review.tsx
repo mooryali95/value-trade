@@ -272,7 +272,7 @@ function ReviewPage() {
               <DialogDescription className="text-caption">{t("changeReason")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
-              <select aria-label={t("status")} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+              <select aria-label={t("a11yStatusFilter")} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
                 <option value="halal">{t("halal")}</option>
                 <option value="reviewing">{t("reviewing")}</option>
                 <option value="non_halal">{t("reject")}</option>
