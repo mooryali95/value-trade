@@ -237,7 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex flex-col gap-1 p-2">
               {mobileSections.map((section) => (
                 <div key={section.heading} className="flex flex-col">
-                  <div className="px-3 pb-1 pt-2 text-label text-ink-soft/70">{section.heading}</div>
+                  <div className="px-3 pb-1 pt-2 text-label text-ink-soft">{section.heading}</div>
                   {section.items.map((n) => (
                     <Link
                       key={n.to}
