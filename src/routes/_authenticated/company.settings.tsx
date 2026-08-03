@@ -211,7 +211,7 @@ function CompanySettings() {
             ) : details.isLoading ? (
               <LuxurySkeleton lines={6} />
             ) : !details.data?.company ? (
-              <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+              <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} />
             ) : (
               <>
                 <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card p-4">
