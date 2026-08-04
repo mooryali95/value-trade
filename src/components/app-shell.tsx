@@ -101,7 +101,7 @@ function NavGroup({
       <DropdownMenuTrigger
         className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition outline-none ${
           active
-            ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+            ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]"
             : "text-ink-soft hover:bg-secondary/70 hover:text-ink"
         }`}
       >
@@ -225,7 +225,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={n.to}
                 className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition ${
                   isActive(n.to)
-                    ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+                    ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]"
                     : "text-ink-soft hover:bg-secondary/70 hover:text-ink"
                 }`}
               >
@@ -268,7 +268,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       onClick={() => setOpen(false)}
                       className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-body ${
                         isActive(n.to)
-                          ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
+                          ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]"
                           : "text-ink-soft"
                       }`}
                     >

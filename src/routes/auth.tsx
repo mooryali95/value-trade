@@ -228,6 +228,7 @@ function AuthPage() {
                     <input
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
+                      aria-label={t("fullName")}
                       className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"
                       placeholder={t("auth_fullName")}
                     />
@@ -238,6 +239,7 @@ function AuthPage() {
                     type="email"
                     required
                     autoComplete="email"
+                    aria-label={t("email")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"
@@ -250,6 +252,7 @@ function AuthPage() {
                     required
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}
                     minLength={8}
+                    aria-label={t("password")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"

@@ -1,0 +1,94 @@
+{
+  "home": {
+    "path": "/",
+    "violations": []
+  },
+  "market": {
+    "path": "/market",
+    "violations": []
+  },
+  "market-empty": {
+    "path": "/market?q=zzzzzzzz",
+    "violations": []
+  },
+  "market-detail": {
+    "path": "/market/aramco",
+    "violations": []
+  },
+  "trade": {
+    "path": "/trade/ARAMCO",
+    "violations": []
+  },
+  "shariah": {
+    "path": "/shariah",
+    "violations": []
+  },
+  "auth": {
+    "path": "/auth",
+    "violations": []
+  },
+  "request-access": {
+    "path": "/request-access",
+    "violations": []
+  },
+  "legal-terms": {
+    "path": "/legal/terms",
+    "violations": []
+  },
+  "legal-privacy": {
+    "path": "/legal/privacy",
+    "violations": []
+  },
+  "legal-cookies": {
+    "path": "/legal/cookies",
+    "violations": []
+  },
+  "legal-shariah": {
+    "path": "/legal/shariah-disclosures",
+    "violations": []
+  },
+  "unsubscribe": {
+    "path": "/unsubscribe",
+    "violations": []
+  },
+  "not-found": {
+    "path": "/this-route-does-not-exist",
+    "violations": []
+  },
+  "portfolio": {
+    "path": "/portfolio",
+    "violations": []
+  },
+  "portfolio-empty": {
+    "path": "/portfolio?tab=orders&q=zzzzzzzz",
+    "violations": []
+  },
+  "workspace": {
+    "path": "/workspace",
+    "violations": []
+  },
+  "shariah-review": {
+    "path": "/shariah/review",
+    "violations": []
+  },
+  "company-submissions": {
+    "path": "/company/submissions",
+    "violations": []
+  },
+  "company-submit": {
+    "path": "/company/submit",
+    "violations": []
+  },
+  "company-settings": {
+    "path": "/company/settings",
+    "violations": []
+  },
+  "settings-notifications": {
+    "path": "/settings/notifications",
+    "violations": []
+  },
+  "admin-email-log": {
+    "path": "/admin/email-log",
+    "violations": []
+  }
+}

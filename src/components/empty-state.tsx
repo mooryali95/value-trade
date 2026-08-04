@@ -12,7 +12,7 @@ export function EmptyState({ title, description, icon, action }: Props) {
           <ValueDots size={72} color="var(--gold-deep)" />
         </div>
       </div>
-      <div className="relative mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full border border-[var(--gold)]/30 bg-[var(--gold-soft)] text-[var(--gold-deep)]">
+      <div className="relative mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full border border-[var(--gold)]/30 bg-[var(--gold-soft)] text-ink">
         {icon ?? <FolderOpen size={22} weight="duotone" />}
       </div>
       <h3 className="relative text-sm font-semibold text-ink">{title}</h3>

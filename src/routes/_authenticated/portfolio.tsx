@@ -7,6 +7,7 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { TableStatus } from "@/components/live-region";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
@@ -254,6 +255,15 @@ function PortfolioPage() {
 
       {/* Shared filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <TableStatus
+          count={activeList.length}
+          sortLabel={
+            (tab === "positions" ? positionCols : orderCols).find((c) => c.key === search.sortBy)?.label ??
+            search.sortBy
+          }
+          sortDir={search.sortDir === "desc" ? "desc" : "asc"}
+          labels={{ results: t("a11yResults"), sortedBy: t("a11ySortedBy"), asc: t("sortAsc"), desc: t("sortDesc") }}
+        />
         <input
           value={search.q}
           onChange={(e) => updateSearch({ q: e.target.value, page: 1 })}

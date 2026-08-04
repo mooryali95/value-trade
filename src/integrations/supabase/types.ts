@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_requests: {
+        Row: {
+          assigned_role: Database["public"]["Enums"]["company_role"] | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          join_method: string
+          new_company_name_ar: string | null
+          new_company_name_en: string | null
+          rejection_reason: string | null
+          requested_company_id: string | null
+          resulting_invitation_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sector: string | null
+          status: string
+        }
+        Insert: {
+          assigned_role?: Database["public"]["Enums"]["company_role"] | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          join_method: string
+          new_company_name_ar?: string | null
+          new_company_name_en?: string | null
+          rejection_reason?: string | null
+          requested_company_id?: string | null
+          resulting_invitation_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sector?: string | null
+          status?: string
+        }
+        Update: {
+          assigned_role?: Database["public"]["Enums"]["company_role"] | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          join_method?: string
+          new_company_name_ar?: string | null
+          new_company_name_en?: string | null
+          rejection_reason?: string | null
+          requested_company_id?: string | null
+          resulting_invitation_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sector?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_requests_requested_company_id_fkey"
+            columns: ["requested_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_requests_resulting_invitation_id_fkey"
+            columns: ["resulting_invitation_id"]
+            isOneToOne: false
+            referencedRelation: "company_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -55,6 +124,7 @@ export type Database = {
           name_ar: string
           name_en: string
           plan: string
+          sector: string | null
           slug: string
           updated_at: string
         }
@@ -65,6 +135,7 @@ export type Database = {
           name_ar: string
           name_en: string
           plan?: string
+          sector?: string | null
           slug: string
           updated_at?: string
         }
@@ -75,6 +146,7 @@ export type Database = {
           name_ar?: string
           name_en?: string
           plan?: string
+          sector?: string | null
           slug?: string
           updated_at?: string
         }
@@ -758,6 +830,19 @@ export type Database = {
     }
     Functions: {
       accept_company_invitation: { Args: { _token: string }; Returns: string }
+      approve_access_request: {
+        Args: {
+          _request_id: string
+          _role?: Database["public"]["Enums"]["company_role"]
+          _sector?: string
+          _slug?: string
+        }
+        Returns: {
+          company_id: string
+          invitation_id: string
+          invitation_token: string
+        }[]
+      }
       check_rate_limit: {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
@@ -770,6 +855,15 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      get_company_by_slug_public: {
+        Args: { _slug: string }
+        Returns: {
+          id: string
+          name_ar: string
+          name_en: string
+          slug: string
+        }[]
       }
       has_company_role: {
         Args: {
@@ -809,6 +903,19 @@ export type Database = {
           message: Json
           msg_id: number
           read_ct: number
+        }[]
+      }
+      reject_access_request: {
+        Args: { _reason?: string; _request_id: string }
+        Returns: undefined
+      }
+      search_companies_public: {
+        Args: { _query: string }
+        Returns: {
+          id: string
+          name_ar: string
+          name_en: string
+          slug: string
         }[]
       }
     }

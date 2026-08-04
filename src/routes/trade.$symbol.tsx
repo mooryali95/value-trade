@@ -220,8 +220,14 @@ function TradePage() {
               <input value={qty} onChange={(e) => setQty(e.target.value)} className="w-full bg-transparent text-end font-mono text-sm outline-none" />
             </Field>
             <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-3">
-              <div className="mb-1.5 text-label text-ink-soft">{t("orderPreview")}</div>
-              <dl className="space-y-1 text-caption">
+              <div className="mb-1.5 text-label text-ink-soft" id="order-preview-heading">{t("orderPreview")}</div>
+              <dl
+                className="space-y-1 text-caption"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-labelledby="order-preview-heading"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <dt className="text-ink-soft">{t("orderType")}</dt>
                   <dd className="font-semibold text-ink">
@@ -268,6 +274,15 @@ function TradePage() {
                 {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
               </button>
             </PermissionHint>
+            <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only">
+              {orderMutation.isPending
+                ? t("a11yOrderSubmitting")
+                : orderMutation.isError
+                  ? t("a11yOrderFailed")
+                  : orderMutation.isSuccess
+                    ? t("a11yOrderSubmitted")
+                    : ""}
+            </div>
             <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
               <span className="font-mono">125,430.00</span>

@@ -120,7 +120,7 @@ function NotificationsSettings() {
           />
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-3 py-2 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-3 py-2 text-xs font-semibold text-ink hover:border-[var(--gold-deep)]"
           >
             <Plus className="h-3.5 w-3.5" /> إضافة
           </button>
