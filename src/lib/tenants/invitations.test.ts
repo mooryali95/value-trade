@@ -77,6 +77,13 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   },
 }));
 
+// The accept flow now runs the RPC through the trusted server client.
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: supabaseMock,
+}));
+
+// (no further mocks needed)
+
 // Replace the createServerFn behavior with a light shim that runs .handler() directly.
 vi.mock("@tanstack/react-start", () => {
   return {
@@ -96,7 +103,14 @@ vi.mock("@tanstack/react-start", () => {
           this._handler = h;
           return async (input?: { data?: unknown }) => {
             const data = this._validator ? this._validator(input?.data) : input?.data;
-            return h({ data, context: { supabase: supabaseMock, userId: "user-1" } });
+            return h({
+              data,
+              context: {
+                supabase: supabaseMock,
+                userId: "user-1",
+                claims: { sub: "user-1", email: "user@example.com" },
+              },
+            });
           };
         },
       };

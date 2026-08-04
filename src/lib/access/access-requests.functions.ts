@@ -158,8 +158,10 @@ export const approveAccessRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ApproveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: rpcRows, error } = await supabase.rpc("approve_access_request" as any, {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rpcRows, error } = await supabaseAdmin.rpc("approve_access_request" as any, {
       _request_id: data.requestId,
+      _actor_id: userId,
       _role: data.role ?? null,
       _sector: data.sector ?? null,
       _slug: data.slug ?? null,
@@ -217,8 +219,10 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RejectInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase.rpc("reject_access_request" as any, {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.rpc("reject_access_request" as any, {
       _request_id: data.requestId,
+      _actor_id: userId,
       _reason: data.reason ?? null,
     });
     if (error) throw new Error(error.message);

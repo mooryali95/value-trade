@@ -829,9 +829,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      accept_company_invitation: { Args: { _token: string }; Returns: string }
+      accept_company_invitation: {
+        Args: { _actor_email: string; _actor_id: string; _token: string }
+        Returns: string
+      }
       approve_access_request: {
         Args: {
+          _actor_id: string
           _request_id: string
           _role?: Database["public"]["Enums"]["company_role"]
           _sector?: string
@@ -906,7 +910,7 @@ export type Database = {
         }[]
       }
       reject_access_request: {
-        Args: { _reason?: string; _request_id: string }
+        Args: { _actor_id: string; _reason?: string; _request_id: string }
         Returns: undefined
       }
       search_companies_public: {
