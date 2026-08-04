@@ -20,9 +20,11 @@ import { MARKET_STATS, BRANDS } from "@/lib/mock-data";
 import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
+import { ModeSwitcher } from "@/components/mode-switcher";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useAppMode } from "@/lib/nav/app-mode";
 import { CommandPalette } from "@/components/command-palette";
-import { MagnifyingGlass } from "@phosphor-icons/react";
+import { MagnifyingGlass, ClipboardText } from "@phosphor-icons/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -132,37 +134,54 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
 
   const { isAdmin } = useMyRoles();
-  const publicGroup = [
-    { to: "/", label: t("nav_home"), icon: HouseLine },
+  const { mode } = useAppMode();
+
+  const homeItem = { to: "/", label: t("nav_home"), icon: HouseLine };
+
+  const investorNav = [
+    homeItem,
     { to: "/market", label: t("nav_market"), icon: Storefront },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
-  ];
-
-  const operateGroup = [
     { to: `/trade/${BRANDS[0].slug}`, label: t("nav_trade"), icon: ChartLine },
     { to: "/portfolio", label: t("portfolio"), icon: Vault },
   ];
 
-  const primary = [...publicGroup, ...operateGroup];
-
-  const companyGroup = [
+  const brandNav = [
+    homeItem,
     { to: "/company/settings", label: t("company"), icon: Briefcase },
     { to: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
     { to: "/access-requests", label: t("accessRequestsQueue"), icon: UserPlus },
     { to: "/workspace", label: t("nav_workspace"), icon: Buildings },
   ];
 
-  const accountGroup = [
-    { to: "/settings/notifications", label: t("nav_notifications"), icon: Bell },
+  const platformNav = [
+    homeItem,
+    { to: "/access-requests", label: t("accessRequestsQueue"), icon: UserPlus },
+    { to: "/admin/submissions", label: t("nav_submissions"), icon: ClipboardText },
     ...(isAdmin
       ? [{ to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple }]
       : []),
   ];
 
+  const primary = mode === "brand" ? brandNav : mode === "platform" ? platformNav : investorNav;
+
+  // Universal, mode-independent account items.
+  const accountGroup = [
+    { to: "/settings/notifications", label: t("nav_notifications"), icon: Bell },
+  ];
+
   const mobileSections = [
-    { heading: t("navGroupPublic"), items: publicGroup },
-    { heading: t("navGroupOperate"), items: operateGroup },
-    { heading: t("navGroupAdmin"), items: [...companyGroup, ...accountGroup] },
+    {
+      heading: t(
+        mode === "brand"
+          ? "navGroupBrand"
+          : mode === "platform"
+            ? "navGroupPlatform"
+            : "navGroupPublic",
+      ),
+      items: primary,
+    },
+    { heading: t("nav_settings"), items: accountGroup },
   ];
 
   const isActive = (p: string) =>
@@ -193,6 +212,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/" className="flex items-center">
               <BrandMark size={36} />
             </Link>
+            <ModeSwitcher />
           </div>
 
           <nav
@@ -215,13 +235,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
 
             <NavGroup
-              label={t("company")}
-              icon={Briefcase}
-              items={companyGroup}
-              active={groupActive(companyGroup)}
-              isActive={isActive}
-            />
-            <NavGroup
               label={t("nav_settings")}
               icon={Gear}
               items={accountGroup}
@@ -231,9 +244,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <MarketPill />
+            {mode === "investor" && <MarketPill />}
             <CommandTrigger />
-            <CompanySwitcher />
+            {mode === "brand" && <CompanySwitcher />}
             <LangToggle />
             <UserMenu />
           </div>

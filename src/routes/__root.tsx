@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider } from "../lib/i18n";
+import { AppModeProvider } from "@/lib/nav/app-mode";
 import { supabase } from "../integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
@@ -83,16 +84,36 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "وحدة القيمة — Value Unit Exchange" },
-      { name: "description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
+      {
+        name: "description",
+        content:
+          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
+      },
       { name: "author", content: "Value Unit" },
       { property: "og:title", content: "وحدة القيمة — Value Unit Exchange" },
-      { property: "og:description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
+      {
+        property: "og:description",
+        content:
+          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "وحدة القيمة — Value Unit Exchange" },
-      { name: "twitter:description", content: "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp" },
+      {
+        name: "twitter:description",
+        content:
+          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp",
+      },
     ],
     links: [
       {
@@ -138,11 +159,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <ConfirmProvider>
-          <Outlet />
-          <CookieConsent />
-          <Toaster />
-        </ConfirmProvider>
+        <AppModeProvider>
+          <ConfirmProvider>
+            <Outlet />
+            <CookieConsent />
+            <Toaster />
+          </ConfirmProvider>
+        </AppModeProvider>
       </I18nProvider>
     </QueryClientProvider>
   );

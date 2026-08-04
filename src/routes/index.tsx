@@ -13,6 +13,9 @@ import { DotPattern } from "@/components/dot-pattern";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
+import { useAppMode } from "@/lib/nav/app-mode";
+import { BrandDashboard } from "@/components/brand-dashboard";
+import { PlatformDashboard } from "@/components/platform-dashboard";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,8 +42,24 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { t, lang, dir } = useI18n();
+  const { mode } = useAppMode();
   const gainers = [...BRANDS].sort((a, b) => b.change24h - a.change24h).slice(0, 6);
   const losers = [...BRANDS].sort((a, b) => a.change24h - b.change24h).slice(0, 6);
+
+  if (mode === "brand") {
+    return (
+      <AppShell>
+        <BrandDashboard />
+      </AppShell>
+    );
+  }
+  if (mode === "platform") {
+    return (
+      <AppShell>
+        <PlatformDashboard />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -56,8 +75,14 @@ function Index() {
               "radial-gradient(700px circle at 85% 15%, oklch(0.72 0.11 82 / 0.14), transparent 60%), radial-gradient(500px circle at 8% 90%, oklch(0.38 0.11 20 / 0.06), transparent 60%)",
           }}
         />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px hairline-gold" />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px hairline-gold" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px hairline-gold"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-px hairline-gold"
+        />
         <div className="relative grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-xs font-medium text-[var(--gold-deep)] shadow-sm">
@@ -76,7 +101,9 @@ function Index() {
                 className="group inline-flex items-center gap-2 rounded-md gold-gradient px-5 py-3 text-sm font-semibold text-ink shadow-[0_8px_24px_oklch(0.72_0.11_82/0.28)] transition hover:brightness-105"
               >
                 {t("ctaPrimary")}
-                <ArrowRight className={`h-4 w-4 transition group-hover:translate-x-1 ${dir === "rtl" ? "rotate-180 group-hover:-translate-x-1 group-hover:translate-x-0" : ""}`} />
+                <ArrowRight
+                  className={`h-4 w-4 transition group-hover:translate-x-1 ${dir === "rtl" ? "rotate-180 group-hover:-translate-x-1 group-hover:translate-x-0" : ""}`}
+                />
               </Link>
               <Link
                 to="/workspace"
@@ -88,8 +115,14 @@ function Index() {
 
             <div className="mt-10 grid grid-cols-3 gap-4 border-t border-border pt-6 text-start">
               <Stat label={t("activeInstruments")} value={String(MARKET_STATS.activeInstruments)} />
-              <Stat label={t("totalCap")} value={formatCurrency(MARKET_STATS.totalMarketCap, true, lang)} />
-              <Stat label={t("dayVolume")} value={formatCurrency(MARKET_STATS.dayVolume, true, lang)} />
+              <Stat
+                label={t("totalCap")}
+                value={formatCurrency(MARKET_STATS.totalMarketCap, true, lang)}
+              />
+              <Stat
+                label={t("dayVolume")}
+                value={formatCurrency(MARKET_STATS.dayVolume, true, lang)}
+              />
             </div>
           </div>
 
@@ -189,11 +222,22 @@ function AuthedSummary() {
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
             {t("acct_snapshot")}
           </div>
-          <div className="mt-1 text-sm font-semibold text-ink">
-            {t("acct_snapshotSub")}
-          </div>
+          <div className="mt-1 text-sm font-semibold text-ink">{t("acct_snapshotSub")}</div>
         </div>
-        <Link to="/portfolio" search={{ tab: "positions", q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }} className="text-xs font-semibold text-[var(--gold-deep)] hover:underline">
+        <Link
+          to="/portfolio"
+          search={{
+            tab: "positions",
+            q: "",
+            status: "all",
+            side: "all",
+            sortBy: "symbol",
+            sortDir: "asc",
+            page: 1,
+            pageSize: 25,
+          }}
+          className="text-xs font-semibold text-[var(--gold-deep)] hover:underline"
+        >
           {t("portfolio")} →
         </Link>
       </div>
@@ -222,7 +266,16 @@ function AuthedSummary() {
                 </span>
                 <Link
                   to="/portfolio"
-                  search={{ tab: a.tab, q: "", status: "all", side: "all", sortBy: "symbol", sortDir: "asc", page: 1, pageSize: 25 }}
+                  search={{
+                    tab: a.tab,
+                    q: "",
+                    status: "all",
+                    side: "all",
+                    sortBy: "symbol",
+                    sortDir: "asc",
+                    page: 1,
+                    pageSize: 25,
+                  }}
                   className="shrink-0 text-caption font-semibold text-[var(--gold-deep)] hover:underline"
                 >
                   {t("reviewNow")} →
@@ -242,7 +295,11 @@ function MiniKPI({ label, value, tone }: { label: string; value: string; tone?: 
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div
         className={`mt-1 font-mono text-base font-semibold ${
-          tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"
+          tone === "bull"
+            ? "text-[var(--bull)]"
+            : tone === "bear"
+              ? "text-[var(--bear)]"
+              : "text-ink"
         }`}
       >
         {value}
@@ -287,11 +344,15 @@ function HeroTicker() {
               {b.symbol.slice(0, 3)}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-ink">{lang === "ar" ? b.nameAr : b.nameEn}</div>
+              <div className="truncate text-xs font-semibold text-ink">
+                {lang === "ar" ? b.nameAr : b.nameEn}
+              </div>
               <div className="text-[10px] uppercase text-muted-foreground">{b.symbol}</div>
             </div>
             <div className="font-mono text-xs text-foreground">{b.price.toFixed(2)}</div>
-            <div className={`font-mono text-xs ${b.change24h >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+            <div
+              className={`font-mono text-xs ${b.change24h >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}
+            >
               {formatPct(b.change24h)}
             </div>
           </Link>
@@ -301,7 +362,15 @@ function HeroTicker() {
   );
 }
 
-function MoverCard({ title, rows, tone }: { title: string; rows: typeof BRANDS; tone: "bull" | "bear" }) {
+function MoverCard({
+  title,
+  rows,
+  tone,
+}: {
+  title: string;
+  rows: typeof BRANDS;
+  tone: "bull" | "bear";
+}) {
   const { lang, t } = useI18n();
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -319,15 +388,22 @@ function MoverCard({ title, rows, tone }: { title: string; rows: typeof BRANDS; 
             params={{ slug: b.slug }}
             className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 py-2.5 text-sm transition hover:opacity-80"
           >
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: b.color }}>
+            <div
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory"
+              style={{ background: b.color }}
+            >
               {b.symbol.slice(0, 3)}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</div>
+              <div className="truncate text-xs font-semibold text-foreground">
+                {lang === "ar" ? b.nameAr : b.nameEn}
+              </div>
               <div className="text-[10px] text-muted-foreground">{b.symbol}</div>
             </div>
             <div className="font-mono text-xs text-foreground">{b.price.toFixed(2)}</div>
-            <div className={`font-mono text-xs ${tone === "bull" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+            <div
+              className={`font-mono text-xs ${tone === "bull" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}
+            >
               {formatPct(b.change24h)}
             </div>
           </Link>
