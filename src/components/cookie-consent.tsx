@@ -32,8 +32,8 @@ export function CookieConsent() {
     <div
       dir={dir}
       className="fixed inset-x-0 bottom-0 z-[60] border-t border-border/70 bg-card/95 px-4 py-4 shadow-luxury backdrop-blur-lg md:inset-x-6 md:bottom-6 md:rounded-xl md:border"
-      role="dialog"
-      aria-label="cookie consent"
+      role="region"
+      aria-label={t("legalCookies")}
     >
       <div className="mx-auto flex max-w-[1400px] flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <p className="min-w-0 text-caption leading-relaxed text-ink-soft md:text-body">

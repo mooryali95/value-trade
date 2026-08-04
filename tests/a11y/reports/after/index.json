@@ -1,0 +1,117 @@
+{
+  "home": {
+    "desktop": "desktop-home.png",
+    "tablet": "tablet-home.png",
+    "mobile": "mobile-home.png"
+  },
+  "market": {
+    "desktop": "desktop-market.png",
+    "tablet": "tablet-market.png",
+    "mobile": "mobile-market.png"
+  },
+  "market-empty": {
+    "desktop": "desktop-market-empty.png",
+    "tablet": "tablet-market-empty.png",
+    "mobile": "mobile-market-empty.png"
+  },
+  "market-detail": {
+    "desktop": "desktop-market-detail.png",
+    "tablet": "tablet-market-detail.png",
+    "mobile": "mobile-market-detail.png"
+  },
+  "trade": {
+    "desktop": "desktop-trade.png",
+    "tablet": "tablet-trade.png",
+    "mobile": "mobile-trade.png"
+  },
+  "shariah": {
+    "desktop": "desktop-shariah.png",
+    "tablet": "tablet-shariah.png",
+    "mobile": "mobile-shariah.png"
+  },
+  "auth": {
+    "desktop": "desktop-auth.png",
+    "tablet": "tablet-auth.png",
+    "mobile": "mobile-auth.png"
+  },
+  "request-access": {
+    "desktop": "desktop-request-access.png",
+    "tablet": "tablet-request-access.png",
+    "mobile": "mobile-request-access.png"
+  },
+  "legal-terms": {
+    "desktop": "desktop-legal-terms.png",
+    "tablet": "tablet-legal-terms.png",
+    "mobile": "mobile-legal-terms.png"
+  },
+  "legal-privacy": {
+    "desktop": "desktop-legal-privacy.png",
+    "tablet": "tablet-legal-privacy.png",
+    "mobile": "mobile-legal-privacy.png"
+  },
+  "legal-cookies": {
+    "desktop": "desktop-legal-cookies.png",
+    "tablet": "tablet-legal-cookies.png",
+    "mobile": "mobile-legal-cookies.png"
+  },
+  "legal-shariah": {
+    "desktop": "desktop-legal-shariah.png",
+    "tablet": "tablet-legal-shariah.png",
+    "mobile": "mobile-legal-shariah.png"
+  },
+  "unsubscribe": {
+    "desktop": "desktop-unsubscribe.png",
+    "tablet": "tablet-unsubscribe.png",
+    "mobile": "mobile-unsubscribe.png"
+  },
+  "not-found": {
+    "desktop": "desktop-not-found.png",
+    "tablet": "tablet-not-found.png",
+    "mobile": "mobile-not-found.png"
+  },
+  "portfolio": {
+    "desktop": "desktop-portfolio.png",
+    "tablet": "tablet-portfolio.png",
+    "mobile": "mobile-portfolio.png"
+  },
+  "portfolio-empty": {
+    "desktop": "desktop-portfolio-empty.png",
+    "tablet": "tablet-portfolio-empty.png",
+    "mobile": "mobile-portfolio-empty.png"
+  },
+  "workspace": {
+    "desktop": "desktop-workspace.png",
+    "tablet": "tablet-workspace.png",
+    "mobile": "mobile-workspace.png"
+  },
+  "shariah-review": {
+    "desktop": "desktop-shariah-review.png",
+    "tablet": "tablet-shariah-review.png",
+    "mobile": "mobile-shariah-review.png"
+  },
+  "company-submissions": {
+    "desktop": "desktop-company-submissions.png",
+    "tablet": "tablet-company-submissions.png",
+    "mobile": "mobile-company-submissions.png"
+  },
+  "company-submit": {
+    "desktop": "desktop-company-submit.png",
+    "tablet": "tablet-company-submit.png",
+    "mobile": "mobile-company-submit.png"
+  },
+  "company-settings": {
+    "desktop": "desktop-company-settings.png",
+    "tablet": "tablet-company-settings.png",
+    "mobile": "mobile-company-settings.png"
+  },
+  "settings-notifications": {
+    "desktop": "desktop-settings-notifications.png",
+    "tablet": "tablet-settings-notifications.png",
+    "mobile": "mobile-settings-notifications.png"
+  },
+  "admin-email-log": {
+    "desktop": "desktop-admin-email-log.png",
+    "tablet": "tablet-admin-email-log.png",
+    "mobile": "mobile-admin-email-log.png"
+  }
+}

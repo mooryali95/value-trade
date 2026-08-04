@@ -72,6 +72,7 @@
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
   --color-gold-deep: var(--gold-deep);
+  --color-gold-ink: var(--gold-ink);
   --color-navy: var(--navy);
   --color-navy-deep: var(--navy-deep);
   --color-ivory: var(--ivory);
@@ -99,6 +100,8 @@
   --gold: oklch(0.68 0.12 78);
   --gold-soft: oklch(0.92 0.05 85);
   --gold-deep: oklch(0.52 0.13 72);
+  /* Accessible gold for text on --gold-soft surfaces (WCAG AA) */
+  --gold-ink: oklch(0.38 0.11 68);
   --burgundy: oklch(0.36 0.13 24);
   --bull: oklch(0.5 0.13 158);
   --bear: oklch(0.46 0.18 28);

@@ -1,0 +1,59 @@
+name: Accessibility gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  axe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Start dev server
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          bun run dev > /tmp/dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:8080/ && break
+            sleep 2
+          done
+          curl -sf -o /dev/null http://localhost:8080/ || (cat /tmp/dev.log && exit 1)
+
+      - name: axe-core audit (blocking)
+        env:
+          A11Y_BASE_URL: http://localhost:8080
+        run: python3 tests/a11y/axe_check.py
+
+      - name: Keyboard navigation suite (blocking)
+        env:
+          A11Y_BASE_URL: http://localhost:8080
+        run: python3 tests/a11y/keyboard_nav.py
+
+      - name: Upload accessibility reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-reports
+          path: tests/a11y/reports
+          if-no-files-found: ignore
