@@ -174,8 +174,15 @@ export const acceptInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ token: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: companyId, error } = await supabase.rpc("accept_company_invitation", { _token: data.token });
+    const { supabase, userId, claims } = context;
+    const actorEmail = (claims as { email?: string } | null)?.email ?? "";
+    if (!actorEmail) throw new Error("NOT_AUTHENTICATED");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: companyId, error } = await supabaseAdmin.rpc("accept_company_invitation", {
+      _token: data.token,
+      _actor_id: userId,
+      _actor_email: actorEmail,
+    });
     if (error) throw new Error(error.message);
     await writeAudit(supabase, {
       actorId: userId, companyId: companyId as string | null, action: "invitation.accept", entity: "company_invitations",
