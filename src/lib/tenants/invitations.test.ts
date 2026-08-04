@@ -82,17 +82,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: supabaseMock,
 }));
 
-vi.mock("@/integrations/supabase/__unused", () => ({
-}));
-
-const _unusedAuthMock = (() => ({
-  requireSupabaseAuth: {
-    _middleware: true,
-    server: () => ({
-      // no-op
-    }),
-  },
-}))();
+// (no further mocks needed)
 
 // Replace the createServerFn behavior with a light shim that runs .handler() directly.
 vi.mock("@tanstack/react-start", () => {
