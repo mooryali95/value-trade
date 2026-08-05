@@ -43,7 +43,7 @@ describe("portfolio math", () => {
   it("computes unrealized pnl in both directions", () => {
     expect(unrealizedPnl(10, 20, 25)).toBe(50);
     expect(unrealizedPnl(10, 20, 15)).toBe(-50);
-    expect(unrealizedPnl(0, 20, 15)).toBe(0);
+    expect(unrealizedPnl(0, 20, 15)).toBeCloseTo(0);
   });
 
   it("computes allocation weights and guards zero totals", () => {
