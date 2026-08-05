@@ -12,11 +12,19 @@ import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
-  listMyCompanies, createCompany, getCompanyDetails,
-  addCompanyMember, removeCompanyMember, addCompanyBrand, removeCompanyBrand,
+  listMyCompanies,
+  createCompany,
+  getCompanyDetails,
+  addCompanyMember,
+  removeCompanyMember,
+  addCompanyBrand,
+  removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
 import {
-  listCompanyInvitations, createInvitation, revokeInvitation, unrevokeInvitation,
+  listCompanyInvitations,
+  createInvitation,
+  revokeInvitation,
+  unrevokeInvitation,
   resendInvitationEmail,
 } from "@/lib/tenants/invitations.functions";
 import { toast } from "sonner";
@@ -31,7 +39,13 @@ export const Route = createFileRoute("/_authenticated/company/settings")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  errorComponent: ({ reset }) => (<AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>),
+  errorComponent: ({ reset }) => (
+    <AppShell>
+      <div className="py-16">
+        <ErrorState reset={reset} />
+      </div>
+    </AppShell>
+  ),
   component: CompanySettings,
 });
 
@@ -56,7 +70,7 @@ function CompanySettings() {
   const { activeId: globalActiveId, setActive } = useActiveCompany();
   const [selected, setSelected] = useState<string | null>(null);
   const activeId = selected ?? globalActiveId ?? list.data?.[0]?.company?.id ?? null;
-  const { companyRole } = useMyRoles();
+  const { companyRole, isAdmin } = useMyRoles();
   const myRole = activeId ? companyRole(activeId) : undefined;
   const canManageMembers = myRole === "owner";
   const canManageBrands = myRole === "owner" || myRole === "finance";
@@ -71,23 +85,41 @@ function CompanySettings() {
   const [newCo, setNewCo] = useState({ slug: "", name_ar: "", name_en: "" });
   const [newMember, setNewMember] = useState({ userId: "", role: "viewer" as const });
   const [newBrand, setNewBrand] = useState("");
-  const [newInvite, setNewInvite] = useState({ email: "", role: "viewer" as "owner"|"finance"|"shariah"|"trader"|"viewer" });
+  const [newInvite, setNewInvite] = useState({
+    email: "",
+    role: "viewer" as "owner" | "finance" | "shariah" | "trader" | "viewer",
+  });
 
   const invitesQ = useQuery({
     queryKey: ["company-invitations", activeId],
     queryFn: () => listInvitesFn({ data: { companyId: activeId! } }),
     enabled: !!activeId,
   });
-  const invalidateInvites = () => qc.invalidateQueries({ queryKey: ["company-invitations", activeId] });
+  const invalidateInvites = () =>
+    qc.invalidateQueries({ queryKey: ["company-invitations", activeId] });
   const inviteMut = useMutation({
-    mutationFn: (v: { email: string; role: "finance"|"shariah"|"trader"|"viewer" }) =>
-      createInviteFn({ data: { companyId: activeId!, email: v.email, role: v.role, origin: typeof window !== "undefined" ? window.location.origin : undefined } }),
+    mutationFn: (v: { email: string; role: "finance" | "shariah" | "trader" | "viewer" }) =>
+      createInviteFn({
+        data: {
+          companyId: activeId!,
+          email: v.email,
+          role: v.role,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      }),
     onSuccess: (row: { notification?: { sent: boolean; reason?: string } }) => {
       toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured"));
       invalidateInvites();
       setNewInvite({ email: "", role: "viewer" });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "INVITATION_ALREADY_PENDING" ? t("inviteAlreadyPending") : e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) =>
+      toast.error(
+        e instanceof Error && e.message === "INVITATION_ALREADY_PENDING"
+          ? t("inviteAlreadyPending")
+          : e instanceof Error
+            ? e.message
+            : "Error",
+      ),
   });
   const revokeInviteMut = useMutation({
     mutationFn: (invitationId: string) => revokeInviteFn({ data: { invitationId } }),
@@ -110,8 +142,15 @@ function CompanySettings() {
     },
   });
   const resendMut = useMutation({
-    mutationFn: (invitationId: string) => resendInviteFn({ data: { invitationId, origin: typeof window !== "undefined" ? window.location.origin : undefined } }),
-    onSuccess: (row: { notification?: { sent: boolean } }) => toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured")),
+    mutationFn: (invitationId: string) =>
+      resendInviteFn({
+        data: {
+          invitationId,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      }),
+    onSuccess: (row: { notification?: { sent: boolean } }) =>
+      toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured")),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
 
@@ -128,23 +167,42 @@ function CompanySettings() {
   });
   const invalidateDetails = () => qc.invalidateQueries({ queryKey: ["company-details", activeId] });
   const memberMut = useMutation({
-    mutationFn: (v: { userId: string; role: "owner"|"finance"|"shariah"|"trader"|"viewer" }) =>
-      addMemberFn({ data: { companyId: activeId!, userId: v.userId, role: v.role } }),
-    onSuccess: () => { toast.success(t("memberAdded")); invalidateDetails(); setNewMember({ userId: "", role: "viewer" }); },
+    mutationFn: (v: {
+      userId: string;
+      role: "owner" | "finance" | "shariah" | "trader" | "viewer";
+    }) => addMemberFn({ data: { companyId: activeId!, userId: v.userId, role: v.role } }),
+    onSuccess: () => {
+      toast.success(t("memberAdded"));
+      invalidateDetails();
+      setNewMember({ userId: "", role: "viewer" });
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
   });
   const removeMemberMut = useMutation({
     mutationFn: (memberId: string) => removeMemberFn({ data: { memberId } }),
-    onSuccess: () => { toast.success(t("memberRemoved")); invalidateDetails(); },
+    onSuccess: () => {
+      toast.success(t("memberRemoved"));
+      invalidateDetails();
+    },
   });
   const brandMut = useMutation({
     mutationFn: (sym: string) => addBrandFn({ data: { companyId: activeId!, brandSymbol: sym } }),
-    onSuccess: () => { toast.success(t("brandAdded")); invalidateDetails(); setNewBrand(""); },
-    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "BRAND_CAP_REACHED" ? t("brandCapReached") : "Error"),
+    onSuccess: () => {
+      toast.success(t("brandAdded"));
+      invalidateDetails();
+      setNewBrand("");
+    },
+    onError: (e: unknown) =>
+      toast.error(
+        e instanceof Error && e.message === "BRAND_CAP_REACHED" ? t("brandCapReached") : "Error",
+      ),
   });
   const removeBrandMut = useMutation({
     mutationFn: (brandId: string) => removeBrandFn({ data: { brandId } }),
-    onSuccess: () => { toast.success(t("brandRemoved")); invalidateDetails(); },
+    onSuccess: () => {
+      toast.success(t("brandRemoved"));
+      invalidateDetails();
+    },
   });
 
   return (
@@ -152,7 +210,10 @@ function CompanySettings() {
       <PageHeader
         eyebrow={t("companies")}
         title={t("companySettings")}
-        crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("companySettings") }]}
+        crumbs={[
+          { label: t("companies"), to: "/company/settings" },
+          { label: t("companySettings") },
+        ]}
         actions={
           <HeaderLink to="/company/audit" variant="secondary">
             {t("auditLog")}
@@ -167,7 +228,9 @@ function CompanySettings() {
           {/* Left: company list + create form */}
           <aside className="space-y-4">
             <div className="rounded-xl border border-border/60 bg-card">
-              <div className="border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">{t("companies")}</div>
+              <div className="border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+                {t("companies")}
+              </div>
               {(list.data ?? []).length === 0 ? (
                 <div className="p-4 text-xs text-muted-foreground">{t("noCompaniesYet")}</div>
               ) : (
@@ -175,11 +238,18 @@ function CompanySettings() {
                   {list.data!.map((m) => (
                     <li key={m.company.id}>
                       <button
-                        onClick={() => { setSelected(m.company.id); setActive(m.company.id); }}
+                        onClick={() => {
+                          setSelected(m.company.id);
+                          setActive(m.company.id);
+                        }}
                         className={`flex w-full items-center justify-between border-b border-border/40 px-4 py-2.5 text-start text-sm last:border-b-0 ${activeId === m.company.id ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink hover:bg-secondary/50"}`}
                       >
-                        <span className="truncate">{lang === "ar" ? m.company.name_ar : m.company.name_en}</span>
-                        <span className="text-[10px] uppercase text-muted-foreground">{t(`${m.role}Role` as never)}</span>
+                        <span className="truncate">
+                          {lang === "ar" ? m.company.name_ar : m.company.name_en}
+                        </span>
+                        <span className="text-[10px] uppercase text-muted-foreground">
+                          {t(`${m.role}Role` as never)}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -187,21 +257,54 @@ function CompanySettings() {
               )}
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-card p-4">
-              <div className="mb-2 text-xs font-semibold text-ink">{t("createCompany")}</div>
-              <div className="grid gap-2">
-                <input value={newCo.slug} onChange={(e) => setNewCo({ ...newCo, slug: e.target.value })} placeholder={t("slug")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-                <input value={newCo.name_ar} onChange={(e) => setNewCo({ ...newCo, name_ar: e.target.value })} placeholder={t("nameAr")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-                <input value={newCo.name_en} onChange={(e) => setNewCo({ ...newCo, name_en: e.target.value })} placeholder={t("nameEn")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-                <button
-                  disabled={createMut.isPending || !newCo.slug || !newCo.name_ar || !newCo.name_en}
-                  onClick={() => createMut.mutate(newCo)}
-                  className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                >
-                  {t("createCompany")}
-                </button>
+            {isAdmin ? (
+              <div className="rounded-xl border border-border/60 bg-card p-4">
+                <div className="mb-2 text-xs font-semibold text-ink">{t("createCompany")}</div>
+                <div className="mb-2 text-[10px] text-muted-foreground">
+                  {t("adminDirectCreateNote")}
+                </div>
+                <div className="grid gap-2">
+                  <input
+                    value={newCo.slug}
+                    onChange={(e) => setNewCo({ ...newCo, slug: e.target.value })}
+                    placeholder={t("slug")}
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                  />
+                  <input
+                    value={newCo.name_ar}
+                    onChange={(e) => setNewCo({ ...newCo, name_ar: e.target.value })}
+                    placeholder={t("nameAr")}
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                  />
+                  <input
+                    value={newCo.name_en}
+                    onChange={(e) => setNewCo({ ...newCo, name_en: e.target.value })}
+                    placeholder={t("nameEn")}
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                  />
+                  <button
+                    disabled={
+                      createMut.isPending || !newCo.slug || !newCo.name_ar || !newCo.name_en
+                    }
+                    onClick={() => createMut.mutate(newCo)}
+                    className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                  >
+                    {t("createCompany")}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-card p-4">
+                <div className="mb-2 text-xs font-semibold text-ink">{t("wantNewCompany")}</div>
+                <p className="mb-3 text-xs text-muted-foreground">{t("wantNewCompanyDesc")}</p>
+                <Link
+                  to="/request-access"
+                  className="inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
+                >
+                  {t("requestAccess")}
+                </Link>
+              </div>
+            )}
           </aside>
 
           {/* Right: details */}
@@ -216,8 +319,12 @@ function CompanySettings() {
               <>
                 <div className="flex items-center justify-between rounded-xl border border-border/60 bg-card p-4">
                   <div>
-                    <div className="text-lg font-semibold text-ink">{lang === "ar" ? details.data.company.name_ar : details.data.company.name_en}</div>
-                    <div className="text-[11px] uppercase text-muted-foreground">{details.data.company.slug} · {details.data.company.plan}</div>
+                    <div className="text-lg font-semibold text-ink">
+                      {lang === "ar" ? details.data.company.name_ar : details.data.company.name_en}
+                    </div>
+                    <div className="text-[11px] uppercase text-muted-foreground">
+                      {details.data.company.slug} · {details.data.company.plan}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {myRole && (
@@ -226,9 +333,30 @@ function CompanySettings() {
                       </span>
                     )}
                     {canManageBrands && (
-                      <Link to="/company/submit" search={{ companyId: activeId }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submitProduct")}</Link>
+                      <Link
+                        to="/company/submit"
+                        search={{ companyId: activeId }}
+                        className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]"
+                      >
+                        {t("submitProduct")}
+                      </Link>
                     )}
-                    <Link to="/company/submissions" search={{ companyId: activeId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc" as const, page: 1, pageSize: 25 }} className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]">{t("submissionsIn")}</Link>
+                    <Link
+                      to="/company/submissions"
+                      search={{
+                        companyId: activeId,
+                        q: "",
+                        status: "all",
+                        asset: "all",
+                        sortBy: "submitted",
+                        sortDir: "desc" as const,
+                        page: 1,
+                        pageSize: 25,
+                      }}
+                      className="rounded-md border border-border px-3 py-1.5 text-xs text-ink hover:border-[var(--gold-deep)]"
+                    >
+                      {t("submissionsIn")}
+                    </Link>
                   </div>
                 </div>
 
@@ -237,31 +365,51 @@ function CompanySettings() {
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("companyMembers")}</h2>
                     {!canManageMembers && (
-                      <span className="text-[10px] uppercase text-muted-foreground">{t("permMembersOwnerOnly")}</span>
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        {t("permMembersOwnerOnly")}
+                      </span>
                     )}
                   </div>
                   {canManageMembers && (
-                  <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
-                    <input value={newMember.userId} onChange={(e) => setNewMember({ ...newMember, userId: e.target.value })} placeholder={t("memberUserId")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-                    <select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
-                      {(["owner","finance","shariah","trader","viewer"] as const).map((r) => (
-                        <option key={r} value={r}>{t(`${r}Role` as never)}</option>
-                      ))}
-                    </select>
-                    <button
-                      disabled={memberMut.isPending || !newMember.userId}
-                      onClick={() => memberMut.mutate(newMember)}
-                      className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                    >
-                      {t("addMember")}
-                    </button>
-                  </div>
+                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
+                      <input
+                        value={newMember.userId}
+                        onChange={(e) => setNewMember({ ...newMember, userId: e.target.value })}
+                        placeholder={t("memberUserId")}
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                      />
+                      <select
+                        value={newMember.role}
+                        onChange={(e) =>
+                          setNewMember({ ...newMember, role: e.target.value as never })
+                        }
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                      >
+                        {(["owner", "finance", "shariah", "trader", "viewer"] as const).map((r) => (
+                          <option key={r} value={r}>
+                            {t(`${r}Role` as never)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        disabled={memberMut.isPending || !newMember.userId}
+                        onClick={() => memberMut.mutate(newMember)}
+                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                      >
+                        {t("addMember")}
+                      </button>
+                    </div>
                   )}
                   <ul>
                     {details.data.members.map((m) => (
-                      <li key={m.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
+                      <li
+                        key={m.id}
+                        className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
+                      >
                         <span className="truncate font-mono text-ink-soft">{m.user_id}</span>
-                        <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">{t(`${m.role}Role` as never)}</span>
+                        <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">
+                          {t(`${m.role}Role` as never)}
+                        </span>
                         {canManageMembers ? (
                           <button
                             onClick={async () => {
@@ -275,7 +423,9 @@ function CompanySettings() {
                               if (ok) removeMemberMut.mutate(m.id);
                             }}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
-                          >{t("removeMember")}</button>
+                          >
+                            {t("removeMember")}
+                          </button>
                         ) : (
                           <span />
                         )}
@@ -294,22 +444,34 @@ function CompanySettings() {
                     </span>
                   </div>
                   {canManageBrands && (
-                  <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_auto]">
-                    <input value={newBrand} onChange={(e) => setNewBrand(e.target.value.toUpperCase())} placeholder={t("brandSymbol")} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-                    <button
-                      disabled={brandMut.isPending || !newBrand || details.data.brands.length >= 30}
-                      onClick={() => brandMut.mutate(newBrand)}
-                      className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                    >
-                      {t("addBrand")}
-                    </button>
-                  </div>
+                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_auto]">
+                      <input
+                        value={newBrand}
+                        onChange={(e) => setNewBrand(e.target.value.toUpperCase())}
+                        placeholder={t("brandSymbol")}
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                      />
+                      <button
+                        disabled={
+                          brandMut.isPending || !newBrand || details.data.brands.length >= 30
+                        }
+                        onClick={() => brandMut.mutate(newBrand)}
+                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                      >
+                        {t("addBrand")}
+                      </button>
+                    </div>
                   )}
                   <ul>
                     {details.data.brands.map((b) => (
-                      <li key={b.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
+                      <li
+                        key={b.id}
+                        className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
+                      >
                         <span className="font-mono font-semibold text-ink">{b.brand_symbol}</span>
-                        <span className="text-muted-foreground">{new Date(b.added_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(b.added_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}
+                        </span>
                         {canManageBrands ? (
                           <button
                             onClick={async () => {
@@ -323,7 +485,9 @@ function CompanySettings() {
                               if (ok) removeBrandMut.mutate(b.id);
                             }}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
-                          >{t("removeMember")}</button>
+                          >
+                            {t("removeMember")}
+                          </button>
                         ) : (
                           <span />
                         )}
@@ -337,74 +501,115 @@ function CompanySettings() {
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("invitations")}</h2>
                     {!canManageInvites && (
-                      <span className="text-[10px] uppercase text-muted-foreground">{t("permInvitesOwnerOnly")}</span>
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        {t("permInvitesOwnerOnly")}
+                      </span>
                     )}
                   </div>
                   {canManageInvites && (
-                  <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
-                    <input
-                      type="email"
-                      value={newInvite.email}
-                      onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
-                      placeholder={t("inviteEmail")}
-                      className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-                    />
-                    <select
-                      value={newInvite.role}
-                      onChange={(e) => setNewInvite({ ...newInvite, role: e.target.value as never })}
-                      className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                    >
-                      {(["finance","shariah","trader","viewer"] as const).map((r) => (
-                        <option key={r} value={r}>{t(`${r}Role` as never)}</option>
-                      ))}
-                    </select>
-                    <button
-                      disabled={inviteMut.isPending || !newInvite.email || newInvite.role === "owner"}
-                      onClick={() => inviteMut.mutate({ email: newInvite.email, role: newInvite.role as "finance"|"shariah"|"trader"|"viewer" })}
-                      className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                    >{t("inviteMember")}</button>
-                  </div>
+                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
+                      <input
+                        type="email"
+                        value={newInvite.email}
+                        onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
+                        placeholder={t("inviteEmail")}
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                      />
+                      <select
+                        value={newInvite.role}
+                        onChange={(e) =>
+                          setNewInvite({ ...newInvite, role: e.target.value as never })
+                        }
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                      >
+                        {(["finance", "shariah", "trader", "viewer"] as const).map((r) => (
+                          <option key={r} value={r}>
+                            {t(`${r}Role` as never)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        disabled={
+                          inviteMut.isPending || !newInvite.email || newInvite.role === "owner"
+                        }
+                        onClick={() =>
+                          inviteMut.mutate({
+                            email: newInvite.email,
+                            role: newInvite.role as "finance" | "shariah" | "trader" | "viewer",
+                          })
+                        }
+                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                      >
+                        {t("inviteMember")}
+                      </button>
+                    </div>
                   )}
                   <ul>
-                    {(invitesQ.data ?? []).filter((i) => i.status === "pending").map((inv) => {
-                      const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invitations?token=${inv.token}`;
-                      return (
-                        <li key={inv.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0">
-                          <div className="min-w-0">
-                            <div className="truncate text-ink">{inv.email}</div>
-                            <div className="text-[10px] uppercase text-muted-foreground">{t(`${inv.role}Role` as never)} · {t("inviteExpires")} {new Date(inv.expires_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard?.writeText(link);
-                              toast.success(t("inviteLinkCopied"));
-                            }}
-                            className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
-                          >{t("inviteCopyLink")}</button>
-                          {canManageInvites && <button
-                            disabled={resendMut.isPending}
-                            onClick={() => resendMut.mutate(inv.id)}
-                            className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
-                          >{t("inviteResendEmail")}</button>}
-                          {canManageInvites && <button
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: t("confirmRevokeInviteTitle"),
-                                description: `${t("confirmRevokeInviteDesc")} · ${inv.email}`,
-                                confirmLabel: t("revoke"),
-                                cancelLabel: t("cancel"),
-                                tone: "danger",
-                              });
-                              if (ok) revokeInviteMut.mutate(inv.id);
-                            }}
-                            className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
-                          >{t("revoke")}</button>}
-                          <span className="text-[10px] text-muted-foreground">{new Date(inv.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</span>
-                        </li>
-                      );
-                    })}
+                    {(invitesQ.data ?? [])
+                      .filter((i) => i.status === "pending")
+                      .map((inv) => {
+                        const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invitations?token=${inv.token}`;
+                        return (
+                          <li
+                            key={inv.id}
+                            className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-ink">{inv.email}</div>
+                              <div className="text-[10px] uppercase text-muted-foreground">
+                                {t(`${inv.role}Role` as never)} · {t("inviteExpires")}{" "}
+                                {new Date(inv.expires_at).toLocaleDateString(
+                                  lang === "ar" ? "ar" : "en-US",
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard?.writeText(link);
+                                toast.success(t("inviteLinkCopied"));
+                              }}
+                              className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
+                            >
+                              {t("inviteCopyLink")}
+                            </button>
+                            {canManageInvites && (
+                              <button
+                                disabled={resendMut.isPending}
+                                onClick={() => resendMut.mutate(inv.id)}
+                                className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                              >
+                                {t("inviteResendEmail")}
+                              </button>
+                            )}
+                            {canManageInvites && (
+                              <button
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: t("confirmRevokeInviteTitle"),
+                                    description: `${t("confirmRevokeInviteDesc")} · ${inv.email}`,
+                                    confirmLabel: t("revoke"),
+                                    cancelLabel: t("cancel"),
+                                    tone: "danger",
+                                  });
+                                  if (ok) revokeInviteMut.mutate(inv.id);
+                                }}
+                                className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
+                              >
+                                {t("revoke")}
+                              </button>
+                            )}
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(inv.created_at).toLocaleDateString(
+                                lang === "ar" ? "ar" : "en-US",
+                              )}
+                            </span>
+                          </li>
+                        );
+                      })}
                     {(invitesQ.data ?? []).filter((i) => i.status === "pending").length === 0 && (
-                      <li className="px-4 py-3 text-xs text-muted-foreground">{t("noIncomingInvitations")}</li>
+                      <li className="px-4 py-3 text-xs text-muted-foreground">
+                        {t("noIncomingInvitations")}
+                      </li>
                     )}
                   </ul>
                 </section>
