@@ -2,12 +2,20 @@
 
 UI code never imports mock data directly — it calls `getMarketProvider()`.
 
-## Swap the provider
+## Registration
+
+`src/router.tsx` calls `registerMarketProvider()` (from `live-provider.ts`) at
+boot. It picks the provider from `VITE_MARKET_PROVIDER`:
+
+- `mock` (default) — deterministic local data.
+- `live` — real prices via `market.functions.ts`, mock fallback for anything
+  the vendor does not cover. See `docs/market-data-migration.md`.
+
+## Adding a vendor
 
 1. Implement `MarketDataProvider` from `./provider.ts`.
-2. Call `setMarketProvider(myProvider)` before the router renders (e.g. from
-   `src/router.tsx` or `src/start.ts`).
-3. Remove the auto-register line at the bottom of `mock-provider.ts`.
+2. Read vendor credentials inside a `createServerFn` handler only.
+3. Register it in `registerMarketProvider()`.
 
 ## Planned providers
 

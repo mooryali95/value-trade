@@ -1,5 +1,5 @@
 import { BRANDS, generateCandles, generateOrderBook, getBrand } from "@/lib/mock-data";
-import { setMarketProvider, type MarketDataProvider } from "./provider";
+import type { MarketDataProvider } from "./provider";
 import type { Instrument } from "./types";
 
 function toInstrument(b: (typeof BRANDS)[number]): Instrument {
@@ -18,4 +18,5 @@ export const mockProvider: MarketDataProvider = {
   getOrderBook: (slug) => { const b = getBrand(slug); return generateOrderBook(b?.price ?? 100, slug); },
 };
 
-setMarketProvider(mockProvider);
+// Registration is centralized in ./live-provider.ts (registerMarketProvider).
+// Importing this module no longer has side effects.
