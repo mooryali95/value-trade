@@ -46,7 +46,7 @@ async def live_texts(page, assertive=None):
     # Third-party portals (sonner) manage their own regions; audit only app-owned ones.
     return await page.evaluate(
         """(assertive) => Array.from(document.querySelectorAll('[aria-live]'))
-            .filter(el => !el.closest('[data-sonner-toaster]'))
+            .filter(el => !el.closest('[data-sonner-toaster],section[aria-label^="Notifications"]'))
             .filter(el => assertive === null || (el.getAttribute('aria-live') === 'assertive') === assertive)
             .map(el => ({ live: el.getAttribute('aria-live'), atomic: el.getAttribute('aria-atomic'),
                           text: (el.textContent || '').trim(),
