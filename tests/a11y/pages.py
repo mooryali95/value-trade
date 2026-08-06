@@ -17,6 +17,7 @@ PUBLIC_PAGES = [
     ("legal-cookies", "/legal/cookies"),
     ("legal-shariah", "/legal/shariah-disclosures"),
     ("unsubscribe", "/unsubscribe"),
+    ("a11y-docs", "/docs/a11y"),
     ("not-found", "/this-route-does-not-exist"),
 ]
 

@@ -15,6 +15,13 @@ import { recordShariahDecision, listShariahDecisions, updateShariahDecision, lis
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -239,18 +246,23 @@ function ReviewPage() {
         )}
       </section>
 
-      {editing && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold text-ink">{t("editDecision")} · {editing.symbol}</h3>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        {editing && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {t("editDecision")} · {editing.symbol}
+              </DialogTitle>
+              <DialogDescription>{t("editDecisionDesc")}</DialogDescription>
+            </DialogHeader>
             <div className="grid gap-2">
-              <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+              <select aria-label={t("shariahStatus")} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
                 <option value="halal">{t("halal")}</option>
                 <option value="reviewing">{t("reviewing")}</option>
                 <option value="non_halal">{t("reject")}</option>
               </select>
-              <textarea value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-              <textarea value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />
+              <textarea aria-label={t("reason")} value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
+              <textarea aria-label={t("changeReason")} value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />
               <div className="mt-2 flex justify-end gap-2">
                 <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancelled")}</button>
                 <button
@@ -260,9 +272,9 @@ function ReviewPage() {
                 >{t("submitDecision")}</button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
     </AppShell>
   );
 }

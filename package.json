@@ -9,9 +9,15 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:a11y": "eslint . --config eslint.a11y.config.js",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:cron": "vitest run src/routes/api/public/cron-alerts.test.ts"
+    "test:cron": "vitest run src/routes/api/public/cron-alerts.test.ts",
+    "a11y:axe": "python3 tests/a11y/axe_check.py",
+    "a11y:keyboard": "python3 tests/a11y/keyboard_nav.py",
+    "a11y:live": "python3 tests/a11y/live_regions.py",
+    "a11y:theme": "python3 tests/a11y/theme_motion.py",
+    "a11y": "bun run a11y:axe && bun run a11y:keyboard && bun run a11y:live && bun run a11y:theme"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.2.9",
@@ -91,6 +97,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
