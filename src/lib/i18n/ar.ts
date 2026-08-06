@@ -405,6 +405,12 @@ export const ar = {
     "إنشاء مباشر (صلاحية مسؤول المنصة) — يُفضّل استخدام نظام طلبات الانضمام للحالات العادية.",
   wantNewCompany: "تريد تسجيل شركة جديدة؟",
   wantNewCompanyDesc: "التسجيل يتم عبر طلب انضمام يراجعه مسؤول المنصة، وليس إنشاءً مباشرًا.",
+  companiesDirectory: "دليل الشركات",
+  companiesDirectoryDesc: "كل الشركات المسجّلة على المنصة، مع حالتها وعدد أعضائها.",
+  noCompaniesFound: "لا توجد شركات مطابقة.",
+  companyMembersCount: "الأعضاء",
+  plan: "الخطة",
+  createdAt: "تاريخ الإنشاء",
 } as const;
 
 export type Key = keyof typeof ar;

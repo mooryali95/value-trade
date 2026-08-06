@@ -41,6 +41,7 @@ import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_auth
 import { Route as AuthenticatedCompanyAuditRouteImport } from './routes/_authenticated/company.audit'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminEmailLogRouteImport } from './routes/_authenticated/admin.email-log'
+import { Route as AuthenticatedAdminCompaniesRouteImport } from './routes/_authenticated/admin.companies'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -216,6 +217,12 @@ const AuthenticatedAdminEmailLogRoute =
     path: '/admin/email-log',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminCompaniesRoute =
+  AuthenticatedAdminCompaniesRouteImport.update({
+    id: '/admin/companies',
+    path: '/admin/companies',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -267,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -305,6 +313,7 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -345,6 +354,7 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
+  '/_authenticated/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/_authenticated/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -385,6 +395,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/companies'
     | '/admin/email-log'
     | '/admin/submissions'
     | '/company/audit'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/admin/companies'
     | '/admin/email-log'
     | '/admin/submissions'
     | '/company/audit'
@@ -462,6 +474,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/market/$slug'
     | '/trade/$symbol'
+    | '/_authenticated/admin/companies'
     | '/_authenticated/admin/email-log'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/company/audit'
@@ -732,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminEmailLogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/companies': {
+      id: '/_authenticated/admin/companies'
+      path: '/admin/companies'
+      fullPath: '/admin/companies'
+      preLoaderRoute: typeof AuthenticatedAdminCompaniesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -775,6 +795,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
   AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedAdminCompaniesRoute: typeof AuthenticatedAdminCompaniesRoute
   AuthenticatedAdminEmailLogRoute: typeof AuthenticatedAdminEmailLogRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedCompanyAuditRoute: typeof AuthenticatedCompanyAuditRoute
@@ -790,6 +811,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
   AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedAdminCompaniesRoute: AuthenticatedAdminCompaniesRoute,
   AuthenticatedAdminEmailLogRoute: AuthenticatedAdminEmailLogRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedCompanyAuditRoute: AuthenticatedCompanyAuditRoute,

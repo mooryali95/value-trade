@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { UserPlus, ClipboardText, EnvelopeSimple } from "@phosphor-icons/react";
+import { UserPlus, ClipboardText, EnvelopeSimple, Buildings } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { listAccessRequests } from "@/lib/access/access-requests.functions";
 
@@ -31,7 +31,13 @@ export function PlatformDashboard() {
         <p className="mt-2 max-w-lg text-sm text-muted-foreground">{t("platformDashboardSub")}</p>
       </section>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
+      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <DashCard
+          to="/admin/companies"
+          icon={Buildings}
+          title={t("companiesDirectory")}
+          hint={t("companiesDirectoryDesc")}
+        />
         <DashCard
           to="/access-requests"
           icon={UserPlus}

@@ -412,5 +412,11 @@ export const en: Record<Key, string> = {
   wantNewCompany: "Want to register a new company?",
   wantNewCompanyDesc:
     "Registration goes through an access request reviewed by a platform admin, not direct creation.",
+  companiesDirectory: "Companies directory",
+  companiesDirectoryDesc: "Every company registered on the platform, with status and member count.",
+  noCompaniesFound: "No matching companies.",
+  companyMembersCount: "Members",
+  plan: "Plan",
+  createdAt: "Created",
 };
 export default en;

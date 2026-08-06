@@ -156,6 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const platformNav = [
     homeItem,
+    { to: "/admin/companies", label: t("companiesDirectory"), icon: Buildings },
     { to: "/access-requests", label: t("accessRequestsQueue"), icon: UserPlus },
     { to: "/admin/submissions", label: t("nav_submissions"), icon: ClipboardText },
     ...(isAdmin
