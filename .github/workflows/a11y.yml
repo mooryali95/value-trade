@@ -19,7 +19,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: ESLint accessibility rules (blocking)
-        run: bun run lint
+        run: bun run lint:a11y
 
       - uses: actions/setup-python@v5
         with:
