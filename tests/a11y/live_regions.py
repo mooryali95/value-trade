@@ -27,10 +27,26 @@ def check(ok: bool, label: str, detail: str = ""):
         FAILURES.append(label)
 
 
+async def open_docs(page, base):
+    """Navigate and wait until React has hydrated (dev-server cold starts are slow)."""
+    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")
+    await page.wait_for_selector("[data-testid=table-filter]")
+    for _ in range(40):
+        await page.locator("#demo-qty").fill("11")
+        await page.wait_for_timeout(250)
+        if "312" in (await page.get_by_test_id("order-summary").inner_text()):
+            await page.locator("#demo-qty").fill("10")
+            await page.wait_for_timeout(200)
+            return True
+    return False
+
+
 async def live_texts(page, assertive=None):
-    sel = "[aria-live]"
+    # Third-party portals (sonner) manage their own regions; audit only app-owned ones.
     return await page.evaluate(
         """(assertive) => Array.from(document.querySelectorAll('[aria-live]'))
+            .filter(el => !el.closest('[data-sonner-toaster]'))
             .filter(el => assertive === null || (el.getAttribute('aria-live') === 'assertive') === assertive)
             .map(el => ({ live: el.getAttribute('aria-live'), atomic: el.getAttribute('aria-atomic'),
                           text: (el.textContent || '').trim(),
@@ -40,8 +56,7 @@ async def live_texts(page, assertive=None):
 
 
 async def test_no_focusables_in_live_regions(page, base):
-    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
-    await page.wait_for_timeout(700)
+    check(await open_docs(page, base), "docs: page hydrated")
     regions = await live_texts(page)
     check(len(regions) >= 3, "docs: live regions are mounted", str(len(regions)))
     check(all(r["focusables"] == 0 for r in regions), "docs: no focusable content inside live regions", str(regions))
@@ -49,8 +64,7 @@ async def test_no_focusables_in_live_regions(page, base):
 
 
 async def test_order_summary_announces(page, base):
-    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
-    await page.wait_for_timeout(700)
+    await open_docs(page, base)
     summary = page.get_by_test_id("order-summary")
     before = (await summary.inner_text()).strip()
     live = await summary.get_attribute("aria-live")
@@ -63,8 +77,7 @@ async def test_order_summary_announces(page, base):
 
 
 async def test_submit_outcomes(page, base):
-    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
-    await page.wait_for_timeout(700)
+    await open_docs(page, base)
     await page.locator("#demo-qty").fill("5")
     await page.get_by_role("button", name="Submit order").click()
     await page.wait_for_timeout(300)
@@ -79,8 +92,7 @@ async def test_submit_outcomes(page, base):
 
 
 async def test_table_filter_and_sort_announced(page, base):
-    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
-    await page.wait_for_timeout(700)
+    await open_docs(page, base)
 
     async def status_text():
         return await page.evaluate(
