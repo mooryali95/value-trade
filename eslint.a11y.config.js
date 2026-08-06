@@ -24,8 +24,8 @@ export default tseslint.config(
     extends: [js.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: { ecmaVersion: 2020, globals: globals.browser, parser: tseslint.parser },
-    plugins: main.plugins,
+    plugins: { ...main.plugins, "@typescript-eslint": tseslint.plugin },
     linterOptions: { reportUnusedDisableDirectives: false },
-    rules: { ...Object.fromEntries(Object.keys(js.configs.recommended.rules).map((r) => [r, "off"])), ...a11yRules },
+    rules: { ...Object.fromEntries(Object.keys(js.configs.recommended.rules).map((r) => [r, "off"])), ...a11yRules, "@typescript-eslint/no-explicit-any": "off", "@typescript-eslint/no-unused-vars": "off" },
   },
 );
