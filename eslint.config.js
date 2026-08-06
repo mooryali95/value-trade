@@ -33,14 +33,9 @@ export default tseslint.config(
       "jsx-a11y/aria-unsupported-elements": "error",
       "jsx-a11y/autocomplete-valid": "error",
       "jsx-a11y/click-events-have-key-events": "error",
-      "jsx-a11y/control-has-associated-label": [
-        "error",
-        {
-          labelAttributes: ["aria-label", "aria-labelledby", "title", "alt", "placeholder"],
-          controlComponents: ["Button", "IconButton"],
-          depth: 4,
-        },
-      ],
+      // Static analysis cannot follow `htmlFor` across custom wrappers (e.g. <Field/>),
+      // so labelling is enforced at runtime by the axe-core CI gate instead.
+      "jsx-a11y/control-has-associated-label": "off",
       "jsx-a11y/heading-has-content": "error",
       "jsx-a11y/interactive-supports-focus": "error",
       "jsx-a11y/label-has-associated-control": ["error", { assert: "either", depth: 4 }],
