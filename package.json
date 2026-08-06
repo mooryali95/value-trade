@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:a11y": "eslint . --config eslint.a11y.config.js",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:cron": "vitest run src/routes/api/public/cron-alerts.test.ts",
