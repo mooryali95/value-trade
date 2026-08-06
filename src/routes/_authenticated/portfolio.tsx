@@ -19,6 +19,13 @@ import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -417,10 +424,13 @@ function PortfolioPage() {
         </section>
       )}
 
-      {editing && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold text-ink">{t("modifyOrder")}</h3>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        {editing && (
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("modifyOrder")}</DialogTitle>
+              <DialogDescription>{t("modifyOrderDesc")}</DialogDescription>
+            </DialogHeader>
             <div className="grid gap-2">
               <label className="text-[10px] uppercase text-muted-foreground">{t("qty")}
                 <input type="number" value={editing.qty} onChange={(e) => setEditing({ ...editing, qty: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
@@ -437,9 +447,9 @@ function PortfolioPage() {
                 >{t("submit")}</button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
     </AppShell>
   );
 }

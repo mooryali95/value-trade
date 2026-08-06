@@ -391,3 +391,49 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * High-contrast theme (system `prefers-contrast: more` + forced colours).
+ * Only tokens are re-pointed, so every component inherits the stronger theme.
+ * ------------------------------------------------------------------------ */
+@media (prefers-contrast: more) {
+  :root,
+  .dark {
+    --ink: #000000;
+    --ink-soft: #1a1a1a;
+    --muted-foreground: #262626;
+    --border: #000000;
+    --ring: #000000;
+  }
+  .dark {
+    --ink: #ffffff;
+    --ink-soft: #f2f2f2;
+    --muted-foreground: #e5e5e5;
+    --border: #ffffff;
+    --ring: #ffffff;
+  }
+  :focus-visible {
+    outline-width: 3px;
+    outline-offset: 3px;
+  }
+  [data-slot="badge"],
+  button,
+  a {
+    text-decoration-thickness: from-font;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 3px;
+  }
+  /* Decorative gradients/dot patterns must not hide text in forced colours. */
+  .gold-gradient,
+  .hairline-gold {
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+  }
+}

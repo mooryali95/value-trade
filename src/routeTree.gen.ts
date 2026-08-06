@@ -26,6 +26,7 @@ import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as DocsA11yRouteImport } from './routes/docs.a11y'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
@@ -130,6 +131,11 @@ const JoinSlugRoute = JoinSlugRouteImport.update({
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
   path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsA11yRoute = DocsA11yRouteImport.update({
+  id: '/docs/a11y',
+  path: '/docs/a11y',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanyIdRoute = CompanyIdRouteImport.update({
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/docs/a11y': typeof DocsA11yRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -305,6 +312,7 @@ export interface FileRoutesByTo {
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/docs/a11y': typeof DocsA11yRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/company/$id': typeof CompanyIdRoute
+  '/docs/a11y': typeof DocsA11yRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -387,6 +396,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
+    | '/docs/a11y'
     | '/email/unsubscribe'
     | '/join/$slug'
     | '/legal/cookies'
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/workspace'
     | '/company/$id'
+    | '/docs/a11y'
     | '/email/unsubscribe'
     | '/join/$slug'
     | '/legal/cookies'
@@ -466,6 +477,7 @@ export interface FileRouteTypes {
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
     | '/company/$id'
+    | '/docs/a11y'
     | '/email/unsubscribe'
     | '/join/$slug'
     | '/legal/cookies'
@@ -503,6 +515,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   CompanyIdRoute: typeof CompanyIdRoute
+  DocsA11yRoute: typeof DocsA11yRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   JoinSlugRoute: typeof JoinSlugRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
@@ -638,6 +651,13 @@ declare module '@tanstack/react-router' {
       path: '/email/unsubscribe'
       fullPath: '/email/unsubscribe'
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/a11y': {
+      id: '/docs/a11y'
+      path: '/docs/a11y'
+      fullPath: '/docs/a11y'
+      preLoaderRoute: typeof DocsA11yRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/company/$id': {
@@ -848,6 +868,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   CompanyIdRoute: CompanyIdRoute,
+  DocsA11yRoute: DocsA11yRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   JoinSlugRoute: JoinSlugRoute,
   LegalCookiesRoute: LegalCookiesRoute,
@@ -866,13 +887,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

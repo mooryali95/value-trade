@@ -145,6 +145,121 @@ async def test_dialog_focus(page, base):
     check(bool(after) and after["tag"] == "button", "dialog: focus restored to a control", str(after))
 
 
+async def test_table_keyboard_navigation(page, base):
+    """Sortable headers, filters and pagination are all operable by keyboard only."""
+    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_timeout(700)
+
+    header = page.get_by_role("button", name="Price")
+    await header.focus()
+    f = await focused(page)
+    check(bool(f) and f["tag"] == "button", "table: sortable header is a focusable button", str(f))
+
+    before = await page.evaluate(
+        "() => Array.from(document.querySelectorAll('tbody th')).map(e => e.textContent.trim()).join(',')"
+    )
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(400)
+    after = await page.evaluate(
+        "() => Array.from(document.querySelectorAll('tbody th')).map(e => e.textContent.trim()).join(',')"
+    )
+    check(before != after, "table: Enter on a header re-sorts rows", f"{before} -> {after}")
+    still = await focused(page)
+    check(bool(still) and still["tag"] == "button", "table: focus stays on the header after sorting", str(still))
+
+    # walk from the filter input into the table and out to the pager without dead ends
+    await page.get_by_test_id("table-filter").focus()
+    stops = await tab_sequence(page, 10)
+    check(all(x for x in stops), "table: no dead focus stops between filter and pager", str(stops))
+
+    pager_next = page.get_by_role("button", name="Next")
+    if await pager_next.count():
+        await pager_next.focus()
+        page_before = await page.inner_text("tbody")
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(400)
+        check(page_before != await page.inner_text("tbody"), "table: Enter on pager changes the page")
+
+
+async def test_dialog_escape_restores_focus(page, base):
+    """The documented Dialog closes on Escape and restores focus to its trigger."""
+    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_timeout(700)
+
+    trigger = page.get_by_role("button", name="Open dialog")
+    await trigger.focus()
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(500)
+
+    f = await focused(page)
+    check(bool(f) and f["inDialog"], "docs dialog: focus moves inside on open", str(f))
+    inside = await tab_sequence(page, 8)
+    check(all(x and x["inDialog"] for x in inside), "docs dialog: focus is trapped", str(inside))
+
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(400)
+    open_now = await page.locator("[role=dialog]").count()
+    check(open_now == 0, "docs dialog: Escape closes it", str(open_now))
+    after = await focused(page)
+    check(
+        bool(after) and after["label"].startswith("Open dialog"),
+        "docs dialog: focus restored to the trigger",
+        str(after),
+    )
+
+
+async def test_alert_dialog_escape_cancels(page, base):
+    """Destructive confirm: Escape cancels, focus returns, and the outcome is announced."""
+    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_timeout(700)
+
+    trigger = page.get_by_role("button", name="Destructive confirm")
+    await trigger.focus()
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(500)
+    check(await page.locator("[role=alertdialog]").count() == 1, "confirm: alertdialog opens via Enter")
+
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(400)
+    check(await page.locator("[role=alertdialog]").count() == 0, "confirm: Escape closes the alertdialog")
+    outcome = (await page.get_by_test_id("dialog-outcome-text").inner_text()).strip()
+    check("cancelled" in outcome.lower(), "confirm: Escape resolves as cancel", outcome)
+    after = await focused(page)
+    check(bool(after) and after["tag"] == "button", "confirm: focus restored to a control", str(after))
+
+
+async def test_dropdown_keyboard_and_escape(page, base):
+    """Dropdown: Enter opens, arrows move, Escape closes and restores trigger focus."""
+    await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_timeout(700)
+
+    trigger = page.get_by_role("button", name="Row actions")
+    await trigger.focus()
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(400)
+    check(await page.locator("[role=menu]").count() == 1, "dropdown: Enter opens the menu")
+
+    await page.keyboard.press("ArrowDown")
+    await page.wait_for_timeout(200)
+    f = await focused(page)
+    check(bool(f) and f["inDialog"], "dropdown: ArrowDown focuses an item", str(f))
+    first_label = f and f["label"]
+    await page.keyboard.press("ArrowDown")
+    await page.wait_for_timeout(200)
+    second = await focused(page)
+    check(bool(second) and second["label"] != first_label, "dropdown: arrows move between items", str(second))
+
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(400)
+    check(await page.locator("[role=menu]").count() == 0, "dropdown: Escape closes the menu")
+    after = await focused(page)
+    check(
+        bool(after) and after["label"].startswith("Row actions"),
+        "dropdown: focus restored to the trigger",
+        str(after),
+    )
+
+
 async def main():
     base = os.environ.get("A11Y_BASE_URL", BASE_URL)
     async with async_playwright() as pw:
@@ -157,6 +272,10 @@ async def main():
             test_no_focus_traps_outside_dialogs,
             test_form_reachable,
             test_dialog_focus,
+            test_table_keyboard_navigation,
+            test_dialog_escape_restores_focus,
+            test_alert_dialog_escape_cancels,
+            test_dropdown_keyboard_and_escape,
         ):
             try:
                 await test(page, base)

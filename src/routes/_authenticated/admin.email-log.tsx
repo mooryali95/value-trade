@@ -10,6 +10,13 @@ import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-
 import { renderEmailPreview } from "@/lib/admin/email-preview.functions";
 import { ArrowClockwise, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useConfirm } from "@/components/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "sonner";
 
@@ -291,20 +298,23 @@ function EmailLogContent() {
         </div>
       </div>
 
-      {previewOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setPreviewOpen(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="flex h-[85dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-luxury">
-            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{previewOpen.template}</div>
-                <div className="truncate text-sm font-semibold text-ink">{previewOpen.subject}</div>
-              </div>
-              <button onClick={() => setPreviewOpen(null)} className="rounded-md border border-border p-1.5 text-ink-soft hover:border-[var(--gold-deep)]"><X className="h-4 w-4" /></button>
-            </div>
-            <iframe title="email preview" srcDoc={previewOpen.html} className="flex-1 w-full bg-ivory" />
-          </div>
-        </div>
-      )}
+      <Dialog open={!!previewOpen} onOpenChange={(o) => !o && setPreviewOpen(null)}>
+        {previewOpen && (
+          <DialogContent className="flex h-[85dvh] w-full max-w-4xl flex-col overflow-hidden p-0">
+            <DialogHeader className="border-b border-border/60 px-4 py-3 text-start">
+              <DialogDescription className="text-[10px] uppercase tracking-wider">
+                {previewOpen.template}
+              </DialogDescription>
+              <DialogTitle className="truncate text-sm">{previewOpen.subject}</DialogTitle>
+            </DialogHeader>
+            <iframe
+              title={ar ? "معاينة البريد" : "Email preview"}
+              srcDoc={previewOpen.html}
+              className="w-full flex-1 bg-ivory"
+            />
+          </DialogContent>
+        )}
+      </Dialog>
     </AppShell>
   );
 }
