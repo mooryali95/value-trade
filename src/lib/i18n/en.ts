@@ -421,5 +421,6 @@ export const en: Record<Key, string> = {
   companyMembersCount: "Members",
   plan: "Plan",
   createdAt: "Created",
+  dataAsOf: "Data as of",
 };
 export default en;

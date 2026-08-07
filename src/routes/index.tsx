@@ -85,9 +85,15 @@ function Index() {
         />
         <div className="relative grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-xs font-medium text-[var(--gold-deep)] shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold)]" />
-              {t("brands256")}
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-xs font-medium text-[var(--gold-deep)] shadow-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold)]" />
+                {t("brands256")}
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--bull)]/30 bg-[var(--bull)]/5 px-3 py-1 text-xs font-medium text-[var(--bull)] shadow-sm">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {t("featTitle2")}
+              </div>
             </div>
             <h1 className="text-4xl font-bold leading-tight tracking-tight text-ink md:text-6xl">
               {t("heroHeadline")}
@@ -124,6 +130,7 @@ function Index() {
                 value={formatCurrency(MARKET_STATS.dayVolume, true, lang)}
               />
             </div>
+            <DataAsOf lang={lang} t={t} />
           </div>
 
           <HeroTicker />
@@ -153,6 +160,24 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 font-mono text-lg font-semibold text-foreground md:text-xl">{value}</div>
+    </div>
+  );
+}
+
+function DataAsOf({ lang, t }: { lang: string; t: ReturnType<typeof useI18n>["t"] }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const time = now.toLocaleTimeString(lang === "ar" ? "ar" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return (
+    <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-[var(--bull)]" />
+      {t("dataAsOf")} {time}
     </div>
   );
 }

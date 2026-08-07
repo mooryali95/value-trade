@@ -414,6 +414,7 @@ export const ar = {
   companyMembersCount: "الأعضاء",
   plan: "الخطة",
   createdAt: "تاريخ الإنشاء",
+  dataAsOf: "البيانات كما في",
 } as const;
 
 export type Key = keyof typeof ar;
