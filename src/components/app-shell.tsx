@@ -199,6 +199,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       {/* Top header */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
+        <div
+          aria-hidden
+          className="h-[3px] w-full transition-colors"
+          style={{
+            background:
+              mode === "platform"
+                ? "var(--navy)"
+                : mode === "brand"
+                  ? "var(--bull)"
+                  : "var(--gold)",
+          }}
+        />
         <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <button

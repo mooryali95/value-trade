@@ -28,10 +28,19 @@ export function ModeSwitcher() {
     m === "investor" ? t("modeInvestor") : m === "brand" ? t("modeBrand") : t("modePlatform");
 
   const Icon = MODE_ICON[mode];
+  const accent =
+    mode === "platform" ? "var(--navy)" : mode === "brand" ? "var(--bull)" : "var(--gold-deep)";
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/5 px-3 py-1.5 text-[12px] font-semibold text-[var(--gold-deep)] outline-none transition hover:border-[var(--gold-deep)]">
+      <DropdownMenuTrigger
+        className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] font-semibold outline-none transition"
+        style={{
+          borderColor: `color-mix(in oklch, ${accent} 40%, transparent)`,
+          backgroundColor: `color-mix(in oklch, ${accent} 6%, transparent)`,
+          color: accent,
+        }}
+      >
         <Icon size={15} weight="duotone" />
         <span className="hidden sm:inline">{label(mode)}</span>
         <CaretDown size={10} weight="bold" />
