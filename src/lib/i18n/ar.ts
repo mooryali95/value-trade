@@ -415,6 +415,14 @@ export const ar = {
   plan: "الخطة",
   createdAt: "تاريخ الإنشاء",
   dataAsOf: "البيانات كما في",
+  requestSubmittedNextSteps:
+    "سيراجع طلبك الجهة المختصة (مسؤول الشركة أو مسؤول المنصة)، وسيصلك بريد إلكتروني فور اتخاذ القرار.",
+  referenceId: "الرقم المرجعي",
+  referenceIdHint: "احتفظ به لتتمكن من التحقق من حالة طلبك لاحقًا.",
+  checkPreviousRequest: "قدّمت طلبًا سابقًا؟ تحقق من حالته",
+  checkStatus: "تحقق من الحالة",
+  statusCheckInvalid: "تعذّر العثور على طلب مطابق. تأكد من الرقم المرجعي والبريد الإلكتروني.",
+  statusCheckNotFound: "لا يوجد طلب مطابق لهذه البيانات.",
 } as const;
 
 export type Key = keyof typeof ar;

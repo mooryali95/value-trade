@@ -422,5 +422,13 @@ export const en: Record<Key, string> = {
   plan: "Plan",
   createdAt: "Created",
   dataAsOf: "Data as of",
+  requestSubmittedNextSteps:
+    "The relevant reviewer (a company owner or platform admin) will review your request, and you'll get an email once a decision is made.",
+  referenceId: "Reference ID",
+  referenceIdHint: "Keep this so you can check your request's status later.",
+  checkPreviousRequest: "Submitted a request before? Check its status",
+  checkStatus: "Check status",
+  statusCheckInvalid: "Couldn't find a matching request. Double-check the reference ID and email.",
+  statusCheckNotFound: "No request matches this information.",
 };
 export default en;

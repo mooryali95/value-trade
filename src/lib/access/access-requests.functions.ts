@@ -238,3 +238,42 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+// ---------------------------------------------------------------------------
+// Public: check the status of a previously submitted request. Requires both
+// the request id and the matching email (see check_access_request_status in
+// the migration for why that pair is safe to expose without auth). Rate
+// limited by IP -- fails CLOSED, same reasoning as submitAccessRequest: this
+// is an unauthenticated endpoint with no other barrier.
+// ---------------------------------------------------------------------------
+
+const StatusCheckInput = z.object({
+  requestId: z.string().uuid(),
+  email: z.string().email().max(200),
+});
+
+export const checkAccessRequestStatus = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => StatusCheckInput.parse(input))
+  .handler(async ({ data }) => {
+    const request = getRequest();
+    const ok = await checkRateLimit(
+      clientKeyFromRequest(request, "access-request-status-ip"),
+      10,
+      3600,
+    );
+    if (!ok) throw new Error("RATE_LIMITED");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin.rpc("check_access_request_status" as any, {
+      _id: data.requestId,
+      _email: data.email.toLowerCase(),
+    });
+    if (error) throw new Error(error.message);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) return { found: false as const };
+    return {
+      found: true as const,
+      status: row.status as string,
+      reviewedAt: row.reviewed_at as string | null,
+    };
+  });
