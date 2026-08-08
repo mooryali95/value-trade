@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -13,6 +13,7 @@ import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listAllCompaniesAdmin } from "@/lib/admin/companies-directory.functions";
+import { Badge } from "@/components/badge";
 
 const SearchSchema = z.object({ q: z.string().catch("").default("") });
 
@@ -127,19 +128,14 @@ function AdminCompaniesDirectory() {
                   </td>
                   <td className="px-4 py-3 text-ink-soft">{c.sector ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-ink-soft">
-                      {c.plan}
-                    </span>
+                    <Badge variant="neutral">{c.plan}</Badge>
                   </td>
                   <td className="px-4 py-3 font-mono text-ink">{c.memberCount}</td>
                   <td className="px-4 py-3">
                     {c.pendingAccessRequests > 0 ? (
-                      <Link
-                        to="/access-requests"
-                        className="rounded-full border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
-                      >
+                      <Badge variant="gold" to="/access-requests">
                         {c.pendingAccessRequests} {t("pendingReview")}
-                      </Link>
+                      </Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}

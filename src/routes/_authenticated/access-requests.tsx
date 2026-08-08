@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { Badge } from "@/components/badge";
 import { useI18n } from "@/lib/i18n";
 import {
   listAccessRequests,
@@ -317,9 +318,9 @@ function RequestCard({
             </div>
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--gold-deep)]">
+        <Badge variant="gold" className="shrink-0">
           {methodLabel}
-        </span>
+        </Badge>
       </div>
 
       {subtitle && (
