@@ -39,7 +39,7 @@ export function CompanySwitcher() {
         className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-[12px] font-semibold text-ink transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
       >
         <Buildings size={14} weight="duotone" />
-        <span className="max-w-[120px] truncate">{label}</span>
+        <span className="hidden max-w-[120px] truncate sm:inline">{label}</span>
         <CaretDown size={12} weight="bold" />
       </button>
       {open && (
@@ -52,14 +52,23 @@ export function CompanySwitcher() {
             return (
               <button
                 key={c.id}
-                onClick={() => { setActive(c.id); setOpen(false); }}
+                onClick={() => {
+                  setActive(c.id);
+                  setOpen(false);
+                }}
                 className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-start text-[13px] transition ${
-                  isActive ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]" : "text-ink hover:bg-secondary/70"
+                  isActive
+                    ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]"
+                    : "text-ink hover:bg-secondary/70"
                 }`}
               >
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium">{lang === "ar" ? c.name_ar : c.name_en}</span>
-                  <span className="truncate text-[10px] uppercase tracking-[0.14em] text-ink-soft">{c.role} · {c.plan ?? "free"}</span>
+                  <span className="truncate font-medium">
+                    {lang === "ar" ? c.name_ar : c.name_en}
+                  </span>
+                  <span className="truncate text-[10px] uppercase tracking-[0.14em] text-ink-soft">
+                    {c.role} · {c.plan ?? "free"}
+                  </span>
                 </div>
                 {isActive && <Check size={14} weight="bold" />}
               </button>

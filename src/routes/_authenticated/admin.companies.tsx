@@ -94,63 +94,65 @@ function AdminCompaniesDirectory() {
         <EmptyState title={t("noCompaniesFound")} description="" />
       ) : (
         <div dir={dir} className="overflow-hidden rounded-xl border border-border/60 bg-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-3 text-start font-semibold">{t("company")}</th>
-                <th className="px-4 py-3 text-start font-semibold">{t("classifySector")}</th>
-                <th className="px-4 py-3 text-start font-semibold">{t("plan")}</th>
-                <th className="px-4 py-3 text-start font-semibold">{t("companyMembersCount")}</th>
-                <th className="px-4 py-3 text-start font-semibold">{t("accessRequestsQueue")}</th>
-                <th className="px-4 py-3 text-start font-semibold">{t("createdAt")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => (
-                <tr
-                  key={c.id}
-                  className="border-b border-border/40 last:border-0 hover:bg-secondary/30"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--gold)]/10 text-[var(--gold-deep)]">
-                        <Buildings size={15} weight="duotone" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-ink">
-                          {lang === "ar" ? c.name_ar : c.name_en}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground" dir="ltr">
-                          {c.slug}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-ink-soft">{c.sector ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="neutral">{c.plan}</Badge>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-ink">{c.memberCount}</td>
-                  <td className="px-4 py-3">
-                    {c.pendingAccessRequests > 0 ? (
-                      <Badge variant="gold" to="/access-requests">
-                        {c.pendingAccessRequests} {t("pendingReview")}
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-3 text-start font-semibold">{t("company")}</th>
+                  <th className="px-4 py-3 text-start font-semibold">{t("classifySector")}</th>
+                  <th className="px-4 py-3 text-start font-semibold">{t("plan")}</th>
+                  <th className="px-4 py-3 text-start font-semibold">{t("companyMembersCount")}</th>
+                  <th className="px-4 py-3 text-start font-semibold">{t("accessRequestsQueue")}</th>
+                  <th className="px-4 py-3 text-start font-semibold">{t("createdAt")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="border-b border-border/40 last:border-0 hover:bg-secondary/30"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--gold)]/10 text-[var(--gold-deep)]">
+                          <Buildings size={15} weight="duotone" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-ink">
+                            {lang === "ar" ? c.name_ar : c.name_en}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground" dir="ltr">
+                            {c.slug}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-ink-soft">{c.sector ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="neutral">{c.plan}</Badge>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-ink">{c.memberCount}</td>
+                    <td className="px-4 py-3">
+                      {c.pendingAccessRequests > 0 ? (
+                        <Badge variant="gold" to="/access-requests">
+                          {c.pendingAccessRequests} {t("pendingReview")}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(c.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </AppShell>
