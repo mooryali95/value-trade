@@ -165,15 +165,18 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function DataAsOf({ lang, t }: { lang: string; t: ReturnType<typeof useI18n>["t"] }) {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
-  const time = now.toLocaleTimeString(lang === "ar" ? "ar" : "en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = now
+    ? now.toLocaleTimeString(lang === "ar" ? "ar" : "en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
   return (
     <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
       <span className="h-1.5 w-1.5 rounded-full bg-[var(--bull)]" />

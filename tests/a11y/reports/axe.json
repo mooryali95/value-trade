@@ -51,44 +51,26 @@
     "path": "/unsubscribe",
     "violations": []
   },
+  "a11y-docs": {
+    "path": "/docs/a11y",
+    "violations": [
+      {
+        "id": "dlitem",
+        "impact": "serious",
+        "help": "<dt> and <dd> elements must be contained by a <dl>",
+        "nodes": [
+          "dt",
+          "dd"
+        ]
+      }
+    ]
+  },
+  "ui-states": {
+    "path": "/docs/states",
+    "violations": []
+  },
   "not-found": {
     "path": "/this-route-does-not-exist",
-    "violations": []
-  },
-  "portfolio": {
-    "path": "/portfolio",
-    "violations": []
-  },
-  "portfolio-empty": {
-    "path": "/portfolio?tab=orders&q=zzzzzzzz",
-    "violations": []
-  },
-  "workspace": {
-    "path": "/workspace",
-    "violations": []
-  },
-  "shariah-review": {
-    "path": "/shariah/review",
-    "violations": []
-  },
-  "company-submissions": {
-    "path": "/company/submissions",
-    "violations": []
-  },
-  "company-submit": {
-    "path": "/company/submit",
-    "violations": []
-  },
-  "company-settings": {
-    "path": "/company/settings",
-    "violations": []
-  },
-  "settings-notifications": {
-    "path": "/settings/notifications",
-    "violations": []
-  },
-  "admin-email-log": {
-    "path": "/admin/email-log",
     "violations": []
   }
 }

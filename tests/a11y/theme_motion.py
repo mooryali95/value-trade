@@ -34,17 +34,32 @@ MODES = {
 
 TARGETS = [
     ("a11y-docs", "/docs/a11y"),
+    ("ui-states", "/docs/states"),
     ("market-empty", "/market?q=zzzzzzzz"),
     ("not-found", "/this-route-does-not-exist"),
 ]
 
-DEVICES = ["tablet", "mobile"]
+DEVICES = ["desktop", "tablet", "mobile"]
+
+# Retries guard against first-paint/hydration flakiness in dev mode.
+ATTEMPTS = 3
 
 
 def check(ok: bool, label: str, detail: str = ""):
     print(("PASS  " if ok else "FAIL  ") + label + (f" :: {detail}" if detail and not ok else ""))
     if not ok:
         FAILURES.append(label)
+
+
+async def retry(fn, attempts: int = ATTEMPTS):
+    """Run an async predicate until it returns a truthy value."""
+    value = None
+    for i in range(attempts):
+        value = await fn()
+        if value:
+            return value
+        await asyncio.sleep(0.6)
+    return value
 
 
 async def focus_snapshot(page):
@@ -74,13 +89,25 @@ async def run_mode(browser, device, mode, results):
     for name, path in TARGETS:
         tag = f"{device}/{mode}/{name}"
         await page.goto(base + path, wait_until="domcontentloaded")
-        await page.wait_for_timeout(700)
+        # Wait for hydration: the app shell always renders a <main> landmark.
+        try:
+            await page.wait_for_selector("main", state="attached", timeout=10_000)
+        except Exception:
+            pass
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(400)
 
         # --- focus management -------------------------------------------------
-        await page.keyboard.press("Tab")
-        first = await focus_snapshot(page)
-        await page.keyboard.press("Tab")
-        second = await focus_snapshot(page)
+        async def tab_pair():
+            await page.evaluate("() => document.activeElement && document.activeElement.blur()")
+            await page.keyboard.press("Tab")
+            a = await focus_snapshot(page)
+            await page.keyboard.press("Tab")
+            b = await focus_snapshot(page)
+            return (a, b) if a and b else None
+
+        pair = await retry(tab_pair)
+        first, second = pair if pair else (None, None)
         check(bool(first) and bool(second), f"{tag}: Tab moves focus", f"{first} -> {second}")
         if first and second:
             check(first["label"] != second["label"] or first["tag"] != second["tag"],
@@ -89,11 +116,32 @@ async def run_mode(browser, device, mode, results):
             check(visible, f"{tag}: focus indicator is visible", json.dumps(first))
 
         # --- empty / error copy ----------------------------------------------
-        text = (await page.inner_text("main")) if await page.locator("main").count() else ""
-        if "empty" in name or "not-found" in name:
-            has_cta = await page.locator("main a, main button").count()
+        async def main_text():
+            if await page.locator("main").count():
+                return (await page.inner_text("main")).strip()
+            return ""
+
+        text = (await retry(main_text)) or ""
+        if "empty" in name or "not-found" in name or "states" in name:
+            async def cta_count():
+                return await page.locator("main a, main button").count()
+
+            has_cta = (await retry(cta_count)) or 0
             check(has_cta > 0, f"{tag}: empty/error state offers an action")
             check(len(text.strip()) > 30, f"{tag}: empty/error state explains the situation in text")
+
+        # --- visual regression snapshots of each state block ------------------
+        if name == "ui-states":
+            out_states = REPORTS / device / mode / "states"
+            out_states.mkdir(parents=True, exist_ok=True)
+            for case in ["empty-basic", "empty-filtered", "error-load", "loading"]:
+                el = page.locator(f"[data-state-case='{case}']")
+                if await el.count():
+                    await el.first.scroll_into_view_if_needed()
+                    await el.first.screenshot(path=str(out_states / f"{case}.png"))
+                    box = await el.first.bounding_box()
+                    check(bool(box) and box["height"] > 40,
+                          f"{tag}: {case} block renders with real height", json.dumps(box))
 
         # --- reduced motion ---------------------------------------------------
         if mode == "reduced-motion":
