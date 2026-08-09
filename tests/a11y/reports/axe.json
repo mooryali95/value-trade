@@ -53,17 +53,7 @@
   },
   "a11y-docs": {
     "path": "/docs/a11y",
-    "violations": [
-      {
-        "id": "dlitem",
-        "impact": "serious",
-        "help": "<dt> and <dd> elements must be contained by a <dl>",
-        "nodes": [
-          "dt",
-          "dd"
-        ]
-      }
-    ]
+    "violations": []
   },
   "ui-states": {
     "path": "/docs/states",
