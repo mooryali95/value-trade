@@ -32,8 +32,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<
     (Options & { resolve: (v: boolean) => void }) | null
   >(null);
+  // The dialog has no DOM trigger, so remember the opener and restore focus manually.
+  const opener = React.useRef<HTMLElement | null>(null);
 
   const confirm = React.useCallback<Ctx["confirm"]>((opts) => {
+    opener.current = (document.activeElement as HTMLElement | null) ?? null;
     return new Promise<boolean>((resolve) => {
       setState({ ...opts, resolve });
     });
@@ -42,6 +45,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const close = (value: boolean) => {
     state?.resolve(value);
     setState(null);
+    const el = opener.current;
+    opener.current = null;
+    if (el && document.contains(el)) {
+      window.setTimeout(() => el.focus({ preventScroll: true }), 0);
+    }
   };
 
   return (
