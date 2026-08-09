@@ -1,5 +1,6 @@
 import { mockProvider } from "./mock-provider";
 import { fetchUpstreamQuotes } from "./market.functions";
+import { internalProvider } from "./internal-provider";
 import { setMarketProvider, type MarketDataProvider } from "./provider";
 import type { Instrument } from "./types";
 
@@ -19,7 +20,9 @@ export const liveProvider: MarketDataProvider = {
     const bySymbol = new Map(quotes.map((q) => [q.symbol, q]));
     return base.map((i) => {
       const q = bySymbol.get(i.symbol);
-      return q ? { ...i, price: q.price, change24h: q.change24h, volume24h: q.volume24h ?? i.volume24h } : i;
+      return q
+        ? { ...i, price: q.price, change24h: q.change24h, volume24h: q.volume24h ?? i.volume24h }
+        : i;
     });
   },
 
@@ -38,5 +41,7 @@ export const liveProvider: MarketDataProvider = {
 /** Registers the provider selected by `VITE_MARKET_PROVIDER` (default: mock). */
 export function registerMarketProvider() {
   const chosen = import.meta.env["VITE_MARKET_PROVIDER"] ?? "mock";
-  setMarketProvider(chosen === "live" ? liveProvider : mockProvider);
+  setMarketProvider(
+    chosen === "live" ? liveProvider : chosen === "internal" ? internalProvider : mockProvider,
+  );
 }

@@ -19,18 +19,33 @@ export const placeOrder = createServerFn({ method: "POST" })
     const brand = getBrand(data.symbolSlug);
     if (!brand) throw new Error("SYMBOL_NOT_FOUND");
 
-    const fillPrice = data.type === "market" ? brand.price : (data.price ?? brand.price);
-    const notional = fillPrice * data.qty;
     const { supabase, userId } = context;
 
-    const { data: isTrader } = await supabase.rpc("has_role", { _user_id: userId, _role: "trader" });
+    // Market orders fill at the real last-traded price when one exists --
+    // otherwise the reference price (brand.price, 100 by default) stands
+    // until the first real trade sets it. Limit orders always use the
+    // trader's own specified price, same as before.
+    let referencePrice = brand.price;
+    if (data.type === "market") {
+      const { data: lastTrade } = await supabase.rpc("get_symbol_last_trade" as any, {
+        _symbol: brand.symbol,
+      });
+      const row = Array.isArray(lastTrade) ? lastTrade[0] : lastTrade;
+      if (row?.last_price != null) referencePrice = Number(row.last_price);
+    }
+    const fillPrice = data.type === "market" ? referencePrice : (data.price ?? brand.price);
+    const notional = fillPrice * data.qty;
+
+    const { data: isTrader } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "trader",
+    });
     if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
 
     // Ensure portfolio exists (idempotent).
-    await supabase.from("portfolios").upsert(
-      { user_id: userId },
-      { onConflict: "user_id", ignoreDuplicates: true },
-    );
+    await supabase
+      .from("portfolios")
+      .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true });
 
     const { data: pf, error: pfErr } = await supabase
       .from("portfolios")
@@ -49,10 +64,16 @@ export const placeOrder = createServerFn({ method: "POST" })
     const currentQty = Number(existing?.qty ?? 0);
     const currentAvg = Number(existing?.avg_price ?? 0);
 
-    if (data.side === "buy" && Number(pf.cash_balance) < notional) throw new Error("INSUFFICIENT_CASH");
+    if (data.side === "buy" && Number(pf.cash_balance) < notional)
+      throw new Error("INSUFFICIENT_CASH");
     if (data.side === "sell" && currentQty < data.qty) throw new Error("INSUFFICIENT_QTY");
 
-    const next = applyFill({ qty: currentQty, avgPrice: currentAvg }, data.side, data.qty, fillPrice);
+    const next = applyFill(
+      { qty: currentQty, avgPrice: currentAvg },
+      data.side,
+      data.qty,
+      fillPrice,
+    );
     const nextCash = Number(pf.cash_balance) + (data.side === "buy" ? -notional : notional);
 
     // Insert filled order
