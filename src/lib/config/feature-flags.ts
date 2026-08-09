@@ -10,8 +10,9 @@
  * instant account, no approval) is still reachable from /auth.
  *
  * Phase 1 of the roadmap replaces open signup with the gated
- * access-request flow (/request-access). Both are live at once during
- * testing: set this to `false` once the new flow is verified in
- * production, to fully retire direct signup.
+ * access-request flow (/request-access). Verified working in production
+ * (full request -> approval -> invitation -> accept loop tested), so
+ * direct signup is now retired. If it ever needs to come back
+ * temporarily, flip this back to `true` -- no other code changes needed.
  */
-export const ENABLE_LEGACY_SELF_SIGNUP = true;
+export const ENABLE_LEGACY_SELF_SIGNUP = false;
