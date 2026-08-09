@@ -314,16 +314,18 @@ function SubmitDemo() {
           className="min-h-11 w-28 rounded-md border border-border bg-background px-3 text-sm text-ink"
         />
       </div>
-      <dl
+      <div
         role="status"
         aria-live="polite"
         aria-atomic="true"
         data-testid="order-summary"
         className="rounded-md border border-border/60 bg-background px-3 py-2 text-xs text-ink-soft"
       >
-        <dt className="inline">Estimated total:&nbsp;</dt>
-        <dd className="inline font-semibold text-ink">{(qty * price).toFixed(2)} SAR</dd>
-      </dl>
+        <dl>
+          <dt className="inline">Estimated total:&nbsp;</dt>
+          <dd className="inline font-semibold text-ink">{(qty * price).toFixed(2)} SAR</dd>
+        </dl>
+      </div>
       <button type="submit" className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink">
         Submit order
       </button>
