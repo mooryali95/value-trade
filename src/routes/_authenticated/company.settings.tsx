@@ -17,6 +17,7 @@ import {
   getCompanyDetails,
   addCompanyMember,
   removeCompanyMember,
+  updateCompanyMemberRole,
   addCompanyBrand,
   removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
@@ -58,6 +59,7 @@ function CompanySettings() {
   const detailsFn = useServerFn(getCompanyDetails);
   const addMemberFn = useServerFn(addCompanyMember);
   const removeMemberFn = useServerFn(removeCompanyMember);
+  const updateMemberRoleFn = useServerFn(updateCompanyMemberRole);
   const addBrandFn = useServerFn(addCompanyBrand);
   const removeBrandFn = useServerFn(removeCompanyBrand);
   const listInvitesFn = useServerFn(listCompanyInvitations);
@@ -184,6 +186,32 @@ function CompanySettings() {
       toast.success(t("memberRemoved"));
       invalidateDetails();
     },
+    onError: (e: unknown) =>
+      toast.error(
+        e instanceof Error && e.message === "LAST_OWNER_PROTECTED"
+          ? t("lastOwnerProtected")
+          : e instanceof Error
+            ? e.message
+            : "Error",
+      ),
+  });
+  const memberRoleMut = useMutation({
+    mutationFn: (v: {
+      memberId: string;
+      role: "owner" | "finance" | "shariah" | "trader" | "viewer";
+    }) => updateMemberRoleFn({ data: v }),
+    onSuccess: () => {
+      toast.success(t("memberRoleUpdated"));
+      invalidateDetails();
+    },
+    onError: (e: unknown) =>
+      toast.error(
+        e instanceof Error && e.message === "LAST_OWNER_PROTECTED"
+          ? t("lastOwnerProtected")
+          : e instanceof Error
+            ? e.message
+            : "Error",
+      ),
   });
   const brandMut = useMutation({
     mutationFn: (sym: string) => addBrandFn({ data: { companyId: activeId!, brandSymbol: sym } }),
@@ -407,9 +435,32 @@ function CompanySettings() {
                         className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
                       >
                         <span className="truncate font-mono text-ink-soft">{m.user_id}</span>
-                        <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">
-                          {t(`${m.role}Role` as never)}
-                        </span>
+                        {canManageMembers ? (
+                          <select
+                            aria-label={t("memberRole")}
+                            value={m.role}
+                            disabled={memberRoleMut.isPending}
+                            onChange={(e) =>
+                              memberRoleMut.mutate({
+                                memberId: m.id,
+                                role: e.target.value as never,
+                              })
+                            }
+                            className="rounded-md border border-border bg-background px-2 py-0.5 text-[10px] uppercase"
+                          >
+                            {(["owner", "finance", "shariah", "trader", "viewer"] as const).map(
+                              (r) => (
+                                <option key={r} value={r}>
+                                  {t(`${r}Role` as never)}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        ) : (
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">
+                            {t(`${m.role}Role` as never)}
+                          </span>
+                        )}
                         {canManageMembers ? (
                           <button
                             onClick={async () => {
