@@ -182,10 +182,10 @@ function AuthPage() {
             <div className="mb-6">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--gold-deep)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold)]" />
-                {mode === "signin" ? t("signin") : t("signup")}
+                {mode === "forgot" ? t("forgotPasswordTitle") : mode === "signin" ? t("signin") : t("signup")}
               </div>
               <h2 className="text-2xl font-bold text-ink md:text-3xl">
-                {mode === "signin" ? t("signinCta") : t("signupCta")}
+                {mode === "forgot" ? t("forgotPasswordTitle") : mode === "signin" ? t("signinCta") : t("signupCta")}
               </h2>
             </div>
 
