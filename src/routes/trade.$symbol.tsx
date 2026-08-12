@@ -83,6 +83,7 @@ function TradePage() {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "INSUFFICIENT_CASH") toast.error(t("insufficientCash"));
       else if (msg === "INSUFFICIENT_QTY") toast.error(t("insufficientQty"));
+      else if (msg === "SHARIAH_BLOCKED") toast.error(t("shariahBlocked"));
       else if (msg === "FORBIDDEN_TRADER_REQUIRED") toast.error(t("traderRequired"));
       else toast.error(t("orderFailed"));
     },
