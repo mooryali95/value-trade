@@ -42,6 +42,17 @@ export const placeOrder = createServerFn({ method: "POST" })
     });
     if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
 
+    // Shariah gate: a symbol ruled non-halal cannot be bought. Selling an
+    // existing position stays allowed so holders can exit.
+    if (data.side === "buy") {
+      const { data: ruling } = await supabase
+        .from("shariah_decisions")
+        .select("status")
+        .eq("symbol", brand.symbol)
+        .maybeSingle();
+      if (ruling?.status === "non_halal") throw new Error("SHARIAH_BLOCKED");
+    }
+
     // Ensure portfolio exists (idempotent).
     await supabase
       .from("portfolios")
@@ -110,7 +121,21 @@ export const placeOrder = createServerFn({ method: "POST" })
       );
     }
 
-    await supabase.from("portfolios").update({ cash_balance: nextCash }).eq("id", pf.id);
+    // Cash is ledgered, never overwritten: one signed movement per fill and
+    // the balance is derived inside `post_cash_movement`.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: balance, error: cashErr } = await supabaseAdmin.rpc(
+      "post_cash_movement" as never,
+      {
+        _user_id: userId,
+        _kind: data.side === "buy" ? "order_buy" : "order_sell",
+        _amount: data.side === "buy" ? -notional : notional,
+        _ref_order_id: order.id,
+        _note: `${data.side} ${data.qty} ${brand.symbol} @ ${fillPrice}`,
+        _actor_id: userId,
+      } as never,
+    );
+    if (cashErr) throw new Error(cashErr.message);
 
-    return { order, filledPrice: fillPrice, cashBalance: nextCash };
+    return { order, filledPrice: fillPrice, cashBalance: Number(balance ?? nextCash) };
   });
