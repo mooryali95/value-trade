@@ -84,12 +84,45 @@ export const removeCompanyMember = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: prev } = await supabase.from("company_members").select("company_id, user_id, role").eq("id", data.memberId).maybeSingle();
     const { error } = await supabase.from("company_members").delete().eq("id", data.memberId);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message.includes("LAST_OWNER_PROTECTED") ? "LAST_OWNER_PROTECTED" : error.message);
     await writeAudit(supabase, {
       actorId: userId, companyId: prev?.company_id ?? null, action: "member.remove", entity: "company_members", entityId: data.memberId,
       metadata: { targetUserId: prev?.user_id, role: prev?.role },
     });
     return { ok: true };
+  });
+
+const UpdateMemberRoleInput = z.object({
+  memberId: z.string().uuid(),
+  role: z.enum(["owner", "finance", "shariah", "trader", "viewer"]),
+});
+/** Owners change a member's role; the DB trigger refuses to demote the last owner. */
+export const updateCompanyMemberRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UpdateMemberRoleInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: prev } = await supabase
+      .from("company_members")
+      .select("company_id, user_id, role")
+      .eq("id", data.memberId)
+      .maybeSingle();
+    if (!prev) throw new Error("MEMBER_NOT_FOUND");
+    const { data: row, error } = await supabase
+      .from("company_members")
+      .update({ role: data.role })
+      .eq("id", data.memberId)
+      .select("id, user_id, role")
+      .single();
+    if (error)
+      throw new Error(
+        error.message.includes("LAST_OWNER_PROTECTED") ? "LAST_OWNER_PROTECTED" : error.message,
+      );
+    await writeAudit(supabase, {
+      actorId: userId, companyId: prev.company_id, action: "member.role_change", entity: "company_members", entityId: data.memberId,
+      metadata: { targetUserId: prev.user_id, from: prev.role, to: data.role },
+    });
+    return row;
   });
 
 const AddBrandInput = z.object({ companyId: z.string().uuid(), brandSymbol: z.string().min(1).max(32) });
