@@ -39,7 +39,7 @@ function AuthPage() {
   const { t, lang, dir } = useI18n();
   const search = useSearch({ from: "/auth" }) as { redirect?: string };
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -65,7 +65,13 @@ function AuthPage() {
     setError(null);
     setNotice(null);
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/update-password`,
+        });
+        if (error) throw error;
+        setNotice(t("resetLinkSent"));
+      } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -176,10 +182,10 @@ function AuthPage() {
             <div className="mb-6">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--gold-deep)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold)]" />
-                {mode === "signin" ? t("signin") : t("signup")}
+                {mode === "forgot" ? t("forgotPasswordTitle") : mode === "signin" ? t("signin") : t("signup")}
               </div>
               <h2 className="text-2xl font-bold text-ink md:text-3xl">
-                {mode === "signin" ? t("signinCta") : t("signupCta")}
+                {mode === "forgot" ? t("forgotPasswordTitle") : mode === "signin" ? t("signinCta") : t("signupCta")}
               </h2>
             </div>
 
@@ -246,6 +252,7 @@ function AuthPage() {
                     placeholder="you@company.com"
                   />
                 </Field>
+                {mode !== "forgot" && (
                 <Field icon={KeyRound} label={t("password")}>
                   <input
                     type="password"
@@ -259,6 +266,7 @@ function AuthPage() {
                     placeholder="••••••••"
                   />
                 </Field>
+                )}
 
                 {error && (
                   <div className="rounded-md border border-[var(--bear)]/40 bg-[var(--bear)]/5 px-3 py-2 text-xs text-[var(--bear)]">
@@ -277,7 +285,23 @@ function AuthPage() {
                   className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md gold-gradient py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:brightness-105 disabled:opacity-70"
                 >
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {mode === "signin" ? t("signinCta") : t("signupCta")}
+                  {mode === "forgot"
+                    ? t("forgotPasswordCta")
+                    : mode === "signin"
+                      ? t("signinCta")
+                      : t("signupCta")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === "forgot" ? "signin" : "forgot");
+                    setError(null);
+                    setNotice(null);
+                  }}
+                  className="mx-auto block text-[11px] text-muted-foreground underline hover:text-[var(--gold-deep)]"
+                >
+                  {mode === "forgot" ? t("backToSignin") : t("forgotPassword")}
                 </button>
               </form>
             )}

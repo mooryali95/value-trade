@@ -29,6 +29,7 @@ import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe
 import { Route as DocsStatesRouteImport } from './routes/docs.states'
 import { Route as DocsA11yRouteImport } from './routes/docs.a11y'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
+import { Route as AuthUpdatePasswordRouteImport } from './routes/auth_.update-password'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
@@ -147,6 +148,11 @@ const DocsA11yRoute = DocsA11yRouteImport.update({
 const CompanyIdRoute = CompanyIdRouteImport.update({
   id: '/company/$id',
   path: '/company/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthUpdatePasswordRoute = AuthUpdatePasswordRouteImport.update({
+  id: '/auth_/update-password',
+  path: '/auth/update-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
@@ -277,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
@@ -361,6 +369,7 @@ export interface FileRoutesById {
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
+  '/auth_/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
@@ -404,6 +413,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/portfolio'
     | '/workspace'
+    | '/auth/update-password'
     | '/company/$id'
     | '/docs/a11y'
     | '/docs/states'
@@ -445,6 +455,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/portfolio'
     | '/workspace'
+    | '/auth/update-password'
     | '/company/$id'
     | '/docs/a11y'
     | '/docs/states'
@@ -487,6 +498,7 @@ export interface FileRouteTypes {
     | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
+    | '/auth_/update-password'
     | '/company/$id'
     | '/docs/a11y'
     | '/docs/states'
@@ -526,6 +538,7 @@ export interface RootRouteChildren {
   ShariahRoute: typeof ShariahRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  AuthUpdatePasswordRoute: typeof AuthUpdatePasswordRoute
   CompanyIdRoute: typeof CompanyIdRoute
   DocsA11yRoute: typeof DocsA11yRoute
   DocsStatesRoute: typeof DocsStatesRoute
@@ -685,6 +698,13 @@ declare module '@tanstack/react-router' {
       path: '/company/$id'
       fullPath: '/company/$id'
       preLoaderRoute: typeof CompanyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth_/update-password': {
+      id: '/auth_/update-password'
+      path: '/auth/update-password'
+      fullPath: '/auth/update-password'
+      preLoaderRoute: typeof AuthUpdatePasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspace': {
@@ -887,6 +907,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShariahRoute: ShariahRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  AuthUpdatePasswordRoute: AuthUpdatePasswordRoute,
   CompanyIdRoute: CompanyIdRoute,
   DocsA11yRoute: DocsA11yRoute,
   DocsStatesRoute: DocsStatesRoute,

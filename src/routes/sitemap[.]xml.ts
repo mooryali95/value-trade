@@ -4,7 +4,7 @@ const PUBLIC_PATHS = [
   "/",
   "/market",
   "/shariah",
-  "/auth",
+  "/request-access",
   "/legal/terms",
   "/legal/privacy",
   "/legal/shariah-disclosures",

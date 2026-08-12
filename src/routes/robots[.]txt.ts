@@ -5,6 +5,9 @@ Allow: /
 Disallow: /_authenticated
 Disallow: /admin
 Disallow: /auth
+Disallow: /docs
+Disallow: /join
+Disallow: /unsubscribe
 
 Sitemap: /sitemap.xml
 `;

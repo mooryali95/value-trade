@@ -116,6 +116,50 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_ledger: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          note: string | null
+          ref_order_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          ref_order_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          ref_order_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_ledger_ref_order_id_fkey"
+            columns: ["ref_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -898,6 +942,17 @@ export type Database = {
           message_id: number
           payload: Json
           source_queue: string
+        }
+        Returns: number
+      }
+      post_cash_movement: {
+        Args: {
+          _actor_id?: string
+          _amount: number
+          _kind: string
+          _note?: string
+          _ref_order_id?: string
+          _user_id: string
         }
         Returns: number
       }
