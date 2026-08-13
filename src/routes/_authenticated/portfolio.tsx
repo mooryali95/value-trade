@@ -193,6 +193,7 @@ function PortfolioPage() {
   const pagedOrders = tab === "orders" ? filteredOrders.slice(pageStart, pageStart + pageSize) : [];
 
   const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
+
     { key: "symbol", label: "Symbol" },
     { key: "qty", label: t("qty"), align: "end" },
     { key: "avg", label: t("avgPrice"), align: "end" },
