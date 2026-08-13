@@ -454,5 +454,9 @@ export const en: Record<Key, string> = {
   passwordsDontMatch: "Passwords don't match.",
   passwordUpdated: "Password updated. Redirecting...",
   resetSessionMissing: "That link is expired or invalid. Request a new one.",
+  rejectionReasonRequired: "A rejection needs a reason of at least 10 characters.",
+  orderTooLarge: "Order value exceeds the maximum allowed per single order.",
+  priceOutOfBand: "Limit price is outside the allowed daily band (±20%).",
+  exportCsv: "Export CSV",
 };
 export default en;

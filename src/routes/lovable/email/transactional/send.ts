@@ -44,20 +44,21 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
           )
         }
 
-        // Verify the caller has a valid Supabase auth token.
-        // In TanStack, there is no Supabase gateway — we validate the JWT ourselves.
+        // Server-to-server only. A valid end-user session is NOT enough here:
+        // this route can send any registered template to any address, so it is
+        // gated by LOVABLE_API_KEY exactly like the sibling preview route.
+        // In-app senders call `enqueueTransactionalEmail()` directly instead.
+        const apiKey = process.env.LOVABLE_API_KEY
+        if (!apiKey) {
+          return Response.json({ error: 'Server configuration error' }, { status: 500 })
+        }
         const authHeader = request.headers.get('Authorization')
-        if (!authHeader?.startsWith('Bearer ')) {
+        const bearer = authHeader?.replace(/^Bearer\s+/i, '').trim()
+        if (!bearer || bearer !== apiKey) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const token = authHeader.slice('Bearer '.length).trim()
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-        if (authError || !user) {
-          return Response.json({ error: 'Unauthorized' }, { status: 401 })
-        }
 
         // Parse request body
         let templateName: string

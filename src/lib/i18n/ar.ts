@@ -447,6 +447,10 @@ export const ar = {
   passwordsDontMatch: "كلمتا المرور غير متطابقتين.",
   passwordUpdated: "تم تحديث كلمة المرور. جارٍ التحويل...",
   resetSessionMissing: "الرابط منتهي أو غير صالح. اطلب رابطًا جديدًا.",
+  rejectionReasonRequired: "الرفض يتطلب سببًا لا يقل عن 10 أحرف.",
+  orderTooLarge: "قيمة الأمر تتجاوز الحد الأقصى المسموح للأمر الواحد.",
+  priceOutOfBand: "سعر الأمر خارج النطاق اليومي المسموح (±20%).",
+  exportCsv: "تصدير CSV",
 } as const;
 
 export type Key = keyof typeof ar;

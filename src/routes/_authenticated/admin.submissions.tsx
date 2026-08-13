@@ -165,7 +165,12 @@ function AdminSubmissions() {
                 {s.status === "pending" && (
                   <>
                     <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ submissionId: s.id, status: "approved", reason: reason[s.id] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
-                    <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ submissionId: s.id, status: "rejected", reason: reason[s.id] })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
+                    <button
+                      disabled={!isReviewer || (reason[s.id] ?? "").trim().length < 10}
+                      title={!isReviewer ? t("reviewerRequired") : (reason[s.id] ?? "").trim().length < 10 ? t("rejectionReasonRequired") : undefined}
+                      onClick={() => mutation.mutate({ submissionId: s.id, status: "rejected", reason: reason[s.id] })}
+                      className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40"
+                    >{t("reject")}</button>
                   </>
                 )}
               </div>
