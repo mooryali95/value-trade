@@ -192,8 +192,34 @@ function PortfolioPage() {
   const pagedPositions = tab === "positions" ? sortedPositions.slice(pageStart, pageStart + pageSize) : [];
   const pagedOrders = tab === "orders" ? filteredOrders.slice(pageStart, pageStart + pageSize) : [];
 
-  const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
+  // Exports exactly what the user is currently looking at: the active tab,
+  // after search/filters and sorting, not the raw server payload.
+  function exportCsv() {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows: string[] = [];
+    if (tab === "positions") {
+      rows.push(["symbol", "qty", "avg_price", "last_price", "value", "unrealized_pnl"].join(","));
+      for (const p of sortedPositions) {
+        rows.push([p.symbol, p.qty, p.avg, p.last, p.value.toFixed(2), p.pnl.toFixed(2)].map(esc).join(","));
+      }
+    } else {
+      rows.push(["created_at", "symbol", "side", "type", "qty", "price", "filled_price", "status"].join(","));
+      for (const o of filteredOrders) {
+        rows.push([o.created_at, o.symbol, o.side, o.type, o.qty, o.price ?? "", o.filled_price ?? "", o.status].map(esc).join(","));
+      }
+    }
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `portfolio-${tab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
+  const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
     { key: "symbol", label: "Symbol" },
     { key: "qty", label: t("qty"), align: "end" },
     { key: "avg", label: t("avgPrice"), align: "end" },
