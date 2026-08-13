@@ -12,6 +12,11 @@ const InputSchema = z.object({
   price: z.number().positive().optional(),
 });
 
+/** Risk limits: a single order may not exceed this notional value. */
+const MAX_ORDER_NOTIONAL = 5_000_000;
+/** Limit orders must price within ±20% of the current reference price. */
+const PRICE_BAND = 0.2;
+
 export const placeOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
@@ -26,7 +31,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     // until the first real trade sets it. Limit orders always use the
     // trader's own specified price, same as before.
     let referencePrice = brand.price;
-    if (data.type === "market") {
+    {
       const { data: lastTrade } = await supabase.rpc("get_symbol_last_trade" as any, {
         _symbol: brand.symbol,
       });
@@ -35,6 +40,15 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
     const fillPrice = data.type === "market" ? referencePrice : (data.price ?? brand.price);
     const notional = fillPrice * data.qty;
+
+    // Risk guards run before any state changes: an oversized order or a price
+    // far outside the daily band is rejected instead of filled.
+    if (notional > MAX_ORDER_NOTIONAL) throw new Error("ORDER_TOO_LARGE");
+    if (data.type === "limit" && referencePrice > 0) {
+      const low = referencePrice * (1 - PRICE_BAND);
+      const high = referencePrice * (1 + PRICE_BAND);
+      if (fillPrice < low || fillPrice > high) throw new Error("PRICE_OUT_OF_BAND");
+    }
 
     const { data: isTrader } = await supabase.rpc("has_role", {
       _user_id: userId,

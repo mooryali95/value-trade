@@ -61,11 +61,17 @@ export const listPendingSubmissions = createServerFn({ method: "GET" })
     return rows ?? [];
   });
 
-const ReviewInput = z.object({
-  submissionId: z.string().uuid(),
-  status: z.enum(["approved", "rejected"]),
-  reason: z.string().max(600).optional(),
-});
+const ReviewInput = z
+  .object({
+    submissionId: z.string().uuid(),
+    status: z.enum(["approved", "rejected"]),
+    reason: z.string().max(600).optional(),
+  })
+  // A rejection must always carry a reason the applicant can act on.
+  .refine((v) => v.status !== "rejected" || (v.reason ?? "").trim().length >= 10, {
+    message: "REJECTION_REASON_REQUIRED",
+    path: ["reason"],
+  });
 export const reviewSubmission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ReviewInput.parse(input))
