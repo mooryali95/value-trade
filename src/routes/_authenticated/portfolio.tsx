@@ -228,6 +228,15 @@ function PortfolioPage() {
         title={t("portfolio")}
         description={`${t("myPositions")} · ${enriched.length}`}
         crumbs={[{ label: t("portfolio") }]}
+        actions={
+          <button
+            onClick={exportCsv}
+            disabled={activeList.length === 0}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] disabled:opacity-40"
+          >
+            {t("exportCsv")}
+          </button>
+        }
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
