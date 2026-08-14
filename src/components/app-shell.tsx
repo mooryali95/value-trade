@@ -160,7 +160,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/access-requests", label: t("accessRequestsQueue"), icon: UserPlus },
     { to: "/admin/submissions", label: t("nav_submissions"), icon: ClipboardText },
     ...(isAdmin
-      ? [{ to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple }]
+      ? [
+          { to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple },
+          { to: "/admin/health", label: t("nav_health"), icon: ShieldCheck },
+        ]
       : []),
   ];
 

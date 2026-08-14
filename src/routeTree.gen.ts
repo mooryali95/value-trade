@@ -44,6 +44,7 @@ import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_a
 import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
 import { Route as AuthenticatedCompanyAuditRouteImport } from './routes/_authenticated/company.audit'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
+import { Route as AuthenticatedAdminHealthRouteImport } from './routes/_authenticated/admin.health'
 import { Route as AuthenticatedAdminEmailLogRouteImport } from './routes/_authenticated/admin.email-log'
 import { Route as AuthenticatedAdminCompaniesRouteImport } from './routes/_authenticated/admin.companies'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -236,6 +237,12 @@ const AuthenticatedAdminSubmissionsRoute =
     path: '/admin/submissions',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminHealthRoute =
+  AuthenticatedAdminHealthRouteImport.update({
+    id: '/admin/health',
+    path: '/admin/health',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminEmailLogRoute =
   AuthenticatedAdminEmailLogRouteImport.update({
     id: '/admin/email-log',
@@ -304,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
+  '/admin/health': typeof AuthenticatedAdminHealthRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
@@ -347,6 +355,7 @@ export interface FileRoutesByTo {
   '/trade/$symbol': typeof TradeSymbolRoute
   '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
+  '/admin/health': typeof AuthenticatedAdminHealthRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/company/settings': typeof AuthenticatedCompanySettingsRoute
@@ -392,6 +401,7 @@ export interface FileRoutesById {
   '/trade/$symbol': typeof TradeSymbolRoute
   '/_authenticated/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/_authenticated/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
+  '/_authenticated/admin/health': typeof AuthenticatedAdminHealthRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/company/audit': typeof AuthenticatedCompanyAuditRoute
   '/_authenticated/company/settings': typeof AuthenticatedCompanySettingsRoute
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/trade/$symbol'
     | '/admin/companies'
     | '/admin/email-log'
+    | '/admin/health'
     | '/admin/submissions'
     | '/company/audit'
     | '/company/settings'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/trade/$symbol'
     | '/admin/companies'
     | '/admin/email-log'
+    | '/admin/health'
     | '/admin/submissions'
     | '/company/audit'
     | '/company/settings'
@@ -524,6 +536,7 @@ export interface FileRouteTypes {
     | '/trade/$symbol'
     | '/_authenticated/admin/companies'
     | '/_authenticated/admin/email-log'
+    | '/_authenticated/admin/health'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/company/audit'
     | '/_authenticated/company/settings'
@@ -818,6 +831,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/health': {
+      id: '/_authenticated/admin/health'
+      path: '/admin/health'
+      fullPath: '/admin/health'
+      preLoaderRoute: typeof AuthenticatedAdminHealthRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/email-log': {
       id: '/_authenticated/admin/email-log'
       path: '/admin/email-log'
@@ -891,6 +911,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedAdminCompaniesRoute: typeof AuthenticatedAdminCompaniesRoute
   AuthenticatedAdminEmailLogRoute: typeof AuthenticatedAdminEmailLogRoute
+  AuthenticatedAdminHealthRoute: typeof AuthenticatedAdminHealthRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedCompanyAuditRoute: typeof AuthenticatedCompanyAuditRoute
   AuthenticatedCompanySettingsRoute: typeof AuthenticatedCompanySettingsRoute
@@ -907,6 +928,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedAdminCompaniesRoute: AuthenticatedAdminCompaniesRoute,
   AuthenticatedAdminEmailLogRoute: AuthenticatedAdminEmailLogRoute,
+  AuthenticatedAdminHealthRoute: AuthenticatedAdminHealthRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedCompanyAuditRoute: AuthenticatedCompanyAuditRoute,
   AuthenticatedCompanySettingsRoute: AuthenticatedCompanySettingsRoute,
