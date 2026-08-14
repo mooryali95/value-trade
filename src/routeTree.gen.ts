@@ -38,7 +38,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiPublicCronAlertsRouteImport } from './routes/api/public/cron-alerts'
 import { Route as AuthenticatedShariahReviewRouteImport } from './routes/_authenticated/shariah.review'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
-import { Route as AuthenticatedPortfolioRealizedRouteImport } from './routes/_authenticated/portfolio.realized'
+import { Route as AuthenticatedPortfolioRealizedRouteImport } from './routes/_authenticated/portfolio_.realized'
 import { Route as AuthenticatedCompanySubmitRouteImport } from './routes/_authenticated/company.submit'
 import { Route as AuthenticatedCompanySubmissionsRouteImport } from './routes/_authenticated/company.submissions'
 import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_authenticated/company.settings'
@@ -203,9 +203,9 @@ const AuthenticatedSettingsNotificationsRoute =
   } as any)
 const AuthenticatedPortfolioRealizedRoute =
   AuthenticatedPortfolioRealizedRouteImport.update({
-    id: '/realized',
-    path: '/realized',
-    getParentRoute: () => AuthenticatedPortfolioRoute,
+    id: '/portfolio_/realized',
+    path: '/portfolio/realized',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCompanySubmitRoute =
   AuthenticatedCompanySubmitRouteImport.update({
@@ -295,7 +295,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
-  '/portfolio': typeof AuthenticatedPortfolioRouteWithChildren
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
@@ -339,7 +339,7 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/invitations': typeof AuthenticatedInvitationsRoute
-  '/portfolio': typeof AuthenticatedPortfolioRouteWithChildren
+  '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
@@ -385,7 +385,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/access-requests': typeof AuthenticatedAccessRequestsRoute
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
-  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRouteWithChildren
+  '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/auth_/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
@@ -407,7 +407,7 @@ export interface FileRoutesById {
   '/_authenticated/company/settings': typeof AuthenticatedCompanySettingsRoute
   '/_authenticated/company/submissions': typeof AuthenticatedCompanySubmissionsRoute
   '/_authenticated/company/submit': typeof AuthenticatedCompanySubmitRoute
-  '/_authenticated/portfolio/realized': typeof AuthenticatedPortfolioRealizedRoute
+  '/_authenticated/portfolio_/realized': typeof AuthenticatedPortfolioRealizedRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
@@ -542,7 +542,7 @@ export interface FileRouteTypes {
     | '/_authenticated/company/settings'
     | '/_authenticated/company/submissions'
     | '/_authenticated/company/submit'
-    | '/_authenticated/portfolio/realized'
+    | '/_authenticated/portfolio_/realized'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
@@ -789,12 +789,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/portfolio/realized': {
-      id: '/_authenticated/portfolio/realized'
-      path: '/realized'
+    '/_authenticated/portfolio_/realized': {
+      id: '/_authenticated/portfolio_/realized'
+      path: '/portfolio/realized'
       fullPath: '/portfolio/realized'
       preLoaderRoute: typeof AuthenticatedPortfolioRealizedRouteImport
-      parentRoute: typeof AuthenticatedPortfolioRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/company/submit': {
       id: '/_authenticated/company/submit'
@@ -890,24 +890,10 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedPortfolioRouteChildren {
-  AuthenticatedPortfolioRealizedRoute: typeof AuthenticatedPortfolioRealizedRoute
-}
-
-const AuthenticatedPortfolioRouteChildren: AuthenticatedPortfolioRouteChildren =
-  {
-    AuthenticatedPortfolioRealizedRoute: AuthenticatedPortfolioRealizedRoute,
-  }
-
-const AuthenticatedPortfolioRouteWithChildren =
-  AuthenticatedPortfolioRoute._addFileChildren(
-    AuthenticatedPortfolioRouteChildren,
-  )
-
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRequestsRoute: typeof AuthenticatedAccessRequestsRoute
   AuthenticatedInvitationsRoute: typeof AuthenticatedInvitationsRoute
-  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRouteWithChildren
+  AuthenticatedPortfolioRoute: typeof AuthenticatedPortfolioRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedAdminCompaniesRoute: typeof AuthenticatedAdminCompaniesRoute
   AuthenticatedAdminEmailLogRoute: typeof AuthenticatedAdminEmailLogRoute
@@ -917,6 +903,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCompanySettingsRoute: typeof AuthenticatedCompanySettingsRoute
   AuthenticatedCompanySubmissionsRoute: typeof AuthenticatedCompanySubmissionsRoute
   AuthenticatedCompanySubmitRoute: typeof AuthenticatedCompanySubmitRoute
+  AuthenticatedPortfolioRealizedRoute: typeof AuthenticatedPortfolioRealizedRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
 }
@@ -924,7 +911,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccessRequestsRoute: AuthenticatedAccessRequestsRoute,
   AuthenticatedInvitationsRoute: AuthenticatedInvitationsRoute,
-  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRouteWithChildren,
+  AuthenticatedPortfolioRoute: AuthenticatedPortfolioRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedAdminCompaniesRoute: AuthenticatedAdminCompaniesRoute,
   AuthenticatedAdminEmailLogRoute: AuthenticatedAdminEmailLogRoute,
@@ -934,6 +921,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCompanySettingsRoute: AuthenticatedCompanySettingsRoute,
   AuthenticatedCompanySubmissionsRoute: AuthenticatedCompanySubmissionsRoute,
   AuthenticatedCompanySubmitRoute: AuthenticatedCompanySubmitRoute,
+  AuthenticatedPortfolioRealizedRoute: AuthenticatedPortfolioRealizedRoute,
   AuthenticatedSettingsNotificationsRoute:
     AuthenticatedSettingsNotificationsRoute,
   AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
