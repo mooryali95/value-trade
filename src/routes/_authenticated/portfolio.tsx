@@ -256,6 +256,14 @@ function PortfolioPage() {
         description={`${t("myPositions")} · ${enriched.length}`}
         crumbs={[{ label: t("portfolio") }]}
         actions={
+          <>
+          <Link
+            to="/portfolio/realized"
+            search={{ from: "", to: "", symbol: "" }}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)]"
+          >
+            {t("realizedPnl")}
+          </Link>
           <button
             onClick={exportCsv}
             disabled={activeList.length === 0}
@@ -263,6 +271,7 @@ function PortfolioPage() {
           >
             {t("exportCsv")}
           </button>
+          </>
         }
       />
 

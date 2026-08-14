@@ -14,6 +14,7 @@ import { listPendingSubmissions, reviewSubmission } from "@/lib/submissions/subm
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { SubmissionDocuments } from "@/components/submission-documents";
 import { toast } from "sonner";
 
 const SearchSchema = z.object({
@@ -147,7 +148,8 @@ function AdminSubmissions() {
             <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
           </div>
           {paged.map((s) => (
-            <div key={s.id} className="grid grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
+            <div key={s.id} className="border-b border-border/40 last:border-b-0">
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-3 px-4 py-3">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? s.name_ar : s.name_en}</div>
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">
@@ -174,6 +176,10 @@ function AdminSubmissions() {
                   </>
                 )}
               </div>
+            </div>
+            <div className="px-4 pb-3">
+              <SubmissionDocuments submissionId={s.id} />
+            </div>
             </div>
           ))}
           <Pager page={page} pageCount={pageCount} onPage={(p) => patch({ page: p })} labels={{ page: t("page"), of: t("of"), prev: t("prev"), next: t("next") }} />

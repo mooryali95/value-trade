@@ -13,6 +13,9 @@ import { useActiveCompany } from "@/hooks/use-active-company";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
+import { SubmissionDocuments } from "@/components/submission-documents";
+import { useMyRoles } from "@/hooks/use-my-roles";
+import { useState } from "react";
 
 const SearchSchema = z.object({
   companyId: z.string().uuid().optional(),
@@ -46,6 +49,10 @@ function CompanySubmissions() {
   const search = Route.useSearch();
   const { activeId } = useActiveCompany();
   const companyId = search.companyId ?? activeId ?? undefined;
+  const { companyRole } = useMyRoles();
+  const role = companyId ? companyRole(companyId) : undefined;
+  const canManageDocs = role === "owner" || role === "finance";
+  const [openDocs, setOpenDocs] = useState<string | null>(null);
   const navigate = useNavigate({ from: Route.fullPath });
   const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
   const listFn = useServerFn(listCompanySubmissions);
@@ -125,7 +132,8 @@ function CompanySubmissions() {
             <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
           </div>
           {paged.map((s) => (
-            <div key={s.id} className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
+            <div key={s.id} className="border-b border-border/40 last:border-b-0">
+            <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] items-center gap-3 px-4 py-3 text-xs">
               <div className="min-w-0">
                 <div className="truncate font-semibold text-ink">{lang === "ar" ? s.name_ar : s.name_en}</div>
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{s.symbol}</div>
@@ -133,7 +141,22 @@ function CompanySubmissions() {
               <div className="font-mono">{s.asset_class}</div>
               <div className="text-muted-foreground">{s.sector ?? "—"}</div>
               <div className="text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
-              <div><StatusBadge status={s.status} /></div>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={s.status} />
+                <button
+                  onClick={() => setOpenDocs((cur) => (cur === s.id ? null : s.id))}
+                  aria-expanded={openDocs === s.id}
+                  className="rounded border border-border px-2 py-1 text-[10px] font-semibold text-ink-soft hover:border-[var(--gold-deep)]"
+                >
+                  {t("documents")}
+                </button>
+              </div>
+            </div>
+            {openDocs === s.id && (
+              <div className="px-4 pb-3">
+                <SubmissionDocuments submissionId={s.id} canUpload={canManageDocs} canDelete={role === "owner"} />
+              </div>
+            )}
             </div>
           ))}
           <Pager page={page} pageCount={pageCount} onPage={(p) => patch({ page: p })} labels={{ page: t("page"), of: t("of"), prev: t("prev"), next: t("next") }} />
