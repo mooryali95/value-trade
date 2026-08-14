@@ -18,7 +18,7 @@ const SearchSchema = z.object({
 });
 type SearchState = z.infer<typeof SearchSchema>;
 
-export const Route = createFileRoute("/_authenticated/portfolio/realized")({
+export const Route = createFileRoute("/_authenticated/portfolio_/realized")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
