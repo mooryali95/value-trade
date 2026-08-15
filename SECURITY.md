@@ -30,6 +30,38 @@ Do **not** file public GitHub issues for security reports.
 - **HIBP** leaked-password protection enabled on auth.
 - **HTTPS** enforced by hosting; strict cookies for the Supabase session.
 
+## Data Retention & Backups
+
+| Data | Retention | Notes |
+| --- | --- | --- |
+| `audit_log` | 24 months | Append-only (no UPDATE/DELETE policies); owner-only read; CSV export from `/company/audit`. |
+| `shariah_decision_audit` | Indefinite | Regulatory trail for Shariah rulings; append-only via trigger. |
+| `cash_ledger`, `orders`, `positions` | Indefinite | Financial records; ledger is the single source of truth for balances. |
+| `email_send_log` | 90 days | Operational only; older rows may be pruned. |
+| `rate_limits` | 1 hour | Auto-pruned by `public.check_rate_limit`. |
+| `email_unsubscribe_tokens` | 12 months | Single-use tokens, marked `used_at`. |
+| Storage `submission-docs` | Lifetime of the submission + 24 months | Private bucket; access via short-lived signed URLs (120 s). |
+
+**Backups** — the managed Postgres instance takes automated daily backups with
+point-in-time recovery on the platform tier. Restore drills are performed
+quarterly against a scratch project; results recorded in the internal runbook.
+Never restore a production snapshot over a live database without rotating API
+keys afterwards.
+
+**Deletion requests** — a user deletion removes `auth.users`, cascading to
+profiles, alerts, watchers and preferences. Financial and audit records are
+retained in de-identified form (actor UUID only) to satisfy record-keeping
+obligations.
+
+## Scheduled Jobs
+
+| Job | Endpoint | Cadence | Auth |
+| --- | --- | --- | --- |
+| Price alert scan | `POST /api/public/cron-alerts` | every minute | HMAC-SHA256 (`CRON_ALERTS_SECRET`) over the raw body in `x-signature` |
+| Email queue drain | `POST /lovable/email/queue/process` | every 5 s while queued | service-role bearer, self-disarming |
+
+See `docs/api-public.md` for the exact scheduling SQL and response contracts.
+
 ## Incident Response
 
 1. Triage severity (Critical / High / Medium / Low).
