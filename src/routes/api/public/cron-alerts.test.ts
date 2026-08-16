@@ -67,13 +67,13 @@ describe("POST /api/public/cron-alerts", () => {
     expect(res.status).toBe(401);
   });
 
-  it("rejects with 401 when no HMAC secret and no service bearer are present", async () => {
+  it("returns 503 when neither an HMAC secret nor a service key is configured", async () => {
     delete process.env.CRON_ALERTS_SECRET;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     const handler = await getHandler();
     const res = await handler({ request: new Request("http://x", { method: "POST", body: "{}" }) });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(503);
     process.env.CRON_ALERTS_SECRET = secret;
     if (serviceKey) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
   });
