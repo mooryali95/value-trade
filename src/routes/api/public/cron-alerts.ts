@@ -3,31 +3,45 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { BRANDS } from "@/lib/mock-data";
 import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
 
+/** Constant-time string compare that tolerates differing lengths. */
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 // Public endpoint intended to be called by pg_cron or an external scheduler.
-// Verifies an HMAC signature over the request body, then scans active
-// price_alerts against the latest mock quote and marks any that fire.
+// Accepts either an HMAC signature over the raw body (CRON_ALERTS_SECRET) or a
+// service-role bearer token (used by the in-database pg_cron schedule), then
+// scans active price_alerts against the latest quote and marks any that fire.
 export const Route = createFileRoute("/api/public/cron-alerts")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const startedAt = Date.now();
         const secret = process.env.CRON_ALERTS_SECRET;
-        if (!secret) return new Response("Not configured", { status: 503 });
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!secret && !serviceKey) return new Response("Not configured", { status: 503 });
 
         // 30 requests / minute per source IP. pg_cron hits this at most once/min.
         const ok = await checkRateLimit(clientKeyFromRequest(request, "cron-alerts"), 30, 60);
         if (!ok) return new Response("Rate limit exceeded", { status: 429 });
 
         const signature = request.headers.get("x-signature") ?? "";
+        const bearer = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
         const body = await request.text();
-        const expected = createHmac("sha256", secret).update(body).digest("hex");
-        const sig = Buffer.from(signature);
-        const exp = Buffer.from(expected);
-        if (sig.length !== exp.length || !timingSafeEqual(sig, exp)) {
+        const hmacOk =
+          !!secret &&
+          signature.length > 0 &&
+          safeEqual(signature, createHmac("sha256", secret).update(body).digest("hex"));
+        const bearerOk = !!serviceKey && bearer.length > 0 && safeEqual(bearer, serviceKey);
+        if (!hmacOk && !bearerOk) {
           return new Response("Invalid signature", { status: 401 });
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { notifySymbolEvent } = await import("@/lib/notifications/notify.server");
+        const { logOpsRun } = await import("@/lib/ops/run-log.server");
         const { data: alerts } = await supabaseAdmin
           .from("price_alerts")
           .select("id, user_id, symbol, direction, target_price")
@@ -70,7 +84,16 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
           }
         }
 
-        return new Response(JSON.stringify({ scanned: alerts?.length ?? 0, triggered, emailed }), {
+        const scanned = alerts?.length ?? 0;
+        await logOpsRun({
+          job: "cron-alerts",
+          status: "ok",
+          detail: `scanned ${scanned} · triggered ${triggered} · emailed ${emailed}`,
+          metrics: { scanned, triggered, emailed, auth: bearerOk ? "bearer" : "hmac" },
+          durationMs: Date.now() - startedAt,
+        });
+
+        return new Response(JSON.stringify({ scanned, triggered, emailed }), {
           status: 200,
           headers: { "content-type": "application/json" },
         });

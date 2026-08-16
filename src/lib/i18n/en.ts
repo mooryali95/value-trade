@@ -500,5 +500,21 @@ export const en: Record<Key, string> = {
   healthFail: "Failing",
   never: "Never",
   nav_health: "Health",
+  nav_ops: "Ops & Smoke",
+  opsSmoke: "Post-deploy smoke & cron",
+  opsSmokeDesc:
+    "Run the critical-path smoke suite (login, order engine, Shariah block, email send, cron endpoint) and verify the scheduled price-alert scan.",
+  runSmoke: "Run smoke suite",
+  running: "Running…",
+  sendRealEmail: "Send a real test email to my inbox",
+  lastCronRun: "Last cron run",
+  lastSmokeRun: "Last smoke run",
+  smokePassed: "Passed",
+  smokeFailed: "Failed",
+  smokeWarned: "Warnings",
+  recentRuns: "Recent runs",
+  job: "Job",
+  result: "Result",
+  when: "When",
 };
 export default en;

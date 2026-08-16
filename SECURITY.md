@@ -60,6 +60,42 @@ obligations.
 | Price alert scan | `POST /api/public/cron-alerts` | every minute | HMAC-SHA256 (`CRON_ALERTS_SECRET`) over the raw body in `x-signature` |
 | Email queue drain | `POST /lovable/email/queue/process` | every 5 s while queued | service-role bearer, self-disarming |
 
+The price-alert scan is scheduled in production as `pg_cron` job
+`scan-price-alerts` (`* * * * *`). It authenticates with a service-role bearer
+read from the vault; external callers must instead sign the raw body with
+`CRON_ALERTS_SECRET`. Every run appends a row to `public.ops_run_log`
+(platform-admin read only), surfaced at `/admin/ops` with the last run time,
+result and metrics.
+
+## Post-deploy smoke suite
+
+`/admin/ops` runs a platform-admin-only smoke suite (`runSmokeSuite`) that
+covers: session + profile resolution, RBAC via `has_role`, a database
+write/delete round-trip, the `post_cash_movement` ledger guard rejecting an
+invalid movement, the Shariah buy-block (`non_halal` blocks buy, sell stays
+allowed), a real branded email send to the operator's own inbox, and the
+authenticated cron endpoint. The report is written to `ops_run_log` under job
+`smoke`. The target origin is validated against an allow-list
+(`*.lovable.app`, `*.sunkvalue.com`, localhost) to prevent SSRF.
+
+## Sender domain (SPF / DKIM / DMARC)
+
+Transactional and auth mail is sent from `noreply@notify.hub.sunkvalue.com`.
+The subdomain is delegated to the platform nameservers (`ns5`/`ns6.lovable.cloud`),
+which publish and rotate the records automatically:
+
+| Record | Host | Purpose |
+| --- | --- | --- |
+| `TXT` (SPF) | `notify.hub.sunkvalue.com` | `v=spf1 include:…  ~all` — authorises the sending IPs |
+| `TXT` (DKIM) | `<selector>._domainkey.notify…` | 2048-bit key signing every outbound message |
+| `TXT` (DMARC) | `_dmarc.notify.hub.sunkvalue.com` | alignment policy + aggregate reports |
+| `MX` | `notify.hub.sunkvalue.com` | bounce/complaint handling into the suppression list |
+
+Domain status is verified; delivery is validated end to end by the
+`email_pipeline` check in the smoke suite (a real send to the operator's inbox)
+and by `email_send_log` at `/admin/email-log`. Never send from the apex domain
+`sunkvalue.com` — reputation is isolated on the `notify.` subdomain.
+
 See `docs/api-public.md` for the exact scheduling SQL and response contracts.
 
 ## Incident Response

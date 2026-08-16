@@ -163,6 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       ? [
           { to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple },
           { to: "/admin/health", label: t("nav_health"), icon: ShieldCheck },
+          { to: "/admin/ops", label: t("nav_ops"), icon: ShieldCheck },
         ]
       : []),
   ];

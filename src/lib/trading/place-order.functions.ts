@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getBrand } from "@/lib/mock-data";
-import { applyFill } from "./calc";
+import { applyFill, isBuyBlockedByShariah } from "./calc";
 
 const InputSchema = z.object({
   symbolSlug: z.string().min(1).max(64),
@@ -64,7 +64,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         .select("status")
         .eq("symbol", brand.symbol)
         .maybeSingle();
-      if (ruling?.status === "non_halal") throw new Error("SHARIAH_BLOCKED");
+      if (isBuyBlockedByShariah(ruling?.status, data.side)) throw new Error("SHARIAH_BLOCKED");
     }
 
     // Ensure portfolio exists (idempotent).

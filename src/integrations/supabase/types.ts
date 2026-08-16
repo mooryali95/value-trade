@@ -424,6 +424,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_run_log: {
+        Row: {
+          created_at: string
+          detail: string | null
+          duration_ms: number | null
+          id: string
+          job: string
+          metrics: Json
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          duration_ms?: number | null
+          id?: string
+          job: string
+          metrics?: Json
+          status: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          duration_ms?: number | null
+          id?: string
+          job?: string
+          metrics?: Json
+          status?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           asset_class: string

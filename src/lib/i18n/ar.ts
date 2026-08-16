@@ -493,6 +493,22 @@ export const ar = {
   healthFail: "متعطل",
   never: "لا يوجد",
   nav_health: "الصحة",
+  nav_ops: "الدخان والجدولة",
+  opsSmoke: "دخان ما بعد النشر والجدولة",
+  opsSmokeDesc:
+    "تشغيل اختبار الدخان للمسارات الحرجة (الدخول، محرك الأوامر، حظر الشريعة، إرسال البريد، مسار الـ Cron) والتحقق من آخر فحص للتنبيهات السعرية.",
+  runSmoke: "تشغيل اختبار الدخان",
+  running: "جارٍ التشغيل…",
+  sendRealEmail: "إرسال بريد اختبار فعلي إلى بريدي",
+  lastCronRun: "آخر تشغيل للـ Cron",
+  lastSmokeRun: "آخر تشغيل للدخان",
+  smokePassed: "ناجح",
+  smokeFailed: "فاشل",
+  smokeWarned: "تحذيرات",
+  recentRuns: "أحدث التشغيلات",
+  job: "المهمة",
+  result: "النتيجة",
+  when: "الوقت",
 } as const;
 
 export type Key = keyof typeof ar;
