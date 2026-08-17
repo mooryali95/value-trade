@@ -194,5 +194,9 @@ export async function runSmoke(input: {
     durationMs: report.durationMs,
   });
 
+  // Escalate repeated failures to platform admins by email.
+  const { maybeAlertAdmins } = await import("./ops-alert.server");
+  await maybeAlertAdmins("smoke");
+
   return report;
 }

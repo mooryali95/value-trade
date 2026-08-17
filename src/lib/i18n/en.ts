@@ -516,5 +516,14 @@ export const en: Record<Key, string> = {
   job: "Job",
   result: "Result",
   when: "When",
+  opsKpis: "Operations KPIs",
+  avgLatency: "Average latency",
+  successRate: "Success rate",
+  alertsAffected: "Alerts affected",
+  runsCount: "Runs in range",
+  last7Days: "Last 7 days",
+  fromDate: "From",
+  toDate: "To",
+  exportJson: "Export JSON",
 };
 export default en;

@@ -92,6 +92,8 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
           metrics: { scanned, triggered, emailed, auth: bearerOk ? "bearer" : "hmac" },
           durationMs: Date.now() - startedAt,
         });
+        const { maybeAlertAdmins } = await import("@/lib/ops/ops-alert.server");
+        await maybeAlertAdmins("cron-alerts");
 
         return new Response(JSON.stringify({ scanned, triggered, emailed }), {
           status: 200,

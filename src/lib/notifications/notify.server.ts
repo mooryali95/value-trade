@@ -4,7 +4,7 @@
 //   - position holders (positions)
 // Honors notification_preferences per user.
 
-import { enqueueTransactionalEmail } from "@/lib/email/enqueue.server";
+import { sendTransactionalWithRetry } from "@/lib/email/retry.server";
 
 type PrefKey = "price_alerts_email" | "shariah_decisions_email" | "position_updates_email";
 
@@ -68,13 +68,17 @@ export async function notifySymbolEvent(input: {
       const { data: u } = await supabaseAdmin.auth.admin.getUserById(uid);
       const email = u?.user?.email;
       if (!email) continue;
-      const r = await enqueueTransactionalEmail({
-        templateName: input.templateName,
-        recipientEmail: email,
-        idempotencyKey: `${input.idempotencyPrefix}:${uid}`,
-        label: input.label ?? input.templateName,
-        templateData: input.templateData,
-      });
+      // Retry with exponential backoff; the give-up reason lands in ops_run_log.
+      const r = await sendTransactionalWithRetry(
+        {
+          templateName: input.templateName,
+          recipientEmail: email,
+          idempotencyKey: `${input.idempotencyPrefix}:${uid}`,
+          label: input.label ?? input.templateName,
+          templateData: input.templateData,
+        },
+        { job: `email-retry:${input.label ?? input.templateName}`, attempts: 3 },
+      );
       if (r.sent) notified += 1;
     } catch (err) {
       console.error("[notify] enqueue failed", { uid, err });
