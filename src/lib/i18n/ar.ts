@@ -509,6 +509,15 @@ export const ar = {
   job: "المهمة",
   result: "النتيجة",
   when: "الوقت",
+  opsKpis: "مؤشرات التشغيل",
+  avgLatency: "متوسط زمن الاستجابة",
+  successRate: "معدل النجاح",
+  alertsAffected: "التنبيهات المتأثرة",
+  runsCount: "التشغيلات في المدى",
+  last7Days: "آخر 7 أيام",
+  fromDate: "من",
+  toDate: "إلى",
+  exportJson: "تصدير JSON",
 } as const;
 
 export type Key = keyof typeof ar;
