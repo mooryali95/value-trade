@@ -21,10 +21,12 @@ import { template as invitationTemplate } from './invitation'
 import { template as priceAlertTemplate } from './price-alert'
 import { template as shariahDecisionTemplate } from './shariah-decision'
 import { template as positionUpdateTemplate } from './position-update'
+import { template as opsAlertTemplate } from './ops-alert'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   invitation: invitationTemplate,
   'price-alert': priceAlertTemplate,
   'shariah-decision': shariahDecisionTemplate,
   'position-update': positionUpdateTemplate,
+  'ops-alert': opsAlertTemplate,
 }
