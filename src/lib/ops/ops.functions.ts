@@ -67,3 +67,91 @@ export const getOpsRuns = createServerFn({ method: "GET" })
       activeAlerts: activeAlerts ?? 0,
     };
   });
+
+const RunsQuery = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+  job: z.string().optional(),
+  status: z.enum(["all", "ok", "warn", "fail"]).default("all"),
+  limit: z.number().int().min(1).max(2000).default(500),
+});
+
+/** Filtered ops_run_log rows plus KPIs and a 7-day daily series. */
+export const listOpsRuns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => RunsQuery.parse(input ?? {}))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let q = supabaseAdmin
+      .from("ops_run_log")
+      .select("id, job, status, detail, metrics, duration_ms, created_at")
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (data.from) q = q.gte("created_at", new Date(data.from).toISOString());
+    if (data.to) q = q.lte("created_at", new Date(data.to).toISOString());
+    if (data.job) q = q.eq("job", data.job);
+    if (data.status !== "all") q = q.eq("status", data.status);
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    const items = rows ?? [];
+
+    const durations = items
+      .map((r) => r.duration_ms ?? 0)
+      .filter((n) => n > 0)
+      .sort((a, b) => a - b);
+    const p = (frac: number) =>
+      durations.length === 0 ? 0 : durations[Math.min(durations.length - 1, Math.floor(durations.length * frac))]!;
+    const ok = items.filter((r) => r.status === "ok").length;
+    const warn = items.filter((r) => r.status === "warn").length;
+    const fail = items.filter((r) => r.status === "fail").length;
+
+    const num = (m: unknown, key: string) => {
+      const v = (m as Record<string, unknown> | null)?.[key];
+      return typeof v === "number" ? v : 0;
+    };
+    const alertsAffected = items.reduce(
+      (sum, r) => sum + num(r.metrics, "triggered") + num(r.metrics, "emailed"),
+      0,
+    );
+
+    // 7-day daily buckets (UTC), oldest first.
+    const days: { day: string; total: number; ok: number; fail: number; avgMs: number }[] = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const d = new Date(Date.now() - i * 86_400_000);
+      const day = d.toISOString().slice(0, 10);
+      const dayRows = items.filter((r) => (r.created_at ?? "").slice(0, 10) === day);
+      const dayDur = dayRows.map((r) => r.duration_ms ?? 0).filter((n) => n > 0);
+      days.push({
+        day,
+        total: dayRows.length,
+        ok: dayRows.filter((r) => r.status === "ok").length,
+        fail: dayRows.filter((r) => r.status === "fail").length,
+        avgMs: dayDur.length ? Math.round(dayDur.reduce((a, b) => a + b, 0) / dayDur.length) : 0,
+      });
+    }
+
+    const jobsRes = await supabaseAdmin.from("ops_run_log").select("job").limit(2000);
+    const jobs = Array.from(new Set((jobsRes.data ?? []).map((r) => r.job as string))).sort();
+
+    return {
+      items,
+      jobs,
+      kpis: {
+        total: items.length,
+        ok,
+        warn,
+        fail,
+        successRate: items.length ? Math.round((ok / items.length) * 100) : 0,
+        avgMs: durations.length
+          ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+          : 0,
+        p95Ms: p(0.95),
+        maxMs: durations.length ? durations[durations.length - 1]! : 0,
+        alertsAffected,
+      },
+      days,
+    };
+  });
