@@ -53,6 +53,7 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as AuthenticatedAdminOpsIdRouteImport } from './routes/_authenticated/admin.ops_.$id'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -289,6 +290,11 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminOpsIdRoute = AuthenticatedAdminOpsIdRouteImport.update({
+  id: '/admin/ops_/$id',
+  path: '/admin/ops/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/admin/ops/$id': typeof AuthenticatedAdminOpsIdRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -374,6 +381,7 @@ export interface FileRoutesByTo {
   '/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/admin/ops/$id': typeof AuthenticatedAdminOpsIdRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -421,6 +429,7 @@ export interface FileRoutesById {
   '/_authenticated/shariah/review': typeof AuthenticatedShariahReviewRoute
   '/api/public/cron-alerts': typeof ApiPublicCronAlertsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
+  '/_authenticated/admin/ops_/$id': typeof AuthenticatedAdminOpsIdRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
+    | '/admin/ops/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
+    | '/admin/ops/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -559,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shariah/review'
     | '/api/public/cron-alerts'
     | '/lovable/email/suppression'
+    | '/_authenticated/admin/ops_/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -906,6 +918,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/ops_/$id': {
+      id: '/_authenticated/admin/ops_/$id'
+      path: '/admin/ops/$id'
+      fullPath: '/admin/ops/$id'
+      preLoaderRoute: typeof AuthenticatedAdminOpsIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -926,6 +945,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPortfolioRealizedRoute: typeof AuthenticatedPortfolioRealizedRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedShariahReviewRoute: typeof AuthenticatedShariahReviewRoute
+  AuthenticatedAdminOpsIdRoute: typeof AuthenticatedAdminOpsIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -946,6 +966,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsNotificationsRoute:
     AuthenticatedSettingsNotificationsRoute,
   AuthenticatedShariahReviewRoute: AuthenticatedShariahReviewRoute,
+  AuthenticatedAdminOpsIdRoute: AuthenticatedAdminOpsIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
