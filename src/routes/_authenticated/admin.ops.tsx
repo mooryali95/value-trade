@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,7 +9,13 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
 import { useMyRoles } from "@/hooks/use-my-roles";
-import { getOpsRuns, listOpsRuns, runSmokeSuite } from "@/lib/ops/ops.functions";
+import {
+  getOpsRuns,
+  getOpsThresholds,
+  listOpsRuns,
+  runSmokeSuite,
+  updateOpsThresholds,
+} from "@/lib/ops/ops.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/ops")({
   head: () => ({
@@ -51,7 +57,10 @@ function OpsPage() {
   const [to, setTo] = useState("");
   const [job, setJob] = useState("");
   const [status, setStatus] = useState<"all" | "ok" | "warn" | "fail">("all");
+  const [form, setForm] = useState<Record<string, number> | null>(null);
   const runsFn = useServerFn(getOpsRuns);
+  const thresholdsFn = useServerFn(getOpsThresholds);
+  const saveThresholdsFn = useServerFn(updateOpsThresholds);
   const smokeFn = useServerFn(runSmokeSuite);
   const listFn = useServerFn(listOpsRuns);
 
@@ -84,6 +93,33 @@ function OpsPage() {
         },
       }),
     enabled: isAdmin,
+  });
+
+  const thresholds = useQuery({
+    queryKey: ["ops-thresholds"],
+    queryFn: () => thresholdsFn(),
+    enabled: isAdmin,
+  });
+
+  const current =
+    form ??
+    (thresholds.data
+      ? {
+          smokeFailThreshold: thresholds.data.smokeFailThreshold,
+          cronLatencyBudgetMs: thresholds.data.cronLatencyBudgetMs,
+          alertMaxPerWindow: thresholds.data.alertMaxPerWindow,
+          alertWindowMinutes: thresholds.data.alertWindowMinutes,
+          emailRetryAttempts: thresholds.data.emailRetryAttempts,
+        }
+      : null);
+
+  const saveThresholds = useMutation({
+    mutationFn: (values: Record<string, number>) =>
+      saveThresholdsFn({ data: values as never }),
+    onSuccess: () => {
+      setForm(null);
+      void thresholds.refetch();
+    },
   });
 
   const download = (name: string, mime: string, body: string) => {
@@ -359,17 +395,74 @@ function OpsPage() {
                 <span className="truncate font-mono text-ink">{r.job}</span>
                 <span className="truncate text-ink-soft">{r.detail ?? "—"}</span>
                 <span className="whitespace-nowrap text-ink-soft">{fmt(r.created_at)}</span>
-                <span className={`justify-self-end rounded border px-2 py-0.5 text-[10px] font-semibold ${tone(r.status)}`}>
-                  {r.status}
-                </span>
+                <Link
+                  to="/admin/ops_/$id"
+                  params={{ id: r.id }}
+                  aria-label={`${t("viewDetails")} ${r.job}`}
+                  className={`justify-self-end rounded border px-2 py-0.5 text-[10px] font-semibold hover:opacity-80 ${tone(r.status)}`}
+                >
+                  {r.status} ›
+                </Link>
               </div>
             ))}
           </div>
         </section>
       )}
+      <section className="mt-8">
+        <h2 className="mb-1 text-label text-ink-soft">{t("opsThresholds")}</h2>
+        <p className="mb-3 text-caption text-ink-soft">{t("opsThresholdsDesc")}</p>
+        {!current ? (
+          <LuxurySkeleton lines={3} />
+        ) : (
+          <div className="rounded-xl border border-border/60 bg-card p-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              {(
+                [
+                  ["smokeFailThreshold", t("smokeFailThreshold"), 1, 20],
+                  ["cronLatencyBudgetMs", t("cronLatencyBudget"), 500, 600000],
+                  ["alertMaxPerWindow", t("alertMaxPerWindow"), 1, 50],
+                  ["alertWindowMinutes", t("alertWindowMinutes"), 1, 1440],
+                  ["emailRetryAttempts", t("emailRetryAttempts"), 1, 6],
+                ] as const
+              ).map(([key, label, min, max]) => (
+                <label key={key} className="block text-caption text-ink-soft">
+                  {label}
+                  <input
+                    type="number"
+                    min={min}
+                    max={max}
+                    value={current[key]}
+                    onChange={(e) =>
+                      setForm({ ...current, [key]: Number(e.target.value) })
+                    }
+                    className="mt-1 block min-h-11 w-full rounded-md border border-border bg-background px-3 font-mono text-sm text-ink"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => saveThresholds.mutate(current)}
+                disabled={saveThresholds.isPending}
+                className="min-h-11 rounded-md bg-[var(--gold-deep)] px-4 text-sm font-semibold text-ink-invert disabled:opacity-50"
+              >
+                {saveThresholds.isPending ? t("loading") : t("saveThresholds")}
+              </button>
+              <span className="text-caption text-ink-soft" role="status" aria-live="polite">
+                {saveThresholds.isError
+                  ? (saveThresholds.error as Error).message
+                  : saveThresholds.isSuccess
+                    ? t("thresholdsSaved")
+                    : ""}
+              </span>
+            </div>
+          </div>
+        )}
+      </section>
     </AppShell>
   );
 }
+
 
 function Card({
   label,
