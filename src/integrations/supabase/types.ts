@@ -454,6 +454,42 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_settings: {
+        Row: {
+          alert_max_per_window: number
+          alert_window_minutes: number
+          created_at: string
+          cron_latency_budget_ms: number
+          email_retry_attempts: number
+          id: number
+          smoke_fail_threshold: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alert_max_per_window?: number
+          alert_window_minutes?: number
+          created_at?: string
+          cron_latency_budget_ms?: number
+          email_retry_attempts?: number
+          id?: number
+          smoke_fail_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alert_max_per_window?: number
+          alert_window_minutes?: number
+          created_at?: string
+          cron_latency_budget_ms?: number
+          email_retry_attempts?: number
+          id?: number
+          smoke_fail_threshold?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           asset_class: string

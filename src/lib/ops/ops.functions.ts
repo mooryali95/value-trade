@@ -155,3 +155,70 @@ export const listOpsRuns = createServerFn({ method: "GET" })
       days,
     };
   });
+/** Full detail for a single ops_run_log row, plus its nearest siblings. */
+export const getOpsRunDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: run, error } = await supabaseAdmin
+      .from("ops_run_log")
+      .select("id, job, status, detail, metrics, duration_ms, created_at")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!run) throw new Error("RUN_NOT_FOUND");
+
+    const { data: siblings } = await supabaseAdmin
+      .from("ops_run_log")
+      .select("id, status, created_at")
+      .eq("job", run.job)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const m = (run.metrics ?? {}) as Record<string, unknown>;
+    const rawChecks = Array.isArray(m['checks']) ? (m['checks'] as Record<string, unknown>[]) : [];
+    const steps = rawChecks.map((c, i) => ({
+      index: i + 1,
+      key: String(c['k'] ?? c['key'] ?? `step-${i + 1}`),
+      status: String(c['s'] ?? c['status'] ?? "ok"),
+      detail: c['detail'] ? String(c['detail']) : null,
+      durationMs: typeof c['durationMs'] === "number" ? (c['durationMs'] as number) : null,
+    }));
+    const metricEntries = Object.entries(m)
+      .filter(([k]) => k !== "checks")
+      .map(([key, value]) => ({
+        key,
+        value: typeof value === "object" && value !== null ? JSON.stringify(value) : String(value),
+      }));
+
+    return { run, steps, metricEntries, siblings: siblings ?? [] };
+  });
+
+/** Current editable operational thresholds. */
+export const getOpsThresholds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context as never);
+    const { getOpsSettings } = await import("./settings.server");
+    return getOpsSettings();
+  });
+
+const ThresholdsSchema = z.object({
+  smokeFailThreshold: z.number().int().min(1).max(20),
+  cronLatencyBudgetMs: z.number().int().min(500).max(600_000),
+  alertMaxPerWindow: z.number().int().min(1).max(50),
+  alertWindowMinutes: z.number().int().min(1).max(1440),
+  emailRetryAttempts: z.number().int().min(1).max(6),
+});
+
+/** Updates thresholds without a deploy; the change is logged in ops_run_log. */
+export const updateOpsThresholds = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ThresholdsSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    const { saveOpsSettings } = await import("./settings.server");
+    return saveOpsSettings(data, context.userId);
+  });

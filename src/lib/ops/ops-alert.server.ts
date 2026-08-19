@@ -2,12 +2,30 @@
 // Triggers when the smoke suite fails repeatedly, or when the alerts cron
 // exceeds a latency budget. Every send is retried with backoff and logged.
 import { sendTransactionalWithRetry } from "@/lib/email/retry.server";
+import { checkRateLimit } from "@/lib/security/rate-limit.server";
 import { logOpsRun } from "./run-log.server";
+import { getOpsSettings } from "./settings.server";
 
-/** Consecutive smoke failures required before admins are emailed. */
+/** Fallback thresholds; live values come from public.ops_settings. */
 export const SMOKE_FAIL_THRESHOLD = 2;
-/** Cron duration budget in ms; above this admins are warned. */
 export const CRON_LATENCY_BUDGET_MS = 15_000;
+
+/**
+ * Cooldown gate: at most `max` admin alerts per `windowMinutes` per job.
+ * When muted, the decision is recorded in ops_run_log instead of emailing.
+ */
+async function alertAllowed(job: string, max: number, windowMinutes: number, reason: string) {
+  const allowed = await checkRateLimit(`ops-alert:${job}`, max, windowMinutes * 60);
+  if (!allowed) {
+    await logOpsRun({
+      job: "ops-alert",
+      status: "warn",
+      detail: `muted: ${job} alert suppressed by cooldown (${max} per ${windowMinutes}m)`,
+      metrics: { trigger: "cooldown_muted", job, max, windowMinutes, reason },
+    });
+  }
+  return allowed;
+}
 
 const APP_ORIGIN = "https://hub.sunkvalue.com";
 
@@ -38,6 +56,7 @@ async function notifyAdmins(input: {
   metricLabel: string;
   metricValue: string;
   idempotencyKey: string;
+  attempts: number;
 }): Promise<number> {
   const recipients = await adminEmails();
   let sent = 0;
@@ -58,7 +77,7 @@ async function notifyAdmins(input: {
           viewUrl: `${APP_ORIGIN}/admin/ops`,
         },
       },
-      { job: "ops-alert-email", attempts: 4 },
+      { job: "ops-alert-email", attempts: input.attempts },
     );
     if (r.sent) sent += 1;
   }
@@ -71,13 +90,14 @@ async function notifyAdmins(input: {
  */
 export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<void> {
   try {
+    const settings = await getOpsSettings();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: runs } = await supabaseAdmin
       .from("ops_run_log")
       .select("id, job, status, detail, duration_ms, created_at")
       .eq("job", job)
       .order("created_at", { ascending: false })
-      .limit(SMOKE_FAIL_THRESHOLD);
+      .limit(Math.max(settings.smokeFailThreshold, 1));
 
     const list = runs ?? [];
     if (list.length === 0) return;
@@ -85,7 +105,9 @@ export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<vo
 
     if (job === "smoke") {
       const consecutive = list.filter((r) => r.status === "fail").length;
-      if (list.length < SMOKE_FAIL_THRESHOLD || consecutive < SMOKE_FAIL_THRESHOLD) return;
+      if (list.length < settings.smokeFailThreshold || consecutive < settings.smokeFailThreshold) return;
+      if (!(await alertAllowed("smoke", settings.alertMaxPerWindow, settings.alertWindowMinutes, "smoke_repeat_fail")))
+        return;
       const sent = await notifyAdmins({
         job,
         severity: "fail",
@@ -94,6 +116,7 @@ export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<vo
         metricLabel: "فشل متتالٍ",
         metricValue: String(consecutive),
         idempotencyKey: `ops-alert:smoke:${newest.id}`,
+        attempts: settings.emailRetryAttempts,
       });
       await logOpsRun({
         job: "ops-alert",
@@ -105,7 +128,9 @@ export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<vo
     }
 
     const duration = newest.duration_ms ?? 0;
-    if (newest.status !== "fail" && duration <= CRON_LATENCY_BUDGET_MS) return;
+    if (newest.status !== "fail" && duration <= settings.cronLatencyBudgetMs) return;
+    if (!(await alertAllowed("cron-alerts", settings.alertMaxPerWindow, settings.alertWindowMinutes, "cron_latency")))
+      return;
     const sent = await notifyAdmins({
       job,
       severity: newest.status === "fail" ? "fail" : "warn",
@@ -115,8 +140,9 @@ export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<vo
           : "تجاوز زمن استجابة الـ Cron الحد المسموح",
       detail: newest.detail ?? "—",
       metricLabel: "زمن التنفيذ",
-      metricValue: `${duration} ms (budget ${CRON_LATENCY_BUDGET_MS} ms)`,
+      metricValue: `${duration} ms (budget ${settings.cronLatencyBudgetMs} ms)`,
       idempotencyKey: `ops-alert:cron:${newest.id}`,
+      attempts: settings.emailRetryAttempts,
     });
     await logOpsRun({
       job: "ops-alert",
