@@ -146,7 +146,7 @@ function OpsRunDetailPage() {
               {data.siblings.map((s) => (
                 <Link
                   key={s.id}
-                  to="/admin/ops_/$id"
+                  to="/admin/ops/$id"
                   params={{ id: s.id }}
                   className={`rounded border px-2 py-1 text-[11px] font-semibold ${tone(s.status)} ${
                     s.id === data.run.id ? "ring-1 ring-[var(--gold-deep)]" : ""

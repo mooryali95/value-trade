@@ -396,7 +396,7 @@ function OpsPage() {
                 <span className="truncate text-ink-soft">{r.detail ?? "—"}</span>
                 <span className="whitespace-nowrap text-ink-soft">{fmt(r.created_at)}</span>
                 <Link
-                  to="/admin/ops_/$id"
+                  to="/admin/ops/$id"
                   params={{ id: r.id }}
                   aria-label={`${t("viewDetails")} ${r.job}`}
                   className={`justify-self-end rounded border px-2 py-0.5 text-[10px] font-semibold hover:opacity-80 ${tone(r.status)}`}
