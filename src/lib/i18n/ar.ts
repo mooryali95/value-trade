@@ -518,6 +518,22 @@ export const ar = {
   fromDate: "من",
   toDate: "إلى",
   exportJson: "تصدير JSON",
+  runDetail: "تفاصيل التشغيل",
+  runDetailDesc: "سبب الفشل الكامل ومسار التنفيذ خطوة بخطوة ومقاييس هذا التشغيل.",
+  executionPath: "مسار التنفيذ",
+  noSteps: "لا خطوات مسجّلة لهذا التشغيل.",
+  runMetrics: "مقاييس التشغيل",
+  nearbyRuns: "تشغيلات قريبة لنفس المهمة",
+  viewDetails: "التفاصيل",
+  opsThresholds: "عتبات التنبيه",
+  opsThresholdsDesc: "قابلة للتعديل بدون تغيير الكود، وكل تغيير يُسجّل في سجل التنفيذ.",
+  smokeFailThreshold: "مرات فشل الدخان المتتالية",
+  cronLatencyBudget: "حد زمن استجابة الـ Cron (ms)",
+  alertMaxPerWindow: "أقصى عدد تنبيهات في النافذة",
+  alertWindowMinutes: "نافذة التهدئة (دقائق)",
+  emailRetryAttempts: "عدد محاولات إعادة إرسال البريد",
+  saveThresholds: "حفظ العتبات",
+  thresholdsSaved: "تم حفظ العتبات",
 } as const;
 
 export type Key = keyof typeof ar;
