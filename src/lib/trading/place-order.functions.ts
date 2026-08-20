@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { getBrand } from "@/lib/mock-data";
 import { applyFill, isBuyBlockedByShariah } from "./calc";
 
 const InputSchema = z.object({
@@ -21,16 +20,27 @@ export const placeOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const brand = getBrand(data.symbolSlug);
-    if (!brand) throw new Error("SYMBOL_NOT_FOUND");
-
     const { supabase, userId } = context;
+
+    // Role gate first: an unauthorized caller must never reach the database.
+    const { data: isTrader } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "trader",
+    });
+    if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
+
+    // The instrument is resolved from `public.brands` -- the single source of
+    // truth. Unpublished instruments are not tradable.
+    const { getInstrument } = await import("@/lib/instruments/instrument.server");
+    const brand = await getInstrument(supabase, data.symbolSlug);
+    if (!brand) throw new Error("SYMBOL_NOT_FOUND");
+    if (!brand.published) throw new Error("SYMBOL_NOT_TRADABLE");
 
     // Market orders fill at the real last-traded price when one exists --
     // otherwise the reference price (brand.price, 100 by default) stands
     // until the first real trade sets it. Limit orders always use the
     // trader's own specified price, same as before.
-    let referencePrice = brand.price;
+    let referencePrice = brand.referencePrice;
     {
       const { data: lastTrade } = await supabase.rpc("get_symbol_last_trade" as any, {
         _symbol: brand.symbol,
@@ -38,7 +48,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       const row = Array.isArray(lastTrade) ? lastTrade[0] : lastTrade;
       if (row?.last_price != null) referencePrice = Number(row.last_price);
     }
-    const fillPrice = data.type === "market" ? referencePrice : (data.price ?? brand.price);
+    const fillPrice = data.type === "market" ? referencePrice : (data.price ?? brand.referencePrice);
     const notional = fillPrice * data.qty;
 
     // Risk guards run before any state changes: an oversized order or a price
@@ -49,12 +59,6 @@ export const placeOrder = createServerFn({ method: "POST" })
       const high = referencePrice * (1 + PRICE_BAND);
       if (fillPrice < low || fillPrice > high) throw new Error("PRICE_OUT_OF_BAND");
     }
-
-    const { data: isTrader } = await supabase.rpc("has_role", {
-      _user_id: userId,
-      _role: "trader",
-    });
-    if (!isTrader) throw new Error("FORBIDDEN_TRADER_REQUIRED");
 
     // Shariah gate: a symbol ruled non-halal cannot be bought. Selling an
     // existing position stays allowed so holders can exit.
@@ -107,7 +111,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       .insert({
         user_id: userId,
         symbol: brand.symbol,
-        asset_class: brand.assetClass ?? "brand",
+        asset_class: brand.assetClass,
         side: data.side,
         type: data.type,
         qty: data.qty,
@@ -127,7 +131,7 @@ export const placeOrder = createServerFn({ method: "POST" })
         {
           user_id: userId,
           symbol: brand.symbol,
-          asset_class: brand.assetClass ?? "brand",
+          asset_class: brand.assetClass,
           qty: next.qty,
           avg_price: next.avgPrice,
         },
