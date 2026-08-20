@@ -22,6 +22,7 @@ describeIf("order matching engine", () => {
   const password = "TempPassw0rd!Match";
   let buyer = "";
   let seller = "";
+  let buyerCashBaseline = 0;
 
   const match = (args: Record<string, unknown>) => admin.rpc("match_order" as never, args as never);
 
@@ -39,6 +40,10 @@ describeIf("order matching engine", () => {
     await admin.rpc("post_cash_movement" as never, {
       _user_id: buyer, _kind: "deposit", _amount: 1_000_000, _actor_id: buyer,
     } as never);
+    const { data: pf0 } = await admin
+      .from("portfolios").select("cash_balance").eq("user_id", buyer).single();
+    buyerCashBaseline = Number(pf0!.cash_balance);
+
     await admin.from("positions").insert({
       user_id: seller, symbol, asset_class: "brand", qty: 300, avg_price: 50,
     });
@@ -92,7 +97,7 @@ describeIf("order matching engine", () => {
 
     const { data: pf } = await admin
       .from("portfolios").select("cash_balance").eq("user_id", buyer).single();
-    expect(Number(pf!.cash_balance)).toBe(1_000_000 - 5_000);
+    expect(Number(pf!.cash_balance)).toBe(buyerCashBaseline - 5_000);
 
     const { data: last } = await admin
       .rpc("get_symbol_last_trade" as never, { _symbol: symbol } as never);
