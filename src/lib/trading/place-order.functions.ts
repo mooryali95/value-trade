@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { applyFill, isBuyBlockedByShariah } from "./calc";
+import { isBuyBlockedByShariah } from "./calc";
 
 const InputSchema = z.object({
   symbolSlug: z.string().min(1).max(64),
@@ -71,7 +71,8 @@ export const placeOrder = createServerFn({ method: "POST" })
       if (isBuyBlockedByShariah(ruling?.status, data.side)) throw new Error("SHARIAH_BLOCKED");
     }
 
-    // Ensure portfolio exists (idempotent).
+    // Ensure portfolio exists (idempotent), then pre-flight the trader's own
+    // side so an unaffordable or unsellable order never enters the book.
     await supabase
       .from("portfolios")
       .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true });
@@ -85,75 +86,54 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     const { data: existing } = await supabase
       .from("positions")
-      .select("qty, avg_price")
+      .select("qty")
       .eq("user_id", userId)
       .eq("symbol", brand.symbol)
       .maybeSingle();
-
     const currentQty = Number(existing?.qty ?? 0);
-    const currentAvg = Number(existing?.avg_price ?? 0);
 
     if (data.side === "buy" && Number(pf.cash_balance) < notional)
       throw new Error("INSUFFICIENT_CASH");
     if (data.side === "sell" && currentQty < data.qty) throw new Error("INSUFFICIENT_QTY");
 
-    const next = applyFill(
-      { qty: currentQty, avgPrice: currentAvg },
-      data.side,
-      data.qty,
-      fillPrice,
-    );
-    const nextCash = Number(pf.cash_balance) + (data.side === "buy" ? -notional : notional);
-
-    // Insert filled order
-    const { data: order, error: orderErr } = await supabase
-      .from("orders")
-      .insert({
-        user_id: userId,
-        symbol: brand.symbol,
-        asset_class: brand.assetClass,
-        side: data.side,
-        type: data.type,
-        qty: data.qty,
-        price: data.price ?? null,
-        status: "filled",
-        filled_at: new Date().toISOString(),
-        filled_price: fillPrice,
-      })
-      .select("*")
-      .single();
-    if (orderErr) throw new Error(orderErr.message);
-
-    if (next.qty === 0 && existing) {
-      await supabase.from("positions").delete().eq("user_id", userId).eq("symbol", brand.symbol);
-    } else {
-      await supabase.from("positions").upsert(
-        {
-          user_id: userId,
-          symbol: brand.symbol,
-          asset_class: brand.assetClass,
-          qty: next.qty,
-          avg_price: next.avgPrice,
-        },
-        { onConflict: "user_id,symbol" },
-      );
-    }
-
-    // Cash is ledgered, never overwritten: one signed movement per fill and
-    // the balance is derived inside `post_cash_movement`.
+    // The order book is the execution venue: `match_order` inserts the order,
+    // matches it against resting opposite orders by price-then-time priority
+    // (partial fills allowed), records every fill in `trades`, and moves
+    // positions plus ledgered cash for both counterparties atomically.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: balance, error: cashErr } = await supabaseAdmin.rpc(
-      "post_cash_movement" as never,
-      {
-        _user_id: userId,
-        _kind: data.side === "buy" ? "order_buy" : "order_sell",
-        _amount: data.side === "buy" ? -notional : notional,
-        _ref_order_id: order.id,
-        _note: `${data.side} ${data.qty} ${brand.symbol} @ ${fillPrice}`,
-        _actor_id: userId,
-      } as never,
-    );
-    if (cashErr) throw new Error(cashErr.message);
+    const { data: matched, error: matchErr } = await supabaseAdmin.rpc("match_order" as never, {
+      _user_id: userId,
+      _symbol: brand.symbol,
+      _asset_class: brand.assetClass,
+      _side: data.side,
+      _type: data.type,
+      _qty: data.qty,
+      _limit_price: data.type === "limit" ? (data.price ?? null) : null,
+    } as never);
+    if (matchErr) throw new Error(matchErr.message);
 
-    return { order, filledPrice: fillPrice, cashBalance: Number(balance ?? nextCash) };
+    const result = (Array.isArray(matched) ? matched[0] : matched) as
+      | { order_id: string; filled_qty: number; avg_price: number | null; status: string }
+      | null;
+    if (!result) throw new Error("ORDER_NOT_EXECUTED");
+
+    const { data: order } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", result.order_id)
+      .single();
+
+    const { data: refreshed } = await supabase
+      .from("portfolios")
+      .select("cash_balance")
+      .eq("user_id", userId)
+      .single();
+
+    return {
+      order,
+      filledQty: Number(result.filled_qty ?? 0),
+      filledPrice: result.avg_price == null ? null : Number(result.avg_price),
+      status: result.status,
+      cashBalance: Number(refreshed?.cash_balance ?? pf.cash_balance),
+    };
   });
