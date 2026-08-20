@@ -167,6 +167,8 @@ export const ar = {
   cancelOrder: "إلغاء",
   modifyOrder: "تعديل",
   modifyOrderDesc: "حدّث الكمية أو السعر المحدد ثم أرسل لاستبدال الأمر القائم.",
+  openOrders: "الأوامر القائمة",
+  noOpenOrders: "لا توجد أوامر قائمة في الدفتر",
   orderCancelled: "تم إلغاء الأمر",
   undo: "تراجع",
   undone: "تم التراجع",
