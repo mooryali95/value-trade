@@ -13,7 +13,10 @@ export const cancelOrder = createServerFn({ method: "POST" })
       .from("orders").select("id, status, qty, price, user_id").eq("id", data.orderId).single();
     if (readErr || !existing) throw new Error("ORDER_NOT_FOUND");
     if (existing.user_id !== userId) throw new Error("FORBIDDEN");
-    if (existing.status !== "pending") throw new Error("ORDER_NOT_PENDING");
+    // Resting book orders ("open"/"partial") and legacy pending orders can be
+    // cancelled; already filled ones cannot. A partial fill keeps its trades.
+    if (!["open", "partial", "pending", "modified"].includes(existing.status))
+      throw new Error("ORDER_NOT_PENDING");
 
     const { error: updErr } = await supabase.from("orders").update({ status: "cancelled" }).eq("id", data.orderId);
     if (updErr) throw new Error(updErr.message);
@@ -40,7 +43,7 @@ export const restoreOrder = createServerFn({ method: "POST" })
     if (readErr || !existing) throw new Error("ORDER_NOT_FOUND");
     if (existing.user_id !== userId) throw new Error("FORBIDDEN");
     if (existing.status !== "cancelled") throw new Error("ORDER_NOT_CANCELLED");
-    const { error: updErr } = await supabase.from("orders").update({ status: "pending" }).eq("id", data.orderId);
+    const { error: updErr } = await supabase.from("orders").update({ status: "open" }).eq("id", data.orderId);
     if (updErr) throw new Error(updErr.message);
     await supabase.from("orders_audit").insert({
       order_id: data.orderId,
@@ -68,7 +71,8 @@ export const modifyOrder = createServerFn({ method: "POST" })
       .from("orders").select("id, status, qty, price, user_id").eq("id", data.orderId).single();
     if (readErr || !existing) throw new Error("ORDER_NOT_FOUND");
     if (existing.user_id !== userId) throw new Error("FORBIDDEN");
-    if (existing.status !== "pending") throw new Error("ORDER_NOT_PENDING");
+    if (!["open", "partial", "pending", "modified"].includes(existing.status))
+      throw new Error("ORDER_NOT_PENDING");
 
     const { error: updErr } = await supabase
       .from("orders")

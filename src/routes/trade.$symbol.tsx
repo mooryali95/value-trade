@@ -11,9 +11,11 @@ import { ShieldCheck, Search } from "lucide-react";
 import { ErrorState } from "@/components/error-state";
 import { EmptyState } from "@/components/empty-state";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
+import { getBook, getMyOpenOrders } from "@/lib/trading/book.functions";
+import { cancelOrder } from "@/lib/trading/order-mutations.functions";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
 import { PermissionHint } from "@/components/permission-hint";
@@ -68,6 +70,38 @@ function TradePage() {
 
   const qc = useQueryClient();
   const { isTrader, isLoading: rolesLoading } = useMyRoles();
+
+  // Live venue state: the aggregated book and the trader's resting orders come
+  // from the matching engine; mock depth is only a fallback for empty books.
+  const bookFn = useServerFn(getBook);
+  const openOrdersFn = useServerFn(getMyOpenOrders);
+  const cancelOrderFn = useServerFn(cancelOrder);
+  const bookQuery = useQuery({
+    queryKey: ["book", brand.symbol],
+    queryFn: () => bookFn({ data: { symbol: brand.symbol } }),
+    refetchInterval: 10_000,
+  });
+  const openOrdersQuery = useQuery({
+    queryKey: ["open-orders"],
+    queryFn: () => openOrdersFn({ data: undefined as never }),
+    refetchInterval: 15_000,
+  });
+  const myOpenOrders = (openOrdersQuery.data ?? []).filter((o) => o.symbol === brand.symbol);
+  const cancelMutation = useMutation({
+    mutationFn: (orderId: string) => cancelOrderFn({ data: { orderId } }),
+    onSuccess: () => {
+      toast.success(t("orderCancelled"));
+      qc.invalidateQueries({ queryKey: ["open-orders"] });
+      qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
+      qc.invalidateQueries({ queryKey: ["portfolio"] });
+    },
+    onError: () => toast.error(t("orderFailed")),
+  });
+  const liveBids = bookQuery.data?.bids ?? [];
+  const liveAsks = bookQuery.data?.asks ?? [];
+  const bookBids = liveBids.length > 0 || liveAsks.length > 0 ? liveBids : bids;
+  const bookAsks = liveBids.length > 0 || liveAsks.length > 0 ? liveAsks : asks;
+  const lastPrice = bookQuery.data?.lastPrice ?? brand.price;
   const placeOrderFn = useServerFn(placeOrder);
   const createAlertFn = useServerFn(createPriceAlert);
   const orderMutation = useMutation({
@@ -78,6 +112,8 @@ function TradePage() {
     onSuccess: () => {
       toast.success(t("orderPlaced"));
       qc.invalidateQueries({ queryKey: ["portfolio"] });
+      qc.invalidateQueries({ queryKey: ["open-orders"] });
+      qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
     },
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "";
@@ -326,15 +362,15 @@ function TradePage() {
           <div className="rounded-xl border border-border/60 bg-card/60 p-3">
             <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("orderBook")}</h3>
             <div className="space-y-0.5 font-mono text-[11px]">
-              {asks.slice(0, 6).reverse().map((r, i) => (
+              {bookAsks.slice(0, 6).reverse().map((r, i) => (
                 <div key={"a" + i} className="relative grid grid-cols-2 gap-2 rounded px-1 py-0.5">
                   <div className="absolute inset-y-0 end-0 bg-[var(--bear)]/10" style={{ width: `${Math.min(100, r.qty / 10)}%` }} />
                   <div className="relative text-[var(--bear)]">{r.price.toFixed(2)}</div>
                   <div className="relative text-end text-foreground/80">{r.qty}</div>
                 </div>
               ))}
-              <div className="my-1 rounded bg-secondary/40 px-1 py-1 text-center text-sm font-bold text-primary">{brand.price.toFixed(2)}</div>
-              {bids.slice(0, 6).map((r, i) => (
+              <div className="my-1 rounded bg-secondary/40 px-1 py-1 text-center text-sm font-bold text-primary">{lastPrice.toFixed(2)}</div>
+              {bookBids.slice(0, 6).map((r, i) => (
                 <div key={"b" + i} className="relative grid grid-cols-2 gap-2 rounded px-1 py-0.5">
                   <div className="absolute inset-y-0 end-0 bg-[var(--bull)]/10" style={{ width: `${Math.min(100, r.qty / 10)}%` }} />
                   <div className="relative text-[var(--bull)]">{r.price.toFixed(2)}</div>
@@ -344,6 +380,31 @@ function TradePage() {
             </div>
           </div>
           )}
+
+          {/* Resting orders in the book */}
+          <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("openOrders")}</h3>
+            {myOpenOrders.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">{t("noOpenOrders")}</p>
+            ) : (
+              <ul className="space-y-1">
+                {myOpenOrders.map((o) => (
+                  <li key={o.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-1 py-1 font-mono text-[11px]">
+                    <span className={o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}>
+                      {o.side === "buy" ? t("buy") : t("sell")} {Number(o.qty) - Number(o.filled_qty)}/{Number(o.qty)} @ {o.price == null ? t("market") : Number(o.price).toFixed(2)}
+                    </span>
+                    <button
+                      onClick={() => cancelMutation.mutate(o.id)}
+                      disabled={cancelMutation.isPending}
+                      className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--bear)] disabled:opacity-60"
+                    >
+                      {t("cancel")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </aside>
       </div>
     </AppShell>

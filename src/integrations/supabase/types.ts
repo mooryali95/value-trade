@@ -116,6 +116,69 @@ export type Database = {
         }
         Relationships: []
       }
+      brands: {
+        Row: {
+          asset_class: string
+          company_id: string | null
+          created_at: string
+          id: string
+          name_ar: string
+          name_en: string
+          published: boolean
+          reference_price: number
+          sector: string | null
+          slug: string
+          source_submission_id: string | null
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          asset_class?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          name_ar: string
+          name_en: string
+          published?: boolean
+          reference_price?: number
+          sector?: string | null
+          slug: string
+          source_submission_id?: string | null
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          asset_class?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          name_ar?: string
+          name_en?: string
+          published?: boolean
+          reference_price?: number
+          sector?: string | null
+          slug?: string
+          source_submission_id?: string | null
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brands_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brands_source_submission_id_fkey"
+            columns: ["source_submission_id"]
+            isOneToOne: false
+            referencedRelation: "product_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_ledger: {
         Row: {
           amount: number
@@ -496,6 +559,7 @@ export type Database = {
           created_at: string
           filled_at: string | null
           filled_price: number | null
+          filled_qty: number
           id: string
           price: number | null
           qty: number
@@ -511,6 +575,7 @@ export type Database = {
           created_at?: string
           filled_at?: string | null
           filled_price?: number | null
+          filled_qty?: number
           id?: string
           price?: number | null
           qty: number
@@ -526,6 +591,7 @@ export type Database = {
           created_at?: string
           filled_at?: string | null
           filled_price?: number | null
+          filled_qty?: number
           id?: string
           price?: number | null
           qty?: number
@@ -964,6 +1030,60 @@ export type Database = {
         }
         Relationships: []
       }
+      trades: {
+        Row: {
+          asset_class: string
+          buy_order_id: string | null
+          buyer_id: string
+          created_at: string
+          id: string
+          price: number
+          qty: number
+          sell_order_id: string | null
+          seller_id: string
+          symbol: string
+        }
+        Insert: {
+          asset_class?: string
+          buy_order_id?: string | null
+          buyer_id: string
+          created_at?: string
+          id?: string
+          price: number
+          qty: number
+          sell_order_id?: string | null
+          seller_id: string
+          symbol: string
+        }
+        Update: {
+          asset_class?: string
+          buy_order_id?: string | null
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          price?: number
+          qty?: number
+          sell_order_id?: string | null
+          seller_id?: string
+          symbol?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_buy_order_id_fkey"
+            columns: ["buy_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_sell_order_id_fkey"
+            columns: ["sell_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -993,6 +1113,17 @@ export type Database = {
       accept_company_invitation: {
         Args: { _actor_email: string; _actor_id: string; _token: string }
         Returns: string
+      }
+      apply_trade_position: {
+        Args: {
+          _asset_class: string
+          _price: number
+          _qty: number
+          _side: string
+          _symbol: string
+          _user_id: string
+        }
+        Returns: undefined
       }
       approve_access_request: {
         Args: {
@@ -1030,6 +1161,21 @@ export type Database = {
           slug: string
         }[]
       }
+      get_order_book: {
+        Args: { _depth?: number; _symbol: string }
+        Returns: {
+          price: number
+          qty: number
+          side: string
+        }[]
+      }
+      get_symbol_last_trade: {
+        Args: { _symbol: string }
+        Returns: {
+          last_price: number
+          traded_at: string
+        }[]
+      }
       has_company_role: {
         Args: {
           _company_id: string
@@ -1052,6 +1198,23 @@ export type Database = {
       is_company_owner: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
+      }
+      match_order: {
+        Args: {
+          _asset_class: string
+          _limit_price?: number
+          _qty: number
+          _side: string
+          _symbol: string
+          _type: string
+          _user_id: string
+        }
+        Returns: {
+          avg_price: number
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
       }
       move_to_dlq: {
         Args: {

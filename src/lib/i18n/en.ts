@@ -169,6 +169,8 @@ export const en: Record<Key, string> = {
   cancelOrder: "Cancel",
   modifyOrder: "Modify",
   modifyOrderDesc: "Update the quantity or limit price, then submit to replace the working order.",
+  openOrders: "Open orders",
+  noOpenOrders: "No resting orders in the book",
   orderCancelled: "Order cancelled",
   undo: "Undo",
   undone: "Action undone",

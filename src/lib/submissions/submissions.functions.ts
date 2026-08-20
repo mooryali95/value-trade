@@ -87,5 +87,33 @@ export const reviewSubmission = createServerFn({ method: "POST" })
       reviewed_at: new Date().toISOString(),
     }).eq("id", data.submissionId);
     if (error) throw new Error(error.message);
+
+    // Approval closes the loop: the accepted product becomes a published,
+    // tradable instrument in `public.brands` (idempotent on symbol).
+    if (data.status === "approved") {
+      const { data: sub } = await supabase
+        .from("product_submissions")
+        .select("id, company_id, asset_class, symbol, name_ar, name_en, sector")
+        .eq("id", data.submissionId)
+        .maybeSingle();
+      if (sub) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const symbol = sub.symbol.trim().toUpperCase();
+        await supabaseAdmin.from("brands").upsert(
+          {
+            symbol,
+            slug: symbol.toLowerCase(),
+            name_ar: sub.name_ar,
+            name_en: sub.name_en,
+            sector: sub.sector,
+            asset_class: sub.asset_class,
+            published: true,
+            company_id: sub.company_id,
+            source_submission_id: sub.id,
+          },
+          { onConflict: "symbol" },
+        );
+      }
+    }
     return { ok: true };
   });
