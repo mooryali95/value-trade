@@ -151,9 +151,115 @@ function Index() {
         <MoverCard title={t("topGainers")} rows={gainers} tone="bull" />
         <MoverCard title={t("topLosers")} rows={losers} tone="bear" />
       </section>
+
+      {/* HOW IT WORKS */}
+      <DotDivider className="mt-16" />
+      <section aria-labelledby="how-it-works" className="mt-10">
+        <h2 id="how-it-works" className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          {t("howItWorksTitle")}
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {t("howItWorksSub")}
+        </p>
+        <ol className="mt-6 grid gap-4 md:grid-cols-3">
+          {[
+            { title: t("hiw1Title"), desc: t("hiw1Desc") },
+            { title: t("hiw2Title"), desc: t("hiw2Desc") },
+            { title: t("hiw3Title"), desc: t("hiw3Desc") },
+          ].map((step) => (
+            <li
+              key={step.title}
+              className="rounded-xl border border-border/70 bg-card/70 p-5 shadow-sm"
+            >
+              <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.desc}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* PRICING */}
+      <section aria-labelledby="plans" className="mt-16">
+        <h2 id="plans" className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          {t("plansTitle")}
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {t("plansSub")}
+        </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {[
+            {
+              name: t("planStarterName"),
+              price: t("planStarterPrice"),
+              features: [t("planStarterF1"), t("planStarterF2"), t("planStarterF3")],
+              featured: false,
+            },
+            {
+              name: t("planGrowthName"),
+              price: t("planGrowthPrice"),
+              features: [t("planGrowthF1"), t("planGrowthF2"), t("planGrowthF3")],
+              featured: true,
+            },
+            {
+              name: t("planEnterpriseName"),
+              price: t("planEnterprisePrice"),
+              features: [t("planEnterpriseF1"), t("planEnterpriseF2"), t("planEnterpriseF3")],
+              featured: false,
+            },
+          ].map((plan) => (
+            <div
+              key={plan.name}
+              className={`flex flex-col rounded-xl border bg-card/70 p-5 shadow-sm ${
+                plan.featured ? "border-[var(--gold)]/50 shadow-luxury" : "border-border/70"
+              }`}
+            >
+              <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
+              <div className="mt-2 font-mono text-xl font-bold text-ink">{plan.price}</div>
+              <ul className="mt-4 flex-1 space-y-2 text-sm text-muted-foreground">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gold-deep)]" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/request-access"
+                className="mt-5 inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground/90 transition hover:border-primary/60 hover:text-[var(--gold-deep)]"
+              >
+                {t("plansCta")}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section aria-labelledby="faq" className="mt-16 mb-4">
+        <h2 id="faq" className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          {t("faqTitle")}
+        </h2>
+        <dl className="mt-6 grid gap-4 md:grid-cols-2">
+          {[
+            { q: t("faqQ1"), a: t("faqA1") },
+            { q: t("faqQ2"), a: t("faqA2") },
+            { q: t("faqQ3"), a: t("faqA3") },
+            { q: t("faqQ4"), a: t("faqA4") },
+          ].map((item) => (
+            <div
+              key={item.q}
+              className="rounded-xl border border-border/70 bg-card/70 p-5 shadow-sm"
+            >
+              <dt className="text-sm font-semibold text-foreground">{item.q}</dt>
+              <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </AppShell>
   );
 }
+
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
