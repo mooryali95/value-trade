@@ -36,7 +36,39 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [{ rel: "canonical", href: "https://hub.sunkvalue.com/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              q: "هل التداول على المنصة متوافق مع الشريعة؟",
+              a: "كل رمز يمرّ بقرار هيئة شرعية مستقلة، وأوامر الشراء على الرموز غير المتوافقة محجوبة على مستوى الخادم.",
+            },
+            {
+              q: "كيف تُحدَّد الأسعار؟",
+              a: "السعر هو آخر تنفيذ فعلي على دفتر الأوامر؛ وقبل أول تنفيذ يُستخدم السعر المرجعي للطرح، مع نطاق سعري ±٢٠٪.",
+            },
+            {
+              q: "كم براندًا تستطيع الشركة إدارته؟",
+              a: "حتى ٣٠ براندًا لكل شركة، ويُطبَّق الحد داخل قاعدة البيانات لا في الواجهة فقط.",
+            },
+            {
+              q: "هل أموالي مفصولة ومسجّلة؟",
+              a: "كل حركة نقدية تُسجَّل في سجل نقد غير قابل للتعديل مع الرصيد بعد الحركة ومرجع الأمر.",
+            },
+          ].map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: { "@type": "Answer", text: item.a },
+          })),
+        }),
+      },
+    ],
   }),
+
   component: Index,
 });
 
