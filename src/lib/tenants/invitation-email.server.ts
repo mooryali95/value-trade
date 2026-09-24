@@ -18,10 +18,16 @@ export function maskEmail(email: string | null | undefined): string {
 
 export async function sendInvitationEmailBestEffort(input: {
   email: string;
-  companyName: string;
+  /** Company name in each language (the e-mail is bilingual). */
+  companyNameAr?: string | null;
+  companyNameEn?: string | null;
+  /** Legacy single name, used when the localized names are missing. */
+  companyName?: string;
   acceptUrl: string;
   invitedByEmail?: string | null;
   role: string;
+  /** ISO timestamp of the invitation's expiry. */
+  expiresAt?: string | null;
   /** Used for the idempotency key; never put the accept URL/token in keys or logs. */
   invitationId?: string;
 }): Promise<InvitationEmailResult> {
@@ -38,13 +44,18 @@ export async function sendInvitationEmailBestEffort(input: {
   const result = await enqueueTransactionalEmail({
     templateName: "invitation",
     recipientEmail: input.email,
-    idempotencyKey: input.invitationId ? `invite:${input.invitationId}:${bucket}` : undefined,
+    // A resend / re-issue changes expiresAt, so it is never deduplicated away.
+    idempotencyKey: input.invitationId
+      ? `invite:${input.invitationId}:${input.expiresAt ?? ""}:${bucket}`
+      : undefined,
     label: "invitation",
     templateData: {
-      companyName: input.companyName,
+      companyNameAr: input.companyNameAr || input.companyNameEn || input.companyName || null,
+      companyNameEn: input.companyNameEn || input.companyNameAr || input.companyName || null,
       role: input.role,
       invitedByEmail: input.invitedByEmail ?? null,
       acceptUrl: input.acceptUrl,
+      expiresAt: input.expiresAt ?? null,
     },
   });
 
