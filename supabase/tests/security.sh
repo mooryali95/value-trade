@@ -1027,6 +1027,16 @@ SNAP=$(su "SELECT md5(string_agg(symbol || published || reference_price, ',' ORD
 if out=$("${PSQL[@]}" -1 -f "$UNLIST" 2>&1 >/dev/null); then ok "unlist migration is re-runnable"; else bad "unlist migration is re-runnable" "$out"; fi
 check "re-run changes nothing" "$(su "SELECT md5(string_agg(symbol || published || reference_price, ',' ORDER BY symbol)) || (SELECT count(*) FROM public.shariah_decisions) FROM public.brands;")" "$SNAP"
 
+# ------------------------------------------------ extra sections ---
+# Additional suites live in supabase/tests/extra/*.sh. They run here, in
+# filename order, with every helper above in scope (q, su, ok, bad, section,
+# expect_*, newuser, mo, cash, ...) and before the global invariants.
+for extra in "$(dirname "${BASH_SOURCE[0]}")"/extra/*.sh; do
+  [ -e "$extra" ] || continue
+  # shellcheck source=/dev/null
+  source "$extra"
+done
+
 # ------------------------------------------------ global invariants (d, f) ---
 section "(d)(f) global invariants after every scenario above"
 su_eq "cash: every trade debit has an equal credit" "0" "SELECT coalesce(trim_scale(sum(amount)), 0) FROM public.cash_ledger WHERE kind IN ('order_buy','order_sell');"
