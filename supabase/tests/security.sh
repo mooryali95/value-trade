@@ -665,6 +665,17 @@ su "INSERT INTO public.user_roles (user_id, role) VALUES ('$WIN','trader'), ('$L
 legacy_fill "$WIN" buy 10 100; legacy_fill "$WIN" sell 10 105
 legacy_fill "$LOSS" buy 10 100; legacy_fill "$LOSS" sell 10 90
 legacy_fill "$FAB" sell 50000 100
+# Fabricated filled rows the old app could never write (negative or NaN
+# price/qty) explain nothing: self-set cash and minted units stay on hold.
+NEGP=$(newuser negprice@test.local); NEGQ=$(newuser negqty@test.local); NANQ=$(newuser nanqty@test.local)
+su "INSERT INTO public.user_roles (user_id, role) VALUES ('$NEGP','trader'), ('$NEGQ','trader'), ('$NANQ','trader');
+    INSERT INTO public.portfolios (user_id, cash_balance, created_at) VALUES
+      ('$NEGP', 1000100000, now()-interval '60 days'),  -- 'bought' 1000 @ -1,000,000
+      ('$NEGQ', 99999.90, now()-interval '60 days'),    -- 'sold' -1000 @ 0.0001: +1000 units
+      ('$NANQ', 1000000000, now()-interval '60 days');  -- 'bought' NaN units
+    INSERT INTO public.positions (user_id, symbol, asset_class, qty, avg_price) VALUES
+      ('$NEGP','TSTP','brand',1000,1), ('$NEGQ','TSTP','brand',1000,1), ('$NANQ','TSTP','brand',1000000,1);" >/dev/null
+legacy_fill "$NEGP" buy 1000 -1000000; legacy_fill "$NEGQ" sell -1000 0.0001; legacy_fill "$NANQ" buy "'NaN'" 1
 OPEN_BEFORE=$(su "SELECT count(*) FROM public.orders WHERE status IN ('open','partial');")
 CASH_BEFORE=$(total_cash)
 for mig in cash_opening_balance legacy_state_cleanup; do
@@ -681,6 +692,9 @@ su_eq "legit accounts are not held" "0" "SELECT count(*) FROM public.launch_revi
 su_eq "a realized gain from pre-engine fills is explained: not held, still a trader" "0|true" "SELECT (SELECT count(*) FROM public.launch_review_holds WHERE user_id='$WIN') || '|' || public.has_role('$WIN','trader');"
 su_eq "a pre-engine loss hidden by self-set cash is held" "unexplained_cash|99900.00|false" "SELECT reason || '|' || (detail->>'explained_amount') || '|' || public.has_role('$LOSS','trader') FROM public.launch_review_holds WHERE user_id='$LOSS';"
 su_eq "a fabricated sale of units never held explains no cash" "unexplained_cash|false" "SELECT string_agg(reason, ',') || '|' || public.has_role('$FAB','trader') FROM public.launch_review_holds WHERE user_id='$FAB';"
+su_eq "a fabricated negative-price buy explains neither cash nor units" "unexplained_cash,unexplained_units|false" "SELECT string_agg(reason, ',' ORDER BY reason) || '|' || public.has_role('$NEGP','trader') FROM public.launch_review_holds WHERE user_id='$NEGP';"
+su_eq "a fabricated negative-qty sale explains no units" "unexplained_units|false" "SELECT string_agg(reason, ',' ORDER BY reason) || '|' || public.has_role('$NEGQ','trader') FROM public.launch_review_holds WHERE user_id='$NEGQ';"
+su_eq "a fabricated NaN quantity explains nothing" "unexplained_cash,unexplained_units|false" "SELECT string_agg(reason, ',' ORDER BY reason) || '|' || public.has_role('$NANQ','trader') FROM public.launch_review_holds WHERE user_id='$NANQ';"
 check "no balance changed by the cleanup" "$(total_cash)" "$CASH_BEFORE"
 expect_err "held account cannot trade" service "FORBIDDEN_TRADER_REQUIRED" "SELECT * FROM public.match_order('$MAL','TSTP','brand','sell','limit',1,100);"
 expect_err "holds are not readable by users" "$MAL" "permission denied" "SELECT * FROM public.launch_review_holds;"
@@ -691,7 +705,8 @@ if out=$("${PSQL[@]}" -1 -f "$(ls "$REPO"/supabase/migrations/*_legacy_state_cle
 su_eq "re-run adds no duplicate hold" "2" "SELECT count(*) FROM public.launch_review_holds WHERE user_id='$MAL';"
 # The admin's correction after review (minted units removed) so the global
 # unit invariants below stay meaningful.
-su "DELETE FROM public.positions WHERE user_id='$MAL';" >/dev/null
+su "DELETE FROM public.positions WHERE user_id IN ('$MAL','$NEGP','$NEGQ','$NANQ');
+    DELETE FROM public.orders WHERE user_id IN ('$NEGP','$NEGQ','$NANQ');" >/dev/null
 
 # ------------------------------------------------ global invariants (d, f) ---
 section "(d)(f) global invariants after every scenario above"

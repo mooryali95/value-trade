@@ -23,6 +23,8 @@
 --          filled them; sales count only when the units reconcile);
 --        * units: a position is larger than issuances + units bought -
 --          units sold + legacy fills that predate the trades table.
+--        A legacy fill counts only if the old app could have written it
+--        (positive quantity and price); a fabricated row explains nothing.
 --      A held account loses the 'trader' role (it can no longer trade; its
 --      resting orders were closed above) and gets a row in
 --      launch_review_holds (service role only). Balances are NOT changed. A
@@ -71,13 +73,24 @@ GRANT ALL ON TABLE public.launch_review_holds TO service_role;
 -- re-activation after review.
 WITH fills AS (
   -- Fills of the pre-engine placeOrder (until 2026-08-20): marked filled at
-  -- once at the investor's own price, with no trade row.
+  -- once at the investor's own price, with no trade row. Only rows that app
+  -- could have written explain anything: buy or sell, 0 < qty <= 1,000,000,
+  -- filled_qty 0 (the column came later) or at most qty, a positive fill
+  -- price. Investors could write orders directly, so a fabricated negative,
+  -- zero or NaN quantity or price (NaN compares greater than any number and
+  -- poisons every sum it enters) would otherwise explain self-set cash or
+  -- minted units; such a row explains nothing, as if it did not exist.
   SELECT o.id, o.user_id, o.symbol,
          CASE WHEN o.side = 'buy' THEN 1 ELSE -1 END
          * CASE WHEN o.filled_qty > 0 THEN o.filled_qty ELSE o.qty END AS units,
-         COALESCE(o.filled_price, o.price, 0) AS price
+         COALESCE(o.filled_price, o.price) AS price
     FROM public.orders o
    WHERE o.status = 'filled'
+     AND o.side IN ('buy', 'sell')
+     AND o.qty > 0 AND o.qty <= 1000000
+     AND o.filled_qty >= 0 AND o.filled_qty <= o.qty
+     AND COALESCE(o.filled_price, o.price) > 0
+     AND COALESCE(o.filled_price, o.price) < 'Infinity'::numeric
      AND NOT EXISTS (SELECT 1 FROM public.trades t WHERE t.buy_order_id = o.id OR t.sell_order_id = o.id)
 ), moves AS (
   -- Units nobody issued or sold to the holder.
