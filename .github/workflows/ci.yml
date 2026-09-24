@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript
+        run: npx tsc --noEmit -p .
+
+      - name: ESLint (non-blocking, formatting rule off)
+        continue-on-error: true
+        run: |
+          npx eslint . --rule 'prettier/prettier: off'
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Vitest
+        run: npx vitest run
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The publishable Supabase URL/key are public values committed in .env;
+      # export them explicitly so the build never depends on repository secrets.
+      - name: Load public build env from .env
+        run: |
+          grep -E '^VITE_[A-Z0-9_]+=' .env | sed -E 's/="(.*)"$/=\1/' >> "$GITHUB_ENV"
+
+      - name: Vite build
+        run: npx vite build
+
+  db-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 16 (if missing)
+        run: |
+          if [ ! -x /usr/lib/postgresql/16/bin/initdb ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-client-16
+          fi
+          /usr/lib/postgresql/16/bin/postgres --version
+
+      # run.sh installs the stub extensions from supabase/tests/stubs (with
+      # sudo), builds a fresh database from every migration and runs the suite.
+      - name: Migrations rebuild + database security suite
+        run: bash supabase/tests/run.sh

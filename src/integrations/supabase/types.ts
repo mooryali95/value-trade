@@ -463,6 +463,39 @@ export type Database = {
         }
         Relationships: []
       }
+      launch_review_holds: {
+        Row: {
+          created_at: string
+          detail: Json
+          had_trader_role: boolean
+          id: string
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           position_updates_email: boolean
@@ -612,9 +645,12 @@ export type Database = {
           id: string
           new_price: number | null
           new_qty: number | null
+          new_status: string | null
           order_id: string
           previous_price: number | null
           previous_qty: number | null
+          previous_status: string | null
+          related_order_id: string | null
         }
         Insert: {
           action: string
@@ -623,9 +659,12 @@ export type Database = {
           id?: string
           new_price?: number | null
           new_qty?: number | null
+          new_status?: string | null
           order_id: string
           previous_price?: number | null
           previous_qty?: number | null
+          previous_status?: string | null
+          related_order_id?: string | null
         }
         Update: {
           action?: string
@@ -634,14 +673,24 @@ export type Database = {
           id?: string
           new_price?: number | null
           new_qty?: number | null
+          new_status?: string | null
           order_id?: string
           previous_price?: number | null
           previous_qty?: number | null
+          previous_status?: string | null
+          related_order_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "orders_audit_order_id_fkey"
             columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_audit_related_order_id_fkey"
+            columns: ["related_order_id"]
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
@@ -901,6 +950,7 @@ export type Database = {
       shariah_decisions: {
         Row: {
           created_at: string
+          effective_at: string
           id: string
           reason: string | null
           reviewer_id: string | null
@@ -911,6 +961,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          effective_at?: string
           id?: string
           reason?: string | null
           reviewer_id?: string | null
@@ -921,6 +972,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          effective_at?: string
           id?: string
           reason?: string | null
           reviewer_id?: string | null
@@ -1084,6 +1136,39 @@ export type Database = {
           },
         ]
       }
+      unit_issuances: {
+        Row: {
+          created_at: string
+          id: string
+          issued_by: string
+          note: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issued_by: string
+          note?: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issued_by?: string
+          note?: string | null
+          price?: number
+          qty?: number
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1139,15 +1224,44 @@ export type Database = {
           invitation_token: string
         }[]
       }
+      band_reference_price: { Args: { _symbol: string }; Returns: number }
+      cancel_order: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: {
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
+      }
+      cancel_shariah_blocked_buys: {
+        Args: { _actor?: string; _symbol: string }
+        Returns: number
+      }
+      check_access_request_status: {
+        Args: { _email: string; _id: string }
+        Returns: {
+          reviewed_at: string
+          status: string
+        }[]
+      }
       check_rate_limit: {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
+      }
+      current_shariah_status: { Args: { _symbol: string }; Returns: string }
+      deactivate_trader: {
+        Args: { _actor_id: string; _user_id: string }
+        Returns: number
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      engine_cancel_order: {
+        Args: { _action: string; _actor?: string; _order_id: string }
+        Returns: undefined
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -1159,6 +1273,15 @@ export type Database = {
           name_ar: string
           name_en: string
           slug: string
+        }[]
+      }
+      get_market_snapshot: {
+        Args: { _symbols: string[] }
+        Returns: {
+          change_24h_pct: number | null
+          last_price: number | null
+          symbol: string
+          volume_24h: number
         }[]
       }
       get_order_book: {
@@ -1176,6 +1299,16 @@ export type Database = {
           traded_at: string
         }[]
       }
+      get_symbol_market_stats: {
+        Args: { _symbol: string }
+        Returns: {
+          change_24h_pct: number | null
+          last_price: number | null
+          last_traded_at: string | null
+          trade_count_24h: number
+          volume_24h: number
+        }[]
+      }
       has_company_role: {
         Args: {
           _company_id: string
@@ -1191,6 +1324,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      issue_units: {
+        Args: {
+          _actor_id: string
+          _note?: string
+          _price: number
+          _qty: number
+          _symbol: string
+          _user_id: string
+        }
+        Returns: string
+      }
       is_company_member: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -1198,6 +1342,19 @@ export type Database = {
       is_company_owner: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_my_trades: {
+        Args: { _limit?: number; _symbol?: string; _user_id: string }
+        Returns: {
+          asset_class: string
+          created_at: string
+          id: string
+          order_id: string | null
+          price: number
+          qty: number
+          side: string
+          symbol: string
+        }[]
       }
       match_order: {
         Args: {
@@ -1210,7 +1367,7 @@ export type Database = {
           _user_id: string
         }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1247,6 +1404,24 @@ export type Database = {
       reject_access_request: {
         Args: { _actor_id: string; _reason?: string; _request_id: string }
         Returns: undefined
+      }
+      replace_order: {
+        Args: { _order_id: string; _price: number; _qty: number; _user_id: string }
+        Returns: {
+          avg_price: number | null
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
+      }
+      restore_order: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: {
+          avg_price: number | null
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
       }
       search_companies_public: {
         Args: { _query: string }

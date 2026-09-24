@@ -25,7 +25,10 @@ const TONE_BY_STATUS: Record<string, Tone> = {
   reviewing: "pending",
   queued: "pending",
   open: "pending",
-  modified: "info",
+  partial: "info",
+  // Legacy: modify used to rewrite the order in place. It now cancels and
+  // re-places, so an old "modified" row is closed.
+  modified: "neutral",
   updated: "info",
 };
 
@@ -39,7 +42,9 @@ const LABEL_KEY_BY_STATUS: Record<string, string> = {
   canceled: "statusCancelled",
   pending: "statusPending",
   reviewing: "statusPending",
-  modified: "modified",
+  open: "statusOpen",
+  partial: "statusPartial",
+  modified: "statusClosed",
 };
 
 const TONE_CLASSES: Record<Tone, string> = {

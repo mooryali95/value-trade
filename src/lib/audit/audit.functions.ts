@@ -31,6 +31,9 @@ export const listAuditLog = createServerFn({ method: "GET" })
       .limit(data.limit ?? 100);
     if (data.companyId) q = q.eq("company_id", data.companyId);
     const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[audit] list failed", error.code ?? "", error.message);
+      throw new Error("INTERNAL_ERROR");
+    }
     return (rows ?? []) as unknown as AuditRow[];
   });

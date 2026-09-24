@@ -1,0 +1,3 @@
+comment = 'stub vault'
+default_version = '1.0'
+relocatable = false

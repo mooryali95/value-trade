@@ -15,6 +15,13 @@ export type RetryOptions = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** a***@domain: ops_run_log is shown in the admin UI, never store full addresses. */
+function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return "***";
+  return `${email[0]}***@${email.slice(at + 1)}`;
+}
+
 export async function sendTransactionalWithRetry(
   input: Parameters<typeof enqueueTransactionalEmail>[0],
   options: RetryOptions = {},
@@ -34,7 +41,7 @@ export async function sendTransactionalWithRetry(
         await logOpsRun({
           job: options.job ?? "email-retry",
           status: "warn",
-          detail: `${input.templateName} → ${input.recipientEmail} succeeded on attempt ${attempt}`,
+          detail: `${input.templateName} → ${maskEmail(input.recipientEmail)} succeeded on attempt ${attempt}`,
           metrics: { template: input.templateName, attempts: attempt, outcome: "sent" },
         });
       }
@@ -48,16 +55,14 @@ export async function sendTransactionalWithRetry(
   await logOpsRun({
     job: options.job ?? "email-retry",
     status: last.reason === "suppressed" ? "warn" : "fail",
-    detail: `${input.templateName} → ${input.recipientEmail} gave up after ${attempts}: ${last.reason}${
-      last.detail ? ` (${last.detail})` : ""
-    }`,
+    detail: `${input.templateName} → ${maskEmail(input.recipientEmail)} gave up after ${attempts}: ${last.reason}`,
     metrics: {
       template: input.templateName,
       attempts,
       outcome: last.reason,
-      detail: last.detail ?? null,
     },
   });
 
+  if (last.detail) console.error("[email-retry] gave up", input.templateName, last.reason, last.detail);
   return { ...last, attempts };
 }

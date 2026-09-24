@@ -3,9 +3,10 @@ import { render } from '@react-email/render'
 import { createClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 import { TEMPLATES } from '@/lib/email-templates/registry'
+import { bearerToken, safeEqualSecret } from '@/lib/ops/timing-safe.server'
 
 // Configuration baked in at scaffold time
-const SITE_NAME = "value-trade"
+const SITE_NAME = "Value Unit"
 // SENDER_DOMAIN is the verified sender subdomain FQDN (e.g., "notify.example.com").
 // It MUST match the subdomain delegated to Lovable's nameservers. NEVER use the root domain.
 const SENDER_DOMAIN = "notify.hub.sunkvalue.com"
@@ -52,9 +53,8 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
         if (!apiKey) {
           return Response.json({ error: 'Server configuration error' }, { status: 500 })
         }
-        const authHeader = request.headers.get('Authorization')
-        const bearer = authHeader?.replace(/^Bearer\s+/i, '').trim()
-        if (!bearer || bearer !== apiKey) {
+        const bearer = bearerToken(request.headers.get('Authorization'))
+        if (!safeEqualSecret(bearer, apiKey)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -125,7 +125,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
 
         if (suppressionError) {
           console.error('Suppression check failed — refusing to send', {
-            error: suppressionError,
+            code: suppressionError.code,
             recipient_redacted: redactEmail(effectiveRecipient),
           })
           return Response.json(
@@ -163,7 +163,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
 
         if (tokenLookupError) {
           console.error('Token lookup failed', {
-            error: tokenLookupError,
+            code: tokenLookupError.code,
             email_redacted: redactEmail(normalizedEmail),
           })
           await supabase.from('email_send_log').insert({
@@ -194,7 +194,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
 
           if (tokenError) {
             console.error('Failed to create unsubscribe token', {
-              error: tokenError,
+              code: tokenError.code,
             })
             await supabase.from('email_send_log').insert({
               message_id: messageId,
@@ -219,7 +219,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
 
           if (reReadError || !storedToken) {
             console.error('Failed to read back unsubscribe token after upsert', {
-              error: reReadError,
+              code: reReadError?.code,
               email_redacted: redactEmail(normalizedEmail),
             })
             await supabase.from('email_send_log').insert({
@@ -294,7 +294,7 @@ export const Route = createFileRoute("/lovable/email/transactional/send")({
 
         if (enqueueError) {
           console.error('Failed to enqueue email', {
-            error: enqueueError,
+            code: enqueueError.code,
             templateName,
             recipient_redacted: redactEmail(effectiveRecipient),
           })

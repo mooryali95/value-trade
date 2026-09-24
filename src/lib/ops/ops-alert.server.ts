@@ -5,6 +5,7 @@ import { sendTransactionalWithRetry } from "@/lib/email/retry.server";
 import { checkRateLimit } from "@/lib/security/rate-limit.server";
 import { logOpsRun } from "./run-log.server";
 import { getOpsSettings } from "./settings.server";
+import { canonicalOrigin } from "./origin.server";
 
 /** Fallback thresholds; live values come from public.ops_settings. */
 export const SMOKE_FAIL_THRESHOLD = 2;
@@ -26,8 +27,6 @@ async function alertAllowed(job: string, max: number, windowMinutes: number, rea
   }
   return allowed;
 }
-
-const APP_ORIGIN = "https://hub.sunkvalue.com";
 
 async function adminEmails(): Promise<string[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -74,7 +73,7 @@ async function notifyAdmins(input: {
           detail: input.detail,
           metricLabel: input.metricLabel,
           metricValue: input.metricValue,
-          viewUrl: `${APP_ORIGIN}/admin/ops`,
+          viewUrl: `${canonicalOrigin()}/admin/ops`,
         },
       },
       { job: "ops-alert-email", attempts: input.attempts },

@@ -3,6 +3,7 @@
 // ledger guard, the Shariah buy-block, the branded email pipeline (a real send
 // to the operator's own inbox) and the scheduled cron endpoint.
 
+import { createHmac } from "crypto";
 import { isBuyBlockedByShariah } from "@/lib/trading/calc";
 import { logOpsRun } from "./run-log.server";
 
@@ -34,15 +35,23 @@ async function timed(
     const r = await fn();
     return { key, ...r, durationMs: Date.now() - started };
   } catch (err) {
+    // Raw driver/PostgREST text stays in the server log; the report only
+    // carries a stable code.
+    console.error(`[smoke] ${key} failed`, err);
+    const msg = err instanceof Error ? err.message : "";
     return {
       key,
       status: "fail",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: /^[A-Z][A-Z0-9_]{2,63}$/.test(msg) ? msg : "INTERNAL_ERROR",
       durationMs: Date.now() - started,
     };
   }
 }
 
+/**
+ * `origin` must come from the server-side origin helper (origin.server.ts),
+ * never from the browser.
+ */
 export async function runSmoke(input: {
   userId: string;
   email: string | null;
@@ -61,7 +70,10 @@ export async function runSmoke(input: {
         .select("id, full_name")
         .eq("id", input.userId)
         .maybeSingle();
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error("[smoke] profile read failed", error);
+        throw new Error("DB_READ_FAILED");
+      }
       if (!data) return { status: "warn", detail: "session ok, profile row missing" };
       return { status: "ok", detail: `session + profile for ${data.id.slice(0, 8)}…` };
     }),
@@ -74,7 +86,10 @@ export async function runSmoke(input: {
         _user_id: input.userId,
         _role: "platform_admin",
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error("[smoke] has_role failed", error);
+        throw new Error("RPC_FAILED");
+      }
       return { status: data === true ? "ok" : "warn", detail: `platform_admin=${data}` };
     }),
   );
@@ -87,7 +102,10 @@ export async function runSmoke(input: {
         .insert({ job: "smoke:probe", status: "ok", detail: "write probe" } as never)
         .select("id")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error("[smoke] write probe failed", error);
+        throw new Error("DB_WRITE_FAILED");
+      }
       await supabaseAdmin.from("ops_run_log").delete().eq("id", (data as { id: string }).id);
       return { status: "ok", detail: "insert + delete round-trip" };
     }),
@@ -153,20 +171,28 @@ export async function runSmoke(input: {
           viewUrl: `${input.origin}/portfolio`,
         },
       });
-      if (!r.sent) return { status: "fail", detail: `${r.reason}${r.detail ? `: ${r.detail}` : ""}` };
+      if (!r.sent) {
+        if (r.detail) console.error("[smoke] email enqueue failed", r.detail);
+        return { status: "fail", detail: r.reason };
+      }
       return { status: "ok", detail: `queued ${r.messageId.slice(0, 8)}… to operator inbox` };
     }),
   );
 
-  // 7) Scheduled cron endpoint reachable and authenticating.
+  // 7) Scheduled cron endpoint reachable and authenticating. Signed with the
+  // same HMAC scheme external schedulers use (CRON_ALERTS_SECRET over the raw
+  // body, hex, in x-signature). The service-role key never leaves the server.
   checks.push(
     await timed("cron_endpoint", async () => {
-      const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-      if (!key) return { status: "warn", detail: "service key unavailable in this runtime" };
+      const secret = process.env["CRON_ALERTS_SECRET"];
+      if (!secret) return { status: "warn", detail: "skipped: secret not configured" };
+      const body = "{}";
+      const signature = createHmac("sha256", secret).update(body).digest("hex");
       const res = await fetch(`${input.origin}/api/public/cron-alerts`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-        body: "{}",
+        headers: { "content-type": "application/json", "x-signature": signature },
+        body,
+        redirect: "manual",
       });
       const text = await res.text();
       if (!res.ok) return { status: "fail", detail: `HTTP ${res.status} ${text.slice(0, 80)}` };

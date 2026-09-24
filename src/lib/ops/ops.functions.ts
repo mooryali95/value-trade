@@ -2,17 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const OriginSchema = z.object({
-  origin: z
-    .string()
-    .url()
-    .refine(
-      (v) =>
-        /^https:\/\/[a-z0-9.-]+\.lovable\.app$/.test(v) ||
-        /^https:\/\/([a-z0-9-]+\.)*sunkvalue\.com$/.test(v) ||
-        /^http:\/\/localhost:\d+$/.test(v),
-      "ORIGIN_NOT_ALLOWED",
-    ),
+// `origin` is accepted for backward compatibility with older clients but is
+// ignored: the smoke target is derived server side (see origin.server.ts).
+const SmokeSchema = z.object({
+  origin: z.string().max(2048).optional(),
   sendEmail: z.boolean().default(true),
 });
 
@@ -27,15 +20,16 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 /** Runs the post-deploy smoke suite and returns a pass/fail report. */
 export const runSmokeSuite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => OriginSchema.parse(input))
+  .inputValidator((input: unknown) => SmokeSchema.parse(input ?? {}))
   .handler(async ({ data, context }) => {
     await assertAdmin(context as never);
     const { runSmoke } = await import("./smoke.server");
+    const { selfOrigin } = await import("./origin.server");
     const email = (context.claims as { email?: string } | null)?.email ?? null;
     return runSmoke({
       userId: context.userId,
       email,
-      origin: data.origin,
+      origin: selfOrigin(),
       sendEmail: data.sendEmail,
     });
   });
@@ -95,7 +89,10 @@ export const listOpsRuns = createServerFn({ method: "GET" })
     if (data.status !== "all") q = q.eq("status", data.status);
 
     const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[ops] listOpsRuns failed", error);
+      throw new Error("INTERNAL_ERROR");
+    }
     const items = rows ?? [];
 
     const durations = items
@@ -167,7 +164,10 @@ export const getOpsRunDetail = createServerFn({ method: "GET" })
       .select("id, job, status, detail, metrics, duration_ms, created_at")
       .eq("id", data.id)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[ops] getOpsRunDetail failed", error);
+      throw new Error("INTERNAL_ERROR");
+    }
     if (!run) throw new Error("RUN_NOT_FOUND");
 
     const { data: siblings } = await supabaseAdmin

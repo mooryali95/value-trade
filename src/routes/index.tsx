@@ -13,6 +13,7 @@ import { DotPattern } from "@/components/dot-pattern";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
+import { isWorkingOrder } from "@/components/order-outcome";
 import { useAppMode } from "@/lib/nav/app-mode";
 import { BrandDashboard } from "@/components/brand-dashboard";
 import { PlatformDashboard } from "@/components/platform-dashboard";
@@ -357,7 +358,7 @@ function AuthedSummary() {
     pnl += unrealizedPnl(Number(p.qty), Number(p.avg_price), last);
   }
   const total = cash + positionsValue;
-  const openOrders = q.data.orders.filter((o) => o.status === "pending").length;
+  const openOrders = q.data.orders.filter((o) => isWorkingOrder(o.status)).length;
   const losingPositions = q.data.positions.filter((p) => {
     const b = getBrand(p.symbol.toLowerCase());
     const last = b?.price ?? Number(p.avg_price);

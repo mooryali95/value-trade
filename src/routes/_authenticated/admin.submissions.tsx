@@ -14,6 +14,7 @@ import { listPendingSubmissions, reviewSubmission } from "@/lib/submissions/subm
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { SubmissionDocuments } from "@/components/submission-documents";
 import { toast } from "sonner";
 
@@ -56,16 +57,18 @@ function AdminSubmissions() {
   const reviewFn = useServerFn(reviewSubmission);
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["admin-submissions"], queryFn: () => listFn() as Promise<Row[]> });
   const [reason, setReason] = useState<Record<string, string>>({});
+  const errorMessage = useErrorMessage();
 
   const mutation = useMutation({
     mutationFn: (v: { submissionId: string; status: "approved" | "rejected"; reason?: string }) => reviewFn({ data: v }),
     onSuccess: () => { toast.success(t("submissionReviewed")); qc.invalidateQueries({ queryKey: ["admin-submissions"] }); },
-    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "FORBIDDEN" ? t("reviewerRequired") : e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired", SUBMISSION_NOT_PENDING: "errSubmissionNotPending", SUBMISSION_NOT_FOUND: "errSubmissionNotPending", INVALID_SYMBOL: "errInvalidSymbol" }));
+      qc.invalidateQueries({ queryKey: ["admin-submissions"] });
+    },
   });
 
-  if (isLoading) return <AppShell><LuxurySkeleton lines={6} /></AppShell>;
-  if (isError) return <AppShell><div className="py-16"><ErrorState reset={() => refetch()} /></div></AppShell>;
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
   const cmp = comparator(search.sortDir);
 
   const filtered = useMemo(() => {
@@ -76,7 +79,6 @@ function AdminSubmissions() {
       if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q) || (r.companies?.name_en ?? "").toUpperCase().includes(q))) return false;
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, search.q, search.status, search.asset]);
 
   const sorted = useMemo(() => {
@@ -98,6 +100,9 @@ function AdminSubmissions() {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const page = clampPage(search.page, pageCount);
   const paged = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+  if (isLoading) return <AppShell><LuxurySkeleton lines={6} /></AppShell>;
+  if (isError) return <AppShell><div className="py-16"><ErrorState reset={() => refetch()} /></div></AppShell>;
 
   if (!rolesLoading && !isReviewer) {
     return (

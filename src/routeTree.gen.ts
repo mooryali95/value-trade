@@ -45,6 +45,7 @@ import { Route as AuthenticatedCompanySettingsRouteImport } from './routes/_auth
 import { Route as AuthenticatedCompanyAuditRouteImport } from './routes/_authenticated/company.audit'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin.submissions'
 import { Route as AuthenticatedAdminOpsRouteImport } from './routes/_authenticated/admin.ops'
+import { Route as AuthenticatedAdminInvestorsRouteImport } from './routes/_authenticated/admin.investors'
 import { Route as AuthenticatedAdminHealthRouteImport } from './routes/_authenticated/admin.health'
 import { Route as AuthenticatedAdminEmailLogRouteImport } from './routes/_authenticated/admin.email-log'
 import { Route as AuthenticatedAdminCompaniesRouteImport } from './routes/_authenticated/admin.companies'
@@ -244,6 +245,12 @@ const AuthenticatedAdminOpsRoute = AuthenticatedAdminOpsRouteImport.update({
   path: '/admin/ops',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminInvestorsRoute =
+  AuthenticatedAdminInvestorsRouteImport.update({
+    id: '/admin/investors',
+    path: '/admin/investors',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminHealthRoute =
   AuthenticatedAdminHealthRouteImport.update({
     id: '/admin/health',
@@ -324,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/health': typeof AuthenticatedAdminHealthRoute
+  '/admin/investors': typeof AuthenticatedAdminInvestorsRoute
   '/admin/ops': typeof AuthenticatedAdminOpsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -370,6 +378,7 @@ export interface FileRoutesByTo {
   '/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/admin/health': typeof AuthenticatedAdminHealthRoute
+  '/admin/investors': typeof AuthenticatedAdminInvestorsRoute
   '/admin/ops': typeof AuthenticatedAdminOpsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -418,6 +427,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/_authenticated/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
   '/_authenticated/admin/health': typeof AuthenticatedAdminHealthRoute
+  '/_authenticated/admin/investors': typeof AuthenticatedAdminInvestorsRoute
   '/_authenticated/admin/ops': typeof AuthenticatedAdminOpsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/company/audit': typeof AuthenticatedCompanyAuditRoute
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/admin/companies'
     | '/admin/email-log'
     | '/admin/health'
+    | '/admin/investors'
     | '/admin/ops'
     | '/admin/submissions'
     | '/company/audit'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/admin/companies'
     | '/admin/email-log'
     | '/admin/health'
+    | '/admin/investors'
     | '/admin/ops'
     | '/admin/submissions'
     | '/company/audit'
@@ -559,6 +571,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/companies'
     | '/_authenticated/admin/email-log'
     | '/_authenticated/admin/health'
+    | '/_authenticated/admin/investors'
     | '/_authenticated/admin/ops'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/company/audit'
@@ -862,6 +875,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminOpsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/investors': {
+      id: '/_authenticated/admin/investors'
+      path: '/admin/investors'
+      fullPath: '/admin/investors'
+      preLoaderRoute: typeof AuthenticatedAdminInvestorsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/health': {
       id: '/_authenticated/admin/health'
       path: '/admin/health'
@@ -936,6 +956,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminCompaniesRoute: typeof AuthenticatedAdminCompaniesRoute
   AuthenticatedAdminEmailLogRoute: typeof AuthenticatedAdminEmailLogRoute
   AuthenticatedAdminHealthRoute: typeof AuthenticatedAdminHealthRoute
+  AuthenticatedAdminInvestorsRoute: typeof AuthenticatedAdminInvestorsRoute
   AuthenticatedAdminOpsRoute: typeof AuthenticatedAdminOpsRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedCompanyAuditRoute: typeof AuthenticatedCompanyAuditRoute
@@ -956,6 +977,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminCompaniesRoute: AuthenticatedAdminCompaniesRoute,
   AuthenticatedAdminEmailLogRoute: AuthenticatedAdminEmailLogRoute,
   AuthenticatedAdminHealthRoute: AuthenticatedAdminHealthRoute,
+  AuthenticatedAdminInvestorsRoute: AuthenticatedAdminInvestorsRoute,
   AuthenticatedAdminOpsRoute: AuthenticatedAdminOpsRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedCompanyAuditRoute: AuthenticatedCompanyAuditRoute,

@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, getBrand, generateCandles, generateOrderBook } from "@/lib/mock-data";
+import { BRANDS, getBrand, generateCandles, generateOrderBook, type AssetClass, type Brand, type Sector } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { ShieldCheck, Search } from "lucide-react";
 import { ErrorState } from "@/components/error-state";
@@ -16,16 +16,68 @@ import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
 import { getBook, getMyOpenOrders } from "@/lib/trading/book.functions";
 import { cancelOrder } from "@/lib/trading/order-mutations.functions";
+import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { useErrorMessage } from "@/hooks/use-error-message";
+import { describeOrderOutcome, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
 import { useConfirm } from "@/components/confirm-dialog";
 import { PermissionHint } from "@/components/permission-hint";
+import { getTradeInstrument, type TradeInstrument } from "@/lib/instruments/instrument.functions";
 import { toast } from "sonner";
 
+/**
+ * The listed instrument (public.brands) is the source of truth for what can
+ * be traded; mock data only supplies display extras (chart seed, colours,
+ * sample statistics) when the same symbol exists there.
+ */
+function displayBrand(listed: TradeInstrument, mock: Brand | undefined): Brand {
+  const price = listed.lastPrice ?? listed.referencePrice;
+  const shariah: Brand["shariah"] =
+    listed.shariah === "halal" ? "halal" : listed.shariah === "non_halal" ? "restricted" : "reviewing";
+  const base: Brand = mock ?? {
+    id: listed.slug,
+    slug: listed.slug,
+    symbol: listed.symbol,
+    nameAr: listed.nameAr,
+    nameEn: listed.nameEn,
+    sector: (listed.sector ?? "retail") as Sector,
+    companyId: "",
+    companyNameAr: "",
+    companyNameEn: "",
+    price,
+    change24h: 0,
+    volume24h: 0,
+    marketCap: 0,
+    shariah,
+    instrument: "equity",
+    established: 0,
+    color: "#8a6d3b",
+  };
+  return {
+    ...base,
+    slug: listed.slug,
+    symbol: listed.symbol,
+    nameAr: listed.nameAr,
+    nameEn: listed.nameEn,
+    price,
+    shariah,
+    assetClass: listed.assetClass as AssetClass,
+  };
+}
+
 export const Route = createFileRoute("/trade/$symbol")({
-  loader: ({ params }) => {
-    const brand = getBrand(params.symbol);
+  loader: async ({ params }) => {
+    const mock = getBrand(params.symbol);
+    let listed: TradeInstrument | null = null;
+    try {
+      listed = await getTradeInstrument({ data: { symbol: params.symbol } });
+    } catch {
+      // Market data unavailable: fall back to the display catalogue below.
+    }
+    const brand = listed ? displayBrand(listed, mock) : mock;
     if (!brand) throw notFound();
-    return { brand };
+    return { brand, bandReference: listed?.bandReference ?? null };
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -48,15 +100,15 @@ export const Route = createFileRoute("/trade/$symbol")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  errorComponent: ({ error, reset }) => (
-    <AppShell><div className="py-16"><ErrorState reset={reset} description={String(error?.message ?? "")} /></div></AppShell>
+  errorComponent: ({ reset }) => (
+    <AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>
   ),
   notFoundComponent: () => <NotFoundBlock kind="symbol" />,
   component: TradePage,
 });
 
 function TradePage() {
-  const { brand } = Route.useLoaderData();
+  const { brand, bandReference } = Route.useLoaderData();
   const { t, lang } = useI18n();
   const confirm = useConfirm();
   const candles = generateCandles(brand.slug, 200, brand.price);
@@ -70,6 +122,28 @@ function TradePage() {
 
   const qc = useQueryClient();
   const { isTrader, isLoading: rolesLoading } = useMyRoles();
+  const signedIn = useSignedIn();
+  const errorMessage = useErrorMessage();
+  const [outcome, setOutcome] = useState("");
+  const qtyError = validateQty(qty);
+  const priceError = orderType === "limit" ? validatePrice(price) : null;
+  const orderInvalid = !!qtyError || !!priceError;
+  // Today's allowed limit-price range (±20% of the previous close), on the tick.
+  const refCents = bandReference ? Math.round(bandReference * 100) : 0;
+  const band = refCents > 0
+    ? { low: Math.ceil((refCents * 80) / 100) / 100, high: Math.floor((refCents * 120) / 100) / 100 }
+    : null;
+
+  // Real buying power: the signed-in investor's cash. A missing portfolio
+  // row means the account has not been funded yet, i.e. 0.
+  const portfolioFn = useServerFn(getMyPortfolio);
+  const portfolioQuery = useQuery({
+    queryKey: ["portfolio"],
+    queryFn: () => portfolioFn(),
+    enabled: signedIn === true,
+    staleTime: 15_000,
+  });
+  const cashBalance = Number(portfolioQuery.data?.portfolio?.cash_balance ?? 0);
 
   // Live venue state: the aggregated book and the trader's resting orders come
   // from the matching engine; mock depth is only a fallback for empty books.
@@ -84,6 +158,7 @@ function TradePage() {
   const openOrdersQuery = useQuery({
     queryKey: ["open-orders"],
     queryFn: () => openOrdersFn({ data: undefined as never }),
+    enabled: signedIn === true,
     refetchInterval: 15_000,
   });
   const myOpenOrders = (openOrdersQuery.data ?? []).filter((o) => o.symbol === brand.symbol);
@@ -95,7 +170,7 @@ function TradePage() {
       qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
       qc.invalidateQueries({ queryKey: ["portfolio"] });
     },
-    onError: () => toast.error(t("orderFailed")),
+    onError: (e: unknown) => toast.error(errorMessage(e, undefined, "orderFailed")),
   });
   const liveBids = bookQuery.data?.bids ?? [];
   const liveAsks = bookQuery.data?.asks ?? [];
@@ -109,21 +184,21 @@ function TradePage() {
       symbolSlug: brand.slug, side, type: orderType, qty: Number(qty),
       price: orderType === "limit" ? Number(price) : undefined,
     } }),
-    onSuccess: () => {
-      toast.success(t("orderPlaced"));
+    onMutate: () => setOutcome(""),
+    onSuccess: (res) => {
+      const o = describeOrderOutcome(res as unknown as OrderOutcome, Number(qty), t);
+      setOutcome(o.message);
+      if (o.tone === "error") toast.error(o.message);
+      else if (o.tone === "warning") toast.warning(o.message);
+      else toast.success(o.message);
       qc.invalidateQueries({ queryKey: ["portfolio"] });
       qc.invalidateQueries({ queryKey: ["open-orders"] });
       qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
     },
     onError: (e: unknown) => {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg === "INSUFFICIENT_CASH") toast.error(t("insufficientCash"));
-      else if (msg === "INSUFFICIENT_QTY") toast.error(t("insufficientQty"));
-      else if (msg === "SHARIAH_BLOCKED") toast.error(t("shariahBlocked"));
-      else if (msg === "ORDER_TOO_LARGE") toast.error(t("orderTooLarge"));
-      else if (msg === "PRICE_OUT_OF_BAND") toast.error(t("priceOutOfBand"));
-      else if (msg === "FORBIDDEN_TRADER_REQUIRED") toast.error(t("traderRequired"));
-      else toast.error(t("orderFailed"));
+      const msg = errorMessage(e, undefined, "orderFailed");
+      setOutcome(msg);
+      toast.error(msg);
     },
   });
   const alertMutation = useMutation({
@@ -131,7 +206,7 @@ function TradePage() {
       symbol: brand.symbol, direction, targetPrice: Number(price) || brand.price,
     } }),
     onSuccess: () => toast.success(t("createAlert")),
-    onError: () => toast.error(t("orderFailed")),
+    onError: (e: unknown) => toast.error(errorMessage(e, undefined, "orderFailed")),
   });
 
   const filteredWL = BRANDS.filter((b) => !q || b.symbol.toLowerCase().includes(q.toLowerCase())).slice(0, 20);
@@ -251,12 +326,41 @@ function TradePage() {
               <button onClick={() => setOrderType("market")} className={`rounded border px-2 py-1.5 ${orderType === "market" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("market")}</button>
             </div>
             {orderType === "limit" && (
-              <Field label={t("price")}>
-                <input value={price} onChange={(e) => setPrice(e.target.value)} className="w-full bg-transparent text-end font-mono text-sm outline-none" />
+              <Field label={t("price")} error={priceError ? t(priceError) : undefined} errorId="order-price-error">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  aria-invalid={!!priceError}
+                  aria-describedby={priceError ? "order-price-error" : undefined}
+                  className="w-full bg-transparent text-end font-mono text-sm outline-none"
+                />
               </Field>
             )}
-            <Field label={t("qty")}>
-              <input value={qty} onChange={(e) => setQty(e.target.value)} className="w-full bg-transparent text-end font-mono text-sm outline-none" />
+            {orderType === "limit" && band && (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {t("allowedPriceRange").replace("{low}", band.low.toFixed(2)).replace("{high}", band.high.toFixed(2))}
+              </p>
+            )}
+            <Field label={t("qty")} error={qtyError ? t(qtyError) : undefined} errorId="order-qty-error">
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="10000000"
+                step="1"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "." || e.key === "," || e.key === "e" || e.key === "E" || e.key === "-" || e.key === "+") e.preventDefault();
+                }}
+                aria-invalid={!!qtyError}
+                aria-describedby={qtyError ? "order-qty-error" : undefined}
+                className="w-full bg-transparent text-end font-mono text-sm outline-none"
+              />
             </Field>
             <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-3">
               <div className="mb-1.5 text-label text-ink-soft" id="order-preview-heading">{t("orderPreview")}</div>
@@ -291,11 +395,12 @@ function TradePage() {
                 </div>
               </dl>
             </div>
-            <PermissionHint allowed={rolesLoading || isTrader} reason={t("traderRequired")}>
+            <PermissionHint allowed={rolesLoading || isTrader} reason={signedIn === false ? t("signInToTrade") : t("traderRequired")}>
               <button
-                disabled={orderMutation.isPending || rolesLoading || !isTrader}
-                title={!isTrader ? t("traderRequired") : undefined}
+                disabled={orderMutation.isPending || rolesLoading || !isTrader || orderInvalid}
+                title={!isTrader ? (signedIn === false ? t("signInToTrade") : t("traderRequired")) : undefined}
                 onClick={async () => {
+                  if (orderInvalid) return;
                   const unit = orderType === "limit" ? Number(price) : brand.price;
                   const ok = await confirm({
                     title: t("confirmOrderTitle"),
@@ -316,15 +421,21 @@ function TradePage() {
             <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only">
               {orderMutation.isPending
                 ? t("a11yOrderSubmitting")
-                : orderMutation.isError
-                  ? t("a11yOrderFailed")
-                  : orderMutation.isSuccess
-                    ? t("a11yOrderSubmitted")
-                    : ""}
+                : outcome}
             </div>
-            <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
               <span>{t("balance")}</span>
-              <span className="font-mono">125,430.00</span>
+              {signedIn === false ? (
+                <Link to="/auth" search={{ redirect: `/trade/${brand.slug}` }} className="font-semibold text-[var(--gold-deep)] hover:underline">
+                  {t("signInToSeeBalance")}
+                </Link>
+              ) : signedIn === null || portfolioQuery.isLoading ? (
+                <span className="h-3 w-20 animate-pulse rounded bg-secondary/60" aria-label={t("loading")} />
+              ) : portfolioQuery.isError ? (
+                <button onClick={() => portfolioQuery.refetch()} className="text-[var(--bear)] hover:underline">{t("errInternal")}</button>
+              ) : (
+                <span className="font-mono">{formatCurrency(cashBalance, false, lang)}</span>
+              )}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button onClick={() => alertMutation.mutate("above")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↑ {t("alertAbove")}</button>
@@ -411,12 +522,15 @@ function TradePage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error, errorId }: { label: string; children: React.ReactNode; error?: string; errorId?: string }) {
   return (
-    <label className="mt-2 block rounded-md border border-border bg-background/60 px-3 py-2">
-      <div className="mb-0.5 text-[10px] uppercase text-muted-foreground">{label}</div>
-      {children}
-    </label>
+    <div className="mt-2">
+      <label className={`block rounded-md border bg-background/60 px-3 py-2 ${error ? "border-[var(--bear)]/60" : "border-border"}`}>
+        <div className="mb-0.5 text-[10px] uppercase text-muted-foreground">{label}</div>
+        {children}
+      </label>
+      {error && <p id={errorId} className="mt-1 text-[10px] text-[var(--bear)]">{error}</p>}
+    </div>
   );
 }
 function MiniStat({ label, v }: { label: string; v: string }) {

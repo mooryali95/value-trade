@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { BrandMark } from "@/components/brand-mark";
 import {
   searchCompaniesPublic,
@@ -39,6 +40,7 @@ type CompanyLite = { id: string; slug: string; name_ar: string; name_en: string 
 
 function RequestAccessPage() {
   const { t, lang, dir } = useI18n();
+  const errorMessage = useErrorMessage();
   const search = useSearch({ from: "/request-access" }) as { slug?: string };
 
   const [tab, setTab] = useState<"join" | "new">("join");
@@ -118,7 +120,7 @@ function RequestAccessPage() {
     onError: (e: unknown) => {
       const msg = e instanceof Error ? e.message : "ERROR";
       setError(
-        msg === "RATE_LIMITED" ? t("requestRateLimited") : msg === "SELECT_COMPANY" ? null : msg,
+        msg === "RATE_LIMITED" ? t("requestRateLimited") : msg === "SELECT_COMPANY" ? null : errorMessage(e),
       );
     },
   });

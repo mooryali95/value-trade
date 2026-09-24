@@ -128,7 +128,7 @@ function UpdatePasswordPage() {
               </div>
             </label>
 
-            <div aria-live="polite">
+            <div aria-live="polite" aria-atomic="true">
               {error && (
                 <div className="rounded-md border border-[var(--bear)]/40 bg-[var(--bear)]/5 px-3 py-2 text-xs text-[var(--bear)]">
                   {error}

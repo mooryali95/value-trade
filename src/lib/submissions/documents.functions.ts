@@ -1,10 +1,31 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { toStableError } from "@/lib/ops/errors.server";
 
 const BUCKET = "submission-docs";
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+/** Company roles allowed to attach documents (mirrors submission_docs_insert RLS). */
+const UPLOAD_ROLES = ["owner", "finance"] as const;
+
+/**
+ * Storage layout: "<company_id>/<submission_id>/<safe file name>". The DB
+ * enforces the same prefix on submission_documents.file_path.
+ */
+function pathPrefix(companyId: string, submissionId: string): string {
+  return `${companyId}/${submissionId}/`;
+}
+
+/** Strips anything that is not a plain file-name character (no slashes, no dot-only names). */
+function safeFileName(name: string): string {
+  const cleaned = name
+    .replace(/[^\w.\- ]+/g, "_")
+    .replace(/^[.\s]+/, "")
+    .trim()
+    .slice(-120);
+  return cleaned.length > 0 ? cleaned : "document";
+}
 
 /** Documents attached to a product submission. Access follows the table RLS. */
 export const listSubmissionDocuments = createServerFn({ method: "GET" })
@@ -16,7 +37,7 @@ export const listSubmissionDocuments = createServerFn({ method: "GET" })
       .select("id, file_name, file_path, mime_type, size_bytes, created_at, uploaded_by")
       .eq("submission_id", data.submissionId)
       .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("documents.list", error);
     return rows ?? [];
   });
 
@@ -46,14 +67,35 @@ export const uploadSubmissionDocument = createServerFn({ method: "POST" })
       .single();
     if (subErr || !submission) throw new Error("SUBMISSION_NOT_FOUND");
 
-    const safeName = data.fileName.replace(/[^\w.\- ]+/g, "_").slice(-120);
-    const filePath = `${submission.company_id}/${submission.id}/${crypto.randomUUID()}-${safeName}`;
-
+    // Verify membership with an upload-capable role BEFORE touching storage
+    // (the service-role upload below bypasses storage RLS).
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const roleChecks = await Promise.all(
+      UPLOAD_ROLES.map((role) =>
+        supabaseAdmin.rpc("has_company_role", {
+          _user_id: userId,
+          _company_id: submission.company_id,
+          _role: role,
+        }),
+      ),
+    );
+    if (roleChecks.some((r) => r.error)) {
+      console.error("[documents] role check failed");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!roleChecks.some((r) => r.data === true)) throw new Error("FORBIDDEN");
+
+    const safeName = safeFileName(data.fileName);
+    // A random prefix inside the file-name segment keeps uploads unique.
+    const filePath = `${pathPrefix(submission.company_id, submission.id)}${crypto.randomUUID()}-${safeName}`;
+
     const { error: upErr } = await supabaseAdmin.storage
       .from(BUCKET)
       .upload(filePath, bytes, { contentType: data.mimeType, upsert: false });
-    if (upErr) throw new Error(upErr.message);
+    if (upErr) {
+      console.error("[documents] storage upload failed", upErr.name);
+      throw new Error("UPLOAD_FAILED");
+    }
 
     // Insert through the user's client so RLS decides who may attach.
     const { data: row, error } = await supabase
@@ -71,7 +113,7 @@ export const uploadSubmissionDocument = createServerFn({ method: "POST" })
       .single();
     if (error) {
       await supabaseAdmin.storage.from(BUCKET).remove([filePath]);
-      throw new Error(error.message === "" ? "FORBIDDEN" : error.message);
+      throw toStableError("documents.insert", error, "FORBIDDEN");
     }
     return row;
   });
@@ -83,16 +125,24 @@ export const getSubmissionDocumentUrl = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("submission_documents")
-      .select("file_path")
+      .select("file_path, company_id, submission_id")
       .eq("id", data.documentId)
       .single();
     if (error || !row) throw new Error("DOCUMENT_NOT_FOUND");
+    // Only sign objects inside this document's own company/submission folder.
+    if (!row.file_path.startsWith(pathPrefix(row.company_id, row.submission_id))) {
+      console.error("[documents] file_path outside expected prefix", { documentId: data.documentId });
+      throw new Error("DOCUMENT_NOT_FOUND");
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: signed, error: signErr } = await supabaseAdmin.storage
       .from(BUCKET)
       .createSignedUrl(row.file_path, 120);
-    if (signErr || !signed) throw new Error(signErr?.message ?? "SIGN_FAILED");
+    if (signErr || !signed) {
+      if (signErr) console.error("[documents] sign failed", signErr.name);
+      throw new Error("SIGN_FAILED");
+    }
     return { url: signed.signedUrl };
   });
 
@@ -102,7 +152,7 @@ export const deleteSubmissionDocument = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: row } = await context.supabase
       .from("submission_documents")
-      .select("id, file_path")
+      .select("id, file_path, company_id, submission_id")
       .eq("id", data.documentId)
       .single();
     if (!row) throw new Error("DOCUMENT_NOT_FOUND");
@@ -111,10 +161,13 @@ export const deleteSubmissionDocument = createServerFn({ method: "POST" })
       .from("submission_documents")
       .delete({ count: "exact" })
       .eq("id", data.documentId);
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("documents.delete", error, "FORBIDDEN");
     if (!count) throw new Error("FORBIDDEN");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.storage.from(BUCKET).remove([row.file_path]);
+    // Never remove an object outside the document's own folder.
+    if (row.file_path.startsWith(pathPrefix(row.company_id, row.submission_id))) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(BUCKET).remove([row.file_path]);
+    }
     return { ok: true };
   });

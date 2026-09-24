@@ -16,14 +16,12 @@ export const getBook = createServerFn({ method: "GET" })
     const client = getPublicClient();
 
     const [{ data: levels }, { data: last }] = await Promise.all([
-      client.rpc("get_order_book" as never, { _symbol: data.symbol, _depth: 12 } as never),
-      client.rpc("get_symbol_last_trade" as never, { _symbol: data.symbol } as never),
+      client.rpc("get_order_book", { _symbol: data.symbol, _depth: 12 }),
+      client.rpc("get_symbol_last_trade", { _symbol: data.symbol }),
     ]);
 
-    const rows = (levels ?? []) as { side: string; price: number; qty: number }[];
-    const lastRow = (Array.isArray(last) ? last[0] : last) as
-      | { last_price: number | null; traded_at: string | null }
-      | null;
+    const rows = levels ?? [];
+    const lastRow = (Array.isArray(last) ? last[0] : last) ?? null;
 
     return {
       bids: rows
@@ -37,22 +35,33 @@ export const getBook = createServerFn({ method: "GET" })
     };
   });
 
-/** The signed-in trader's own executions for a symbol (RLS-scoped). */
+/**
+ * The signed-in trader's own executions, newest first: side, quantity, price
+ * and their own order id. The counterparty's identity is never returned (the
+ * database does not let users read trades.buyer_id / seller_id at all).
+ */
 export const getMyTrades = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SymbolInput.partial().parse(input ?? {}))
   .handler(async ({ data, context }) => {
-    let q = context.supabase
-      .from("trades")
-      .select("id, symbol, qty, price, buyer_id, seller_id, created_at")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (data.symbol) q = q.eq("symbol", data.symbol);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin.rpc("list_my_trades", {
+      _user_id: context.userId,
+      _symbol: data.symbol,
+      _limit: 50,
+    });
+    if (error) {
+      console.error("[getMyTrades] rpc failed", error.code ?? "", error.message);
+      throw new Error("INTERNAL_ERROR");
+    }
     return (rows ?? []).map((r) => ({
-      ...r,
-      side: r.buyer_id === context.userId ? ("buy" as const) : ("sell" as const),
+      id: r.id,
+      symbol: r.symbol,
+      qty: Number(r.qty),
+      price: Number(r.price),
+      side: r.side === "buy" ? ("buy" as const) : ("sell" as const),
+      orderId: r.order_id,
+      created_at: r.created_at,
     }));
   });
 
@@ -63,9 +72,13 @@ export const getMyOpenOrders = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("orders")
       .select("id, symbol, side, type, qty, filled_qty, price, status, created_at")
-      .in("status", ["open", "partial", "pending", "modified"])
+      .eq("user_id", context.userId)
+      .in("status", ["open", "partial"])
       .order("created_at", { ascending: false })
       .limit(100);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[getMyOpenOrders] query failed", error.code ?? "", error.message);
+      throw new Error("INTERNAL_ERROR");
+    }
     return rows ?? [];
   });

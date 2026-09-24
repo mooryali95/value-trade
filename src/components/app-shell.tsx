@@ -14,6 +14,7 @@ import {
   Bell,
   Gear,
   UserPlus,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { MARKET_STATS, BRANDS } from "@/lib/mock-data";
@@ -161,6 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/admin/submissions", label: t("nav_submissions"), icon: ClipboardText },
     ...(isAdmin
       ? [
+          { to: "/admin/investors", label: t("nav_investors"), icon: UsersThree },
           { to: "/admin/email-log", label: t("nav_emailLog"), icon: EnvelopeSimple },
           { to: "/admin/health", label: t("nav_health"), icon: ShieldCheck },
           { to: "/admin/ops", label: t("nav_ops"), icon: ShieldCheck },

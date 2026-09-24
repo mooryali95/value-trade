@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
 import { renderEmailPreview } from "@/lib/admin/email-preview.functions";
 import { ArrowClockwise, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
@@ -78,6 +79,7 @@ function EmailLogContent() {
   const qc = useQueryClient();
   const { lang } = useI18n();
   const ar = lang === "ar";
+  const errorMessage = useErrorMessage();
   const list = useServerFn(listEmailLog);
   const templates = useServerFn(listEmailTemplates);
   const retry = useServerFn(retryEmail);
@@ -126,7 +128,7 @@ function EmailLogContent() {
       toast.success(ar ? "تم إعادة إرسال الرسالة" : "Message re-sent");
       qc.invalidateQueries({ queryKey: ["email-log"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   const askRetry = async (row: any) => {

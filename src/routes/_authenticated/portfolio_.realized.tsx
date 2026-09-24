@@ -139,7 +139,7 @@ function RealizedPage() {
         <LuxurySkeleton lines={6} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-live="polite">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-live="polite" aria-atomic="false">
             <Kpi label={t("realizedTotal")} value={formatCurrency(totals?.realized ?? 0, false, lang)} tone={pnlColor(totals?.realized ?? 0)} />
             <Kpi label={t("proceeds")} value={formatCurrency(totals?.proceeds ?? 0, false, lang)} />
             <Kpi label={t("costBasis")} value={formatCurrency(totals?.costBasis ?? 0, false, lang)} />

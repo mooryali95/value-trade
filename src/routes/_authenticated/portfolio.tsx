@@ -19,6 +19,8 @@ import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useErrorMessage } from "@/hooks/use-error-message";
+import { describeOrderOutcome, isWorkingOrder, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
 import {
   Dialog,
   DialogContent,
@@ -73,47 +75,77 @@ function PortfolioPage() {
     queryFn: () => fetchPortfolio(),
     staleTime: 15_000,
   });
-  const [editing, setEditing] = useState<null | { id: string; qty: number; price: number }>(null);
+  const [editing, setEditing] = useState<null | { id: string; qty: string; price: string }>(null);
+  const errorMessage = useErrorMessage();
+  // Cancel, modify and restore all change the working order set: every
+  // view of it (portfolio, trade-page open orders, the book) refreshes.
+  const refreshOrders = () => {
+    qc.invalidateQueries({ queryKey: ["portfolio"] });
+    qc.invalidateQueries({ queryKey: ["open-orders"] });
+    qc.invalidateQueries({ queryKey: ["book"] });
+  };
+  const announce = (res: unknown, qty: number) => {
+    const o = describeOrderOutcome(res as OrderOutcome, qty, t);
+    if (o.tone === "error") toast.error(o.message);
+    else if (o.tone === "warning") toast.warning(o.message);
+    else toast.success(o.message);
+  };
   const tab = search.tab;
   const pageSize = Math.max(5, Math.min(100, search.pageSize));
   const page = Math.max(1, search.page);
 
   const cancelMut = useMutation({
-    mutationFn: (orderId: string) => cancelFn({ data: { orderId } }),
-    onSuccess: (_res, orderId) => {
-      qc.invalidateQueries({ queryKey: ["portfolio"] });
+    mutationFn: (v: { orderId: string; remaining: number }) => cancelFn({ data: { orderId: v.orderId } }),
+    onSuccess: (_res, v) => {
+      refreshOrders();
       toast.success(t("orderCancelled"), {
         action: {
           label: t("undo"),
           onClick: async () => {
+            // Undo re-places the remaining quantity as a NEW order through
+            // the full checks, so it can fail (e.g. cash already used).
             try {
-              await restoreFn({ data: { orderId } });
-              toast.success(t("undone"));
-              qc.invalidateQueries({ queryKey: ["portfolio"] });
-            } catch {
-              toast.error(t("undoFailed"));
+              const res = await restoreFn({ data: { orderId: v.orderId } });
+              announce(res, v.remaining);
+            } catch (e) {
+              toast.error(`${t("undoFailed")}: ${errorMessage(e)}`);
+            } finally {
+              refreshOrders();
             }
           },
         },
       });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e));
+      refreshOrders();
+    },
   });
-  const askCancel = async (orderId: string, symbol: string) => {
+  const askCancel = async (orderId: string, symbol: string, remaining: number) => {
     const ok = await confirm({
       title: t("cancelOrder"),
       description: `${symbol} — ${t("onlyPendingEditable")}`,
       confirmLabel: t("cancelOrder"),
-      cancelLabel: t("cancelled"),
+      cancelLabel: t("keepOrder"),
       tone: "danger",
     });
-    if (ok) cancelMut.mutate(orderId);
+    if (ok) cancelMut.mutate({ orderId, remaining });
   };
   const modifyMut = useMutation({
     mutationFn: (v: { orderId: string; qty: number; price: number }) => modifyFn({ data: v }),
-    onSuccess: () => { toast.success(t("orderModified")); setEditing(null); qc.invalidateQueries({ queryKey: ["portfolio"] }); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onSuccess: (res, v) => {
+      // The old order is cancelled and a new one placed (new id).
+      announce(res, v.qty);
+      setEditing(null);
+      refreshOrders();
+    },
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e));
+      refreshOrders();
+    },
   });
+  const editQtyError = editing ? validateQty(editing.qty) : null;
+  const editPriceError = editing ? validatePrice(editing.price) : null;
 
   if (isLoading) {
     return (
@@ -168,7 +200,7 @@ function PortfolioPage() {
   const filteredOrders = (() => {
     const q = search.q.trim().toUpperCase();
     const list = data.orders.filter((o) => {
-      if (search.status !== "all" && o.status !== search.status) return false;
+      if (search.status !== "all" && !matchesStatusFilter(o.status, search.status)) return false;
       if (search.side !== "all" && o.side !== search.side) return false;
       if (q && !o.symbol.toUpperCase().includes(q)) return false;
       return true;
@@ -326,10 +358,10 @@ function PortfolioPage() {
           <>
             <select value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
+              <option value="open">{t("statusOpen")}</option>
+              <option value="partial">{t("statusPartial")}</option>
               <option value="filled">{t("filled")}</option>
-              <option value="pending">{t("pending")}</option>
-              <option value="modified">{t("modified")}</option>
-              <option value="cancelled">{t("cancelled")}</option>
+              <option value="cancelled">{t("statusClosed")}</option>
             </select>
             <select value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
@@ -430,10 +462,12 @@ function PortfolioPage() {
                   <div className="text-end"><StatusBadge status={o.status} /></div>
                   <div className="text-end font-mono text-muted-foreground">{new Date(o.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</div>
                   <div className="flex justify-end gap-1">
-                    {o.status === "pending" ? (
+                    {isWorkingOrder(o.status) ? (
                       <>
-                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
-                        <button disabled={!isTrader} title={!isTrader ? t("traderRequired") : undefined} onClick={() => askCancel(o.id, o.symbol)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                        {o.type === "limit" && (
+                          <button disabled={!isTrader || modifyMut.isPending} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
+                        )}
+                        <button disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                       </>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
@@ -454,10 +488,12 @@ function PortfolioPage() {
                     <div className="text-end"><span className="text-muted-foreground">{t("price")}: </span>{o.filled_price ? Number(o.filled_price).toFixed(2) : o.price ? Number(o.price).toFixed(2) : "—"}</div>
                     <div className="col-span-2 text-muted-foreground">{new Date(o.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</div>
                   </div>
-                  {o.status === "pending" && (
+                  {isWorkingOrder(o.status) && (
                     <div className="mt-2 flex justify-end gap-1">
-                      <button disabled={!isTrader} onClick={() => setEditing({ id: o.id, qty: Number(o.qty), price: Number(o.price ?? 0) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft disabled:opacity-40">{t("modifyOrder")}</button>
-                      <button disabled={!isTrader} onClick={() => askCancel(o.id, o.symbol)} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                      {o.type === "limit" && (
+                        <button disabled={!isTrader || modifyMut.isPending} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft disabled:opacity-40">{t("modifyOrder")}</button>
+                      )}
+                      <button disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                     </div>
                   )}
                 </div>
@@ -478,16 +514,18 @@ function PortfolioPage() {
             </DialogHeader>
             <div className="grid gap-2">
               <label className="text-[10px] uppercase text-muted-foreground">{t("qty")}
-                <input type="number" value={editing.qty} onChange={(e) => setEditing({ ...editing, qty: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
+                <input type="number" inputMode="numeric" min="1" max="10000000" step="1" value={editing.qty} onChange={(e) => setEditing({ ...editing, qty: e.target.value })} aria-invalid={!!editQtyError} aria-describedby={editQtyError ? "modify-qty-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
               </label>
+              {editQtyError && <p id="modify-qty-error" className="text-[10px] text-[var(--bear)]">{t(editQtyError)}</p>}
               <label className="text-[10px] uppercase text-muted-foreground">{t("price")}
-                <input type="number" step="0.01" value={editing.price} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
+                <input type="number" inputMode="decimal" min="0.01" step="0.01" value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} aria-invalid={!!editPriceError} aria-describedby={editPriceError ? "modify-price-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
               </label>
+              {editPriceError && <p id="modify-price-error" className="text-[10px] text-[var(--bear)]">{t(editPriceError)}</p>}
               <div className="mt-2 flex justify-end gap-2">
-                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancelled")}</button>
+                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancel")}</button>
                 <button
-                  disabled={modifyMut.isPending || editing.qty <= 0 || editing.price <= 0}
-                  onClick={() => modifyMut.mutate({ orderId: editing.id, qty: editing.qty, price: editing.price })}
+                  disabled={modifyMut.isPending || !!editQtyError || !!editPriceError}
+                  onClick={() => modifyMut.mutate({ orderId: editing.id, qty: Number(editing.qty), price: Number(editing.price) })}
                   className="rounded-md gold-gradient px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
                 >{t("submit")}</button>
               </div>
@@ -497,6 +535,17 @@ function PortfolioPage() {
       </Dialog>
     </AppShell>
   );
+}
+
+function remainingQty(o: { qty: number | string; filled_qty?: number | string | null }): number {
+  return Math.max(0, Number(o.qty) - Number(o.filled_qty ?? 0));
+}
+
+/** Status filter buckets; legacy "modified" orders are closed, like cancelled ones. */
+function matchesStatusFilter(status: string, filter: string): boolean {
+  if (filter === "open") return status === "open" || status === "pending";
+  if (filter === "cancelled") return status === "cancelled" || status === "modified";
+  return status === filter;
 }
 
 function KPI({ label, value, tone }: { label: string; value: string; tone?: "bull" | "bear" }) {

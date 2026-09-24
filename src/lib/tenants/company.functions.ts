@@ -2,6 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
+import { toStableError } from "@/lib/ops/errors.server";
+
+/** RLS refusals read as FORBIDDEN; other database text never reaches the browser. */
+function companyError(tag: string, error: { message: string; code?: string | null }): Error {
+  return toStableError(tag, error, error.code === "42501" ? "FORBIDDEN" : "INTERNAL_ERROR");
+}
 
 const CreateInput = z.object({
   slug: z.string().min(2).max(48).regex(/^[a-z0-9-]+$/),
@@ -19,7 +25,7 @@ export const createCompany = createServerFn({ method: "POST" })
       .insert({ ...data, created_by: userId })
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw companyError("company.create", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: row.id, action: "company.create", entity: "companies", entityId: row.id,
       metadata: { slug: data.slug },
@@ -69,7 +75,7 @@ export const addCompanyMember = createServerFn({ method: "POST" })
       .insert({ company_id: data.companyId, user_id: data.userId, role: data.role, invited_by: userId })
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw companyError("company.member.add", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: data.companyId, action: "member.add", entity: "company_members", entityId: row.id,
       metadata: { targetUserId: data.userId, role: data.role },
@@ -83,8 +89,11 @@ export const removeCompanyMember = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: prev } = await supabase.from("company_members").select("company_id, user_id, role").eq("id", data.memberId).maybeSingle();
-    const { error } = await supabase.from("company_members").delete().eq("id", data.memberId);
-    if (error) throw new Error(error.message.includes("LAST_OWNER_PROTECTED") ? "LAST_OWNER_PROTECTED" : error.message);
+    // RLS turns a delete the caller may not do into "0 rows": nothing
+    // changed, so no audit row is written.
+    const { data: removed, error } = await supabase.from("company_members").delete().eq("id", data.memberId).select("id");
+    if (error) throw companyError("company.member.remove", error);
+    if (!removed || removed.length === 0) throw new Error(prev ? "FORBIDDEN" : "MEMBER_NOT_FOUND");
     await writeAudit(supabase, {
       actorId: userId, companyId: prev?.company_id ?? null, action: "member.remove", entity: "company_members", entityId: data.memberId,
       metadata: { targetUserId: prev?.user_id, role: prev?.role },
@@ -114,10 +123,7 @@ export const updateCompanyMemberRole = createServerFn({ method: "POST" })
       .eq("id", data.memberId)
       .select("id, user_id, role")
       .single();
-    if (error)
-      throw new Error(
-        error.message.includes("LAST_OWNER_PROTECTED") ? "LAST_OWNER_PROTECTED" : error.message,
-      );
+    if (error) throw companyError("company.member.role", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: prev.company_id, action: "member.role_change", entity: "company_members", entityId: data.memberId,
       metadata: { targetUserId: prev.user_id, from: prev.role, to: data.role },
@@ -136,7 +142,7 @@ export const addCompanyBrand = createServerFn({ method: "POST" })
       .insert({ company_id: data.companyId, brand_symbol: data.brandSymbol, added_by: userId })
       .select("*")
       .single();
-    if (error) throw new Error(error.message === "BRAND_CAP_REACHED" ? "BRAND_CAP_REACHED" : error.message);
+    if (error) throw companyError("company.brand.add", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: data.companyId, action: "brand.add", entity: "company_brands", entityId: row.id,
       metadata: { brandSymbol: data.brandSymbol },
@@ -150,8 +156,9 @@ export const removeCompanyBrand = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: prev } = await supabase.from("company_brands").select("company_id, brand_symbol").eq("id", data.brandId).maybeSingle();
-    const { error } = await supabase.from("company_brands").delete().eq("id", data.brandId);
-    if (error) throw new Error(error.message);
+    const { data: removed, error } = await supabase.from("company_brands").delete().eq("id", data.brandId).select("id");
+    if (error) throw companyError("company.brand.remove", error);
+    if (!removed || removed.length === 0) throw new Error("FORBIDDEN");
     await writeAudit(supabase, {
       actorId: userId, companyId: prev?.company_id ?? null, action: "brand.remove", entity: "company_brands", entityId: data.brandId,
       metadata: { brandSymbol: prev?.brand_symbol },

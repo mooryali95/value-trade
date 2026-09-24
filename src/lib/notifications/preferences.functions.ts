@@ -38,6 +38,9 @@ export const updateMyNotificationPreferences = createServerFn({ method: "POST" }
     const { error } = await context.supabase
       .from("notification_preferences")
       .upsert({ user_id: context.userId, ...data });
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[preferences] write failed", error);
+      throw new Error("INTERNAL_ERROR");
+    }
     return { ok: true };
   });

@@ -1,0 +1,3 @@
+comment = 'stub pg_net'
+default_version = '1.0'
+relocatable = false

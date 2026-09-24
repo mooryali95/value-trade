@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
  * Upstream market-data bridge (Phase 1 of the live-data migration).
@@ -12,7 +13,13 @@ import { z } from "zod";
  * When the env is absent or the vendor call fails, the function returns
  * `{ quotes: [], error }` and the caller falls back to the mock provider, so
  * the `MarketDataProvider` contract never breaks mid-migration.
+ *
+ * The call spends the vendor quota, so it requires a signed-in session, takes
+ * at most MAX_SYMBOLS well-formed symbols, and is rate limited per user.
  */
+
+export const MAX_SYMBOLS = 50;
+const SymbolSchema = z.string().regex(/^[A-Za-z0-9._-]{1,32}$/);
 
 const QuoteSchema = z.object({
   symbol: z.string(),
@@ -24,13 +31,20 @@ const QuoteSchema = z.object({
 export type UpstreamQuote = z.infer<typeof QuoteSchema>;
 
 export const fetchUpstreamQuotes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ symbols: z.array(z.string().min(1)).max(300) }).parse(input),
+    z.object({ symbols: z.array(SymbolSchema).max(MAX_SYMBOLS) }).parse(input),
   )
-  .handler(async ({ data }): Promise<{ quotes: UpstreamQuote[]; error?: string }> => {
+  .handler(async ({ data, context }): Promise<{ quotes: UpstreamQuote[]; error?: string }> => {
     const base = process.env["MARKET_DATA_URL"];
     const key = process.env["MARKET_DATA_API_KEY"];
     if (!base || !key) return { quotes: [], error: "MARKET_DATA_NOT_CONFIGURED" };
+    if (data.symbols.length === 0) return { quotes: [] };
+
+    const { checkRateLimit } = await import("@/lib/security/rate-limit.server");
+    if (!(await checkRateLimit(`market-quotes:${context.userId}`, 60, 60))) {
+      return { quotes: [], error: "RATE_LIMITED" };
+    }
 
     try {
       const res = await fetch(`${base.replace(/\/$/, "")}/quotes?symbols=${encodeURIComponent(data.symbols.join(","))}`, {
@@ -45,7 +59,7 @@ export const fetchUpstreamQuotes = createServerFn({ method: "GET" })
         .map((r) => r.data);
       return { quotes };
     } catch (err) {
-      console.error("[market-data] upstream fetch failed", err);
+      console.error("[market-data] upstream fetch failed", err instanceof Error ? err.name : "unknown");
       return { quotes: [], error: "UPSTREAM_UNREACHABLE" };
     }
   });
