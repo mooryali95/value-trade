@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
-import { isValidLimitPrice, isValidOrderQty } from "@/lib/trading/calc";
+import { isValidLimitPrice, isValidOrderQty, isValidReferencePrice } from "@/lib/trading/calc";
 
 /**
  * Listing operations of the private brand-units market, platform admins only:
@@ -67,10 +67,15 @@ function parseSymbol(v: unknown): string {
   return v.trim().toUpperCase();
 }
 
+/**
+ * A reference price is on the 0.01 tick, from 0.05 (the smallest price whose
+ * ±20% band holds more than one tick) to 1,000,000,000; the database
+ * enforces the same rule (trg_brands_reference_price).
+ */
 export function parseReferencePriceInput(input: unknown): { symbol: string; price: number } {
   const { symbol, price } = (input ?? {}) as { symbol?: unknown; price?: unknown };
   const sym = parseSymbol(symbol);
-  if (!isValidLimitPrice(price) || price > 1_000_000_000) throw new Error("INVALID_PRICE");
+  if (!isValidReferencePrice(price)) throw new Error("INVALID_PRICE");
   return { symbol: sym, price };
 }
 
@@ -120,6 +125,8 @@ export const setReferencePrice = createServerFn({ method: "POST" })
       .update({ reference_price: data.price })
       .eq("id", prev.id);
     if (error) {
+      // The database's own price rules (trigger INVALID_PRICE, CHECK 23514).
+      if ((error.message ?? "").trim() === "INVALID_PRICE" || error.code === "23514") throw new Error("INVALID_PRICE");
       console.error("[listing] reference price update failed:", error.code ?? "unknown");
       throw new Error("INTERNAL_ERROR");
     }

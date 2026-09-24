@@ -211,3 +211,67 @@ export const setTraderRole = createServerFn({ method: "POST" })
 
     return { userId: data.userId, tradingActive: data.active, cancelledOrders };
   });
+
+export type PendingActivation = {
+  /** Null while the approved investor has not created the account yet. */
+  userId: string | null;
+  email: string;
+  fullName: string | null;
+  createdAt: string | null;
+  emailConfirmed: boolean;
+  /**
+   * investor_request: approved investor request, account exists;
+   * invited_no_account: approved investor request, invitation not used yet;
+   * no_role: signed-in account with no platform role and no company.
+   */
+  source: "investor_request" | "invited_no_account" | "no_role";
+  requestId: string | null;
+  requestReference: string | null;
+  requestedAt: string | null;
+  pendingCompanyInvitations: number;
+};
+
+/**
+ * Accounts waiting for trading activation (admin_pending_activations):
+ * approved investors (with or without an account yet) and accounts that
+ * signed in without any role or company. Activated traders never appear.
+ */
+export const listPendingActivations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<PendingActivation[]> => {
+    await ensureAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabaseAdmin.rpc as any)("admin_pending_activations", {
+      _actor_id: context.userId,
+      _limit: 200,
+    });
+    if (error) {
+      console.error("[investors] pending activations failed:", error.code ?? "unknown");
+      throw new Error(error.message === "FORBIDDEN_ADMIN_REQUIRED" ? "FORBIDDEN_ADMIN_REQUIRED" : "INTERNAL_ERROR");
+    }
+    type Row = {
+      user_id: string | null;
+      email: string;
+      full_name: string | null;
+      created_at: string | null;
+      email_confirmed: boolean | null;
+      source: PendingActivation["source"];
+      request_id: string | null;
+      request_reference: string | null;
+      requested_at: string | null;
+      pending_company_invitations: number | null;
+    };
+    return ((data ?? []) as Row[]).map((r) => ({
+      userId: r.user_id,
+      email: r.email,
+      fullName: r.full_name,
+      createdAt: r.created_at,
+      emailConfirmed: r.email_confirmed === true,
+      source: r.source,
+      requestId: r.request_id,
+      requestReference: r.request_reference,
+      requestedAt: r.requested_at,
+      pendingCompanyInvitations: Number(r.pending_company_invitations ?? 0),
+    }));
+  });

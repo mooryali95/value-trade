@@ -26,6 +26,7 @@ import { Route as LegalRiskRouteImport } from './routes/legal.risk'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as DocsStatesRouteImport } from './routes/docs.states'
 import { Route as DocsA11yRouteImport } from './routes/docs.a11y'
@@ -139,6 +140,11 @@ const LegalCookiesRoute = LegalCookiesRouteImport.update({
 const JoinSlugRoute = JoinSlugRouteImport.update({
   id: '/join/$slug',
   path: '/join/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
@@ -327,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -425,6 +433,7 @@ export interface FileRoutesById {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -475,6 +484,7 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
@@ -523,6 +533,7 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
@@ -618,6 +630,7 @@ export interface RootRouteChildren {
   DocsA11yRoute: typeof DocsA11yRoute
   DocsStatesRoute: typeof DocsStatesRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   JoinSlugRoute: typeof JoinSlugRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
@@ -754,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$slug'
       fullPath: '/join/$slug'
       preLoaderRoute: typeof JoinSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
@@ -1030,6 +1050,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsA11yRoute: DocsA11yRoute,
   DocsStatesRoute: DocsStatesRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  InviteTokenRoute: InviteTokenRoute,
   JoinSlugRoute: JoinSlugRoute,
   LegalCookiesRoute: LegalCookiesRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,

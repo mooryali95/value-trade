@@ -291,3 +291,15 @@ BEGIN
    LIMIT GREATEST(1, LEAST(COALESCE(_limit, 200), 500));
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- EXECUTE privileges (also in 20260926100200): service_role only.
+-- ---------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.access_request_reference() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.check_access_request_status_ref(text, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.approve_access_request(uuid, uuid, public.company_role, text, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.admin_pending_activations(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.access_request_reference() TO service_role;
+GRANT EXECUTE ON FUNCTION public.check_access_request_status_ref(text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.approve_access_request(uuid, uuid, public.company_role, text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.admin_pending_activations(uuid, integer) TO service_role;

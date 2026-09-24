@@ -105,11 +105,21 @@ CREATE TRIGGER company_invitations_guard
   BEFORE INSERT OR UPDATE ON public.company_invitations
   FOR EACH ROW EXECUTE FUNCTION public.company_invitations_guard();
 
--- Addresses are stored lower-case (the server matches them exactly). The
--- unique pending index is on lower(email), so this cannot collide.
-UPDATE public.company_invitations
-   SET email = lower(btrim(email))
- WHERE email <> lower(btrim(email));
+-- Addresses are stored lower-case and trimmed (the server matches them
+-- exactly). A pending row whose trimmed address collides with another
+-- pending invitation of the same company could never be accepted (its
+-- address matched no account): it is marked expired instead.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT ci.id FROM public.company_invitations ci WHERE ci.email <> lower(btrim(ci.email)) LOOP
+    BEGIN
+      UPDATE public.company_invitations SET email = lower(btrim(email)) WHERE id = r.id;
+    EXCEPTION WHEN unique_violation THEN
+      UPDATE public.company_invitations SET status = 'expired', email = lower(btrim(email)) WHERE id = r.id;
+    END;
+  END LOOP;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- Is the address already a member of the company? (auth.users is read by
@@ -288,7 +298,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'NOT_AUTHENTICATED';
   END IF;
-  IF account_email IS NOT NULL AND account_email <> caller_email THEN
+  IF account_email IS NULL OR account_email <> caller_email THEN
     RAISE EXCEPTION 'INVITATION_EMAIL_MISMATCH';
   END IF;
 
@@ -394,3 +404,25 @@ AS $$
      AND EXISTS (SELECT 1 FROM public.company_members m WHERE m.company_id = c.id AND m.role = 'owner')
    LIMIT 1;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- EXECUTE privileges, set here as well as in 20260926100200 so there is no
+-- window (between the two files) in which Supabase's default privileges
+-- would let anon/authenticated call a function that trusts _actor_id.
+-- ---------------------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.company_invitations_guard() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.company_has_member_email(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.create_company_invitation(uuid, text, public.company_role, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.renew_company_invitation(uuid, uuid, boolean) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.accept_company_invitation(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.invitation_preview(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.search_companies_public(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_company_by_slug_public(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.company_invitations_guard() TO service_role;
+GRANT EXECUTE ON FUNCTION public.company_has_member_email(uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.create_company_invitation(uuid, text, public.company_role, uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.renew_company_invitation(uuid, uuid, boolean) TO service_role;
+GRANT EXECUTE ON FUNCTION public.accept_company_invitation(uuid, uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.invitation_preview(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.search_companies_public(text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_company_by_slug_public(text) TO service_role;

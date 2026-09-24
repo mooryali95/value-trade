@@ -20,9 +20,16 @@ import { formatCurrency } from "@/lib/format";
 import {
   findInvestorByEmail,
   getInvestorLedger,
+  listPendingActivations,
   setTraderRole,
   type InvestorSummary,
+  type PendingActivation,
 } from "@/lib/admin/investors.functions";
+import { resendInvestorInvitation } from "@/lib/access/access-requests.functions";
+import { appRoleKey } from "@/lib/tenants/role-labels";
+import { Num } from "@/components/num";
+import { fill } from "@/lib/account/fill";
+import { formatDay, formatDayTime } from "@/lib/account/dates";
 import { adjustCash } from "@/lib/trading/cash.functions";
 import {
   issueUnits,
@@ -116,6 +123,17 @@ function AdminInvestorsPage() {
         crumbs={[{ label: t("navGroupAdmin"), to: "/admin/companies" }, { label: t("nav_investors") }]}
       />
 
+      {!rolesLoading && isAdmin && (
+        <PendingActivationsCard
+          onOpen={(address) => {
+            setInput(address);
+            setTouched(false);
+            setEmail(address);
+          }}
+        />
+      )}
+
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t("r_invFindTitle")}</h2>
       <form
         className="mb-6 flex max-w-xl flex-wrap items-start gap-2"
         onSubmit={(e) => {
@@ -476,6 +494,7 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-investor", email] });
     qc.invalidateQueries({ queryKey: ["admin-investor-ledger", investor.userId] });
+    qc.invalidateQueries({ queryKey: ["admin-pending-activations"] });
   };
 
   const roleMut = useMutation({
@@ -596,16 +615,7 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
     if (ok) cashMut.mutate({ kind, amount: value, note: note.trim() || undefined });
   };
 
-  const fmtDate = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleString(lang === "ar" ? "ar" : "en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "—";
+  const fmtDate = (iso: string | null) => formatDayTime(iso, lang) || "—";
 
   return (
     <div dir={dir} className="space-y-4">
@@ -648,11 +658,14 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
               {investor.roles.length === 0 ? (
                 <span className="text-xs text-muted-foreground">{t("noRoles")}</span>
               ) : (
-                investor.roles.map((r) => (
-                  <Badge key={r} variant={r === "trader" ? "bull" : "neutral"}>
-                    <span dir="ltr">{r}</span>
-                  </Badge>
-                ))
+                investor.roles.map((r) => {
+                  const k = appRoleKey(r);
+                  return (
+                    <Badge key={r} variant={r === "trader" ? "bull" : "neutral"}>
+                      {k ? t(k) : <span dir="ltr">{r}</span>}
+                    </Badge>
+                  );
+                })
               )}
             </div>
           </div>
@@ -872,5 +885,163 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
         )}
       </section>
     </div>
+  );
+}
+
+const SOURCE_KEY: Record<PendingActivation["source"], Key> = {
+  investor_request: "r_invSourceInvestorRequest",
+  invited_no_account: "r_invSourceInvitedNoAccount",
+  no_role: "r_invSourceNoRole",
+};
+
+/**
+ * Accounts waiting for trading activation: approved investors (with or
+ * without an account yet) and people who signed in without any role or
+ * company. Activation grants the trader role; funding is a deposit posted
+ * from the investor panel below.
+ */
+function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void }) {
+  const { t, lang } = useI18n();
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const errorMessage = useErrorMessage();
+  const listFn = useServerFn(listPendingActivations);
+  const setRoleFn = useServerFn(setTraderRole);
+  const resendFn = useServerFn(resendInvestorInvitation);
+  const [announcement, setAnnouncement] = useState("");
+  const q = useQuery({ queryKey: ["admin-pending-activations"], queryFn: () => listFn() });
+
+  const say = (msg: string, ok = true) => {
+    setAnnouncement(msg);
+    if (ok) toast.success(msg);
+    else toast.error(msg);
+  };
+
+  const activate = useMutation({
+    mutationFn: (row: PendingActivation) => setRoleFn({ data: { userId: row.userId!, active: true } }),
+    onSuccess: (_res, row) => {
+      say(t("r_invActivatedFund"));
+      qc.invalidateQueries({ queryKey: ["admin-pending-activations"] });
+      qc.invalidateQueries({ queryKey: ["admin-investor"] });
+      onOpen(row.email);
+    },
+    onError: (e: unknown) => say(errorMessage(e), false),
+  });
+
+  const resend = useMutation({
+    mutationFn: (requestId: string) => resendFn({ data: { requestId } }),
+    onSuccess: (res) => say(res.notification.sent ? t("r_arApprovedInvestorSent") : t("r_arApprovedEmailFailed"), res.notification.sent),
+    onError: (e: unknown) => say(errorMessage(e), false),
+  });
+
+  const fmt = (iso: string | null) =>
+    formatDay(iso, lang) || "—";
+  const rows = q.data ?? [];
+
+  return (
+    <section className="mb-8 rounded-xl border border-border/60 bg-card">
+      <LiveRegion message={announcement} />
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/50 px-4 py-3">
+        <h2 className="text-sm font-semibold text-ink">{t("r_invPendingTitle")}</h2>
+        {q.data && (
+          <span className="text-[11px] text-muted-foreground">
+            {fill(t("r_invPendingCount"), { n: <Num value={rows.length} kind="qty" /> })}
+          </span>
+        )}
+      </div>
+      <p className="px-4 pt-3 text-xs leading-relaxed text-muted-foreground">{t("r_invPendingDesc")}</p>
+      {q.isLoading ? (
+        <div className="p-4">
+          <LuxurySkeleton lines={3} />
+        </div>
+      ) : q.isError ? (
+        <div className="py-6">
+          <ErrorState description={errorMessage(q.error)} reset={() => q.refetch()} />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="px-4 py-6 text-center text-xs text-muted-foreground">{t("r_invPendingEmpty")}</p>
+      ) : (
+        <div className="overflow-x-auto p-2">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/60 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 text-start font-semibold">{t("r_arColApplicant")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("r_invColSource")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("createdAt")}</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.userId ?? "none"}:${r.email}`} className="border-b border-border/40 align-top last:border-0">
+                  <td className="px-3 py-2">
+                    <div className="text-xs font-semibold text-ink">{r.fullName || "—"}</div>
+                    <div className="text-[11px] text-muted-foreground" dir="ltr">{r.email}</div>
+                    {r.requestReference && (
+                      <div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{r.requestReference}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge variant={r.source === "invited_no_account" ? "neutral" : "gold"}>{t(SOURCE_KEY[r.source])}</Badge>
+                    {r.userId && !r.emailConfirmed && (
+                      <div className="mt-1">
+                        <Badge variant="bear">{t("emailUnconfirmed")}</Badge>
+                      </div>
+                    )}
+                    {r.pendingCompanyInvitations > 0 && (
+                      <div className="mt-1 text-[10px] text-muted-foreground">
+                        {fill(t("r_invPendingCompanyInvites"), { n: <Num value={r.pendingCompanyInvitations} kind="qty" /> })}
+                      </div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground">{fmt(r.requestedAt ?? r.createdAt)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {r.requestId && (!r.userId || !r.emailConfirmed) && (
+                        <button
+                          type="button"
+                          disabled={resend.isPending}
+                          onClick={() => resend.mutate(r.requestId!)}
+                          className="rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                        >
+                          {t("r_arResendPlatformInvite")}
+                        </button>
+                      )}
+                      {r.userId && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onOpen(r.email)}
+                            className="rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)]"
+                          >
+                            {t("r_invOpen")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={activate.isPending}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: t("activateTrading"),
+                                description: `${r.email} — ${t("activateTradingConfirm")}`,
+                                confirmLabel: t("activateTrading"),
+                                cancelLabel: t("cancel"),
+                              });
+                              if (ok) activate.mutate(r);
+                            }}
+                            className="rounded gold-gradient px-2 py-1 text-[11px] font-semibold text-ink disabled:opacity-50"
+                          >
+                            {t("activateTrading")}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

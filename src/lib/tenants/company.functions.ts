@@ -57,7 +57,24 @@ export const getCompanyDetails = createServerFn({ method: "GET" })
       supabase.from("company_members").select("id, user_id, role, joined_at").eq("company_id", data.companyId),
       supabase.from("company_brands").select("id, brand_symbol, added_at").eq("company_id", data.companyId).order("added_at", { ascending: false }),
     ]);
-    return { company, members: members ?? [], brands: brands ?? [] };
+    // Members are listed by e-mail address, not by user id. Only rows RLS
+    // already returned to this caller (a member of the company) are resolved.
+    const emails = new Map<string, string | null>();
+    const visible = (members ?? []).slice(0, 200);
+    if (visible.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await Promise.all(
+        visible.map(async (m) => {
+          const { data: u } = await supabaseAdmin.auth.admin.getUserById(m.user_id);
+          emails.set(m.user_id, u?.user?.email ?? null);
+        }),
+      );
+    }
+    return {
+      company,
+      members: (members ?? []).map((m) => ({ ...m, email: emails.get(m.user_id) ?? null })),
+      brands: brands ?? [],
+    };
   });
 
 const AddMemberInput = z.object({

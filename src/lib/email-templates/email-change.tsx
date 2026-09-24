@@ -4,26 +4,37 @@ import { BrandLayout, styles, brand } from './_brand'
 
 interface EmailChangeEmailProps {
   siteName: string
-  oldEmail: string
-  email: string
-  newEmail: string
+  /** The hook may omit the previous address; `email` is the fallback. */
+  oldEmail?: string | null
+  email?: string | null
+  newEmail?: string | null
   confirmationUrl: string
 }
 
 export const EmailChangeEmail = ({
   oldEmail,
+  email,
   newEmail,
   confirmationUrl,
-}: EmailChangeEmailProps) => (
+}: EmailChangeEmailProps) => {
+  const from = oldEmail || email || null
+  const to = newEmail || null
+  return (
   <BrandLayout preview="تأكيد تغيير البريد الإلكتروني" lang="ar">
     <Text style={styles.h1En}>Confirm email change</Text>
     <Text style={styles.h1}>تأكيد تغيير البريد الإلكتروني</Text>
     <Text style={styles.text}>
-      طلبت تغيير عنوان البريد الإلكتروني المسجّل في <strong>وحدة القيمة</strong> من:
+      {from || to
+        ? 'طلبت تغيير عنوان البريد الإلكتروني المسجّل في حسابك على وحدة القيمة:'
+        : 'طلبت تغيير عنوان البريد الإلكتروني المسجّل في حسابك على وحدة القيمة.'}
     </Text>
-    <Text style={{ ...styles.text, color: brand.inkSoft }}>
-      <strong>{oldEmail}</strong> ← <strong>{newEmail}</strong>
-    </Text>
+    {(from || to) && (
+      <Text style={{ ...styles.text, color: brand.inkSoft }} dir="ltr">
+        {from ? <strong>{from}</strong> : null}
+        {from && to ? ' → ' : null}
+        {to ? <strong>{to}</strong> : null}
+      </Text>
+    )}
     <Text style={styles.textEn}>
       You requested to change your Value Unit email address. Confirm below.
     </Text>
@@ -38,6 +49,7 @@ export const EmailChangeEmail = ({
       If you didn't request this change, secure your account immediately.
     </Text>
   </BrandLayout>
-)
+  )
+}
 
 export default EmailChangeEmail

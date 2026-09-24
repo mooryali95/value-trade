@@ -5,37 +5,41 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
 import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
 import { toStableError } from "@/lib/ops/errors.server";
+import { normalizeReference, UUID_RE } from "./reference";
 
-// NOTE ON `as any` CASTS BELOW:
-// `access_requests`, `search_companies_public`, `get_company_by_slug_public`,
-// `approve_access_request`, and `reject_access_request` all come from the new
-// migration (20260802121145_access_requests.sql). The generated
-// `Database` types (src/integrations/supabase/types.ts) only know about them
-// once Lovable applies the migration to the linked Supabase project and
-// regenerates that file -- which happens on sync, not before. These casts
-// are the standard, narrow way to bridge that gap; remove them once
-// types.ts picks up the new schema (tsc will flag the now-redundant casts).
+// NOTE ON `as any` CASTS BELOW: the onboarding functions and the
+// access_requests.reference_code column come from migrations that the
+// generated Database types (src/integrations/supabase/types.ts) only learn
+// about once Lovable applies them and regenerates that file.
 
 // ---------------------------------------------------------------------------
-// Public: search / lookup companies (name+slug+id only -- see
-// search_companies_public / get_company_by_slug_public in the migration).
-// No auth required; this is the typeahead for "join an existing company".
+// Public: search / lookup companies (name+slug+id only). Only companies that
+// have an owner are listed (search_companies_public), at most 8 per query,
+// and each IP is rate limited: this is an unauthenticated typeahead.
 // ---------------------------------------------------------------------------
 
 export const searchCompaniesPublic = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ query: z.string().min(2).max(80) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ query: z.string().trim().min(2).max(80) }).parse(input))
   .handler(async ({ data }) => {
+    if (!(await checkRateLimit(clientKeyFromRequest(getRequest(), "company-search-ip"), 120, 600))) {
+      throw new Error("RATE_LIMITED");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin.rpc("search_companies_public" as any, {
       _query: data.query,
     });
     if (error) throw toStableError("access.search", error);
-    return (rows ?? []) as { id: string; slug: string; name_ar: string; name_en: string }[];
+    return ((rows ?? []) as { id: string; slug: string; name_ar: string; name_en: string }[]).slice(0, 8);
   });
 
 export const getCompanyBySlugPublic = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ slug: z.string().min(1).max(48) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ slug: z.string().trim().toLowerCase().min(1).max(48).regex(/^[a-z0-9-]+$/) }).parse(input),
+  )
   .handler(async ({ data }) => {
+    if (!(await checkRateLimit(clientKeyFromRequest(getRequest(), "company-slug-ip"), 60, 600))) {
+      throw new Error("RATE_LIMITED");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("get_company_by_slug_public" as any, {
       _slug: data.slug,
@@ -46,12 +50,11 @@ export const getCompanyBySlugPublic = createServerFn({ method: "GET" })
   });
 
 // ---------------------------------------------------------------------------
-// Public: submit an access request. No Supabase Auth account is created here
-// -- see AGENTS-facing note in the migration for why. Rate limited by IP and
-// by email; checkRateLimit fails closed, since this endpoint has no auth
-// barrier at all. Direct anon/authenticated INSERT on access_requests is
-// revoked: this server function (service role, after validation and rate
-// limiting) is the only write path.
+// Public: submit an access request. No Supabase Auth account is created
+// here. Rate limited by IP and by address (fails closed). The server
+// function (service role, after validation and rate limiting) is the only
+// write path. The applicant receives an acknowledgement e-mail with a short
+// reference code (VU-XXXX-XXXX) to check the request status.
 // ---------------------------------------------------------------------------
 
 const Email = z.string().trim().toLowerCase().email().max(320);
@@ -72,7 +75,14 @@ const SubmitInput = z.discriminatedUnion("join_method", [
     new_company_name_ar: CompanyName,
     new_company_name_en: CompanyName,
   }),
+  z.object({
+    join_method: z.literal("investor"),
+    email: Email,
+    full_name: Name,
+  }),
 ]);
+
+export type JoinMethod = "search" | "link" | "new_company" | "investor";
 
 /** Rate-limit key for an email without storing the address itself. */
 async function emailKey(scope: string, email: string): Promise<string> {
@@ -81,9 +91,39 @@ async function emailKey(scope: string, email: string): Promise<string> {
   return `${scope}:${hex.slice(0, 32)}`;
 }
 
+function requestKind(joinMethod: string): "investor" | "join" | "new_company" {
+  return joinMethod === "investor" ? "investor" : joinMethod === "new_company" ? "new_company" : "join";
+}
+
+async function companyNames(companyId: string | null): Promise<{ ar: string | null; en: string | null }> {
+  if (!companyId) return { ar: null, en: null };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin.from("companies").select("name_ar, name_en").eq("id", companyId).maybeSingle();
+  return { ar: data?.name_ar ?? null, en: data?.name_en ?? null };
+}
+
+/** Best-effort transactional e-mail; never throws, never returns provider text. */
+async function sendMail(
+  templateName: string,
+  to: string,
+  templateData: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<{ sent: boolean; reason?: string }> {
+  try {
+    const { enqueueTransactionalEmail } = await import("@/lib/email/enqueue.server");
+    const res = await enqueueTransactionalEmail({ templateName, recipientEmail: to, templateData, idempotencyKey, label: templateName });
+    if (res.sent) return { sent: true };
+    if (res.reason !== "suppressed" && res.detail) console.error(`[access] ${templateName} enqueue failed`, res.reason);
+    return { sent: false, reason: res.reason === "suppressed" ? "SUPPRESSED" : "PROVIDER_ERROR" };
+  } catch (err) {
+    console.error(`[access] ${templateName} threw`, err instanceof Error ? err.name : "unknown");
+    return { sent: false, reason: "PROVIDER_ERROR" };
+  }
+}
+
 export const submitAccessRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => SubmitInput.parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ id: string; referenceCode: string; emailSent: boolean }> => {
     const request = getRequest();
     const ipKey = clientKeyFromRequest(request, "access-request-ip");
     const perEmailKey = await emailKey("access-request-email", data.email);
@@ -97,48 +137,70 @@ export const submitAccessRequest = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    const base = { email: data.email, full_name: data.full_name, join_method: data.join_method };
     const insert =
       data.join_method === "new_company"
-        ? {
-            email: data.email.toLowerCase(),
-            full_name: data.full_name,
-            join_method: data.join_method,
-            new_company_name_ar: data.new_company_name_ar,
-            new_company_name_en: data.new_company_name_en,
-          }
-        : {
-            email: data.email.toLowerCase(),
-            full_name: data.full_name,
-            join_method: data.join_method,
-            requested_company_id: data.requested_company_id,
-          };
+        ? { ...base, new_company_name_ar: data.new_company_name_ar, new_company_name_en: data.new_company_name_en }
+        : data.join_method === "investor"
+          ? base
+          : { ...base, requested_company_id: data.requested_company_id };
 
-    const { data: row, error } = await (supabaseAdmin.from("access_requests" as any) as any)
-      .insert(insert)
-      .select("id")
-      .single();
-    if (error || !row) throw toStableError("access.submit", error);
+    // The reference code is random (40 bits); retry once on the rare clash.
+    let row: { id: string; reference_code: string } | null = null;
+    for (let attempt = 0; attempt < 2 && !row; attempt++) {
+      const res = await (supabaseAdmin.from("access_requests" as any) as any)
+        .insert(insert)
+        .select("id, reference_code")
+        .single();
+      if (!res.error && res.data) {
+        row = res.data as { id: string; reference_code: string };
+        break;
+      }
+      if (res.error?.code !== "23505" || attempt === 1) throw toStableError("access.submit", res.error);
+    }
+    if (!row) throw new Error("INTERNAL_ERROR");
 
-    return { id: row.id as string };
+    const { canonicalOrigin } = await import("@/lib/ops/origin.server");
+    const names =
+      data.join_method === "search" || data.join_method === "link"
+        ? await companyNames(data.requested_company_id)
+        : data.join_method === "new_company"
+          ? { ar: data.new_company_name_ar, en: data.new_company_name_en }
+          : { ar: null, en: null };
+    const ack = await sendMail(
+      "access-request-received",
+      data.email,
+      {
+        fullName: data.full_name,
+        referenceCode: row.reference_code,
+        kind: requestKind(data.join_method),
+        companyNameAr: names.ar,
+        companyNameEn: names.en,
+        statusUrl: `${canonicalOrigin()}/request-access?ref=${encodeURIComponent(row.reference_code)}`,
+      },
+      `access-request-received:${row.id}`,
+    );
+
+    return { id: row.id, referenceCode: row.reference_code, emailSent: ack.sent };
   });
 
 // ---------------------------------------------------------------------------
-// Authenticated: the approval queue. RLS on access_requests already scopes
-// rows to (a) owners of the target company or (b) platform_admin -- this
-// query relies on that scoping rather than re-deriving it here, so a company
-// owner querying this literally cannot receive another tenant's rows.
+// Authenticated: the approval queue. RLS on access_requests scopes rows to
+// (a) owners of the target company or (b) platform_admin (who alone sees new
+// company and investor requests).
 // ---------------------------------------------------------------------------
 
 export type AccessRequestRow = {
   id: string;
   email: string;
   full_name: string;
-  join_method: "search" | "link" | "new_company";
+  join_method: JoinMethod;
   requested_company_id: string | null;
   new_company_name_ar: string | null;
   new_company_name_en: string | null;
   status: string;
   created_at: string;
+  reference_code: string | null;
   companies: { id: string; name_ar: string; name_en: string; slug: string } | null;
 };
 
@@ -148,7 +210,8 @@ export const listAccessRequests = createServerFn({ method: "GET" })
     const { data: rows, error } = await (context.supabase.from("access_requests" as any) as any)
       .select("*, companies:companies(id, name_ar, name_en, slug)")
       .eq("status", "pending")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(500);
     if (error) throw toStableError("access.list", error);
     return (rows ?? []) as AccessRequestRow[];
   });
@@ -156,7 +219,7 @@ export const listAccessRequests = createServerFn({ method: "GET" })
 const ApproveInput = z.object({
   requestId: z.string().uuid(),
   role: z.enum(["finance", "shariah", "trader", "viewer"]).optional(), // required for search/link
-  sector: z.string().max(80).optional(), // required for new_company
+  sector: z.string().trim().max(80).optional(), // required for new_company
   slug: z
     .string()
     .min(2)
@@ -167,10 +230,80 @@ const ApproveInput = z.object({
   origin: z.string().max(2048).optional(),
 });
 
+export type ApprovalResult = {
+  ok: true;
+  kind: "investor" | "join" | "new_company";
+  companyId: string | null;
+  /** Public invitation page (company requests); the owner or admin may copy it. */
+  inviteUrl: string | null;
+  /** Whether the applicant was e-mailed (invitation, platform invitation or notice). */
+  notification: { sent: boolean; reason?: string };
+  /** Investor already had an account: they were told to sign in instead. */
+  accountExists?: boolean;
+};
+
+type RequestRecord = {
+  id: string;
+  email: string;
+  full_name: string;
+  join_method: string;
+  requested_company_id: string | null;
+  new_company_name_ar: string | null;
+  new_company_name_en: string | null;
+  status: string;
+  reference_code: string | null;
+  resulting_invitation_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
+async function loadRequest(requestId: string): Promise<RequestRecord> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await (supabaseAdmin.from("access_requests" as any) as any)
+    .select(
+      "id, email, full_name, join_method, requested_company_id, new_company_name_ar, new_company_name_en, status, reference_code, resulting_invitation_id, reviewed_at, created_at",
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+  if (error) throw toStableError("access.load", error);
+  if (!data) throw new Error("REQUEST_NOT_FOUND");
+  return data as RequestRecord;
+}
+
+/**
+ * Investor platform invitation: a Supabase Auth invitation (set-password
+ * link to the canonical origin). When the address already has an account,
+ * the applicant is told by e-mail to sign in instead.
+ */
+async function sendInvestorWelcome(req: RequestRecord): Promise<{ sent: boolean; reason?: string; accountExists: boolean }> {
+  const { sendAccountLink } = await import("@/lib/account/platform-invite.server");
+  const link = await sendAccountLink(req.email, {
+    next: "/",
+    fallbackToRecovery: false,
+    data: { full_name: req.full_name },
+  });
+  if (link.sent) return { sent: true, accountExists: false };
+  if (link.reason !== "ALREADY_REGISTERED") return { sent: false, reason: link.reason, accountExists: false };
+  const { canonicalOrigin } = await import("@/lib/ops/origin.server");
+  const notice = await sendMail(
+    "access-request-decision",
+    req.email,
+    {
+      decision: "approved",
+      kind: "investor",
+      fullName: req.full_name,
+      referenceCode: req.reference_code,
+      signInUrl: `${canonicalOrigin()}/auth`,
+    },
+    `access-request-decision:${req.id}:approved:${Math.floor(Date.now() / 60_000)}`,
+  );
+  return { ...notice, accountExists: true };
+}
+
 export const approveAccessRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ApproveInput.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }): Promise<ApprovalResult> => {
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rpcRows, error } = await supabaseAdmin.rpc("approve_access_request" as any, {
@@ -182,51 +315,56 @@ export const approveAccessRequest = createServerFn({ method: "POST" })
     });
     if (error) throw toStableError("access.approve", error);
     const result = (Array.isArray(rpcRows) ? rpcRows[0] : rpcRows) as {
-      invitation_id: string;
-      invitation_token: string;
-      company_id: string;
-    };
+      invitation_id: string | null;
+      invitation_token: string | null;
+      company_id: string | null;
+    } | null;
+    const req = await loadRequest(data.requestId);
+    const kind = requestKind(req.join_method);
 
-    // Reuse the existing, already-tested invitation email path.
-    const { data: invite } = await supabase
-      .from("company_invitations")
-      .select("*")
-      .eq("id", result.invitation_id)
-      .single();
-    if (invite) {
-      const { sendInvitationEmailBestEffort } =
-        await import("@/lib/tenants/invitation-email.server");
-      const { data: company } = await supabase
-        .from("companies")
-        .select("name_en, name_ar")
-        .eq("id", result.company_id)
-        .single();
-      const co = (company ?? {}) as { name_en?: string; name_ar?: string };
-      const { canonicalOrigin } = await import("@/lib/ops/origin.server");
-      await sendInvitationEmailBestEffort({
-        email: invite.email,
-        companyName: co.name_en || co.name_ar || "Value Unit",
-        acceptUrl: `${canonicalOrigin()}/invitations?token=${encodeURIComponent(invite.token)}`,
-        invitationId: invite.id,
-        role: invite.role,
-      });
+    let notification: { sent: boolean; reason?: string } = { sent: false, reason: "PROVIDER_ERROR" };
+    let inviteUrl: string | null = null;
+    let accountExists: boolean | undefined;
+    if (kind === "investor") {
+      const welcome = await sendInvestorWelcome(req);
+      notification = { sent: welcome.sent, reason: welcome.reason };
+      accountExists = welcome.accountExists;
+    } else if (result?.invitation_id) {
+      const { data: invite } = await supabaseAdmin
+        .from("company_invitations")
+        .select("id, company_id, email, role, token, status, expires_at")
+        .eq("id", result.invitation_id)
+        .maybeSingle();
+      if (invite) {
+        const { notifyInvitation, invitationUrl } = await import("@/lib/tenants/invitations.server");
+        notification = await notifyInvitation(invite);
+        inviteUrl = invitationUrl(invite.token);
+      }
     }
 
     await writeAudit(supabase, {
       actorId: userId,
-      companyId: result.company_id,
+      companyId: result?.company_id ?? null,
       action: "access_request.approve",
       entity: "access_requests",
       entityId: data.requestId,
-      metadata: { invitationId: result.invitation_id },
+      metadata: { kind, invitationId: result?.invitation_id ?? null, emailSent: notification.sent },
     });
 
-    return { ok: true, companyId: result.company_id as string };
+    return {
+      ok: true,
+      kind,
+      companyId: result?.company_id ?? null,
+      inviteUrl,
+      notification,
+      ...(accountExists !== undefined ? { accountExists } : {}),
+    };
   });
 
 const RejectInput = z.object({
   requestId: z.string().uuid(),
-  reason: z.string().max(600).optional(),
+  /** Shared with the applicant in the decision e-mail. */
+  reason: z.string().trim().max(600).optional(),
 });
 
 export const rejectAccessRequest = createServerFn({ method: "POST" })
@@ -235,35 +373,205 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const reason = data.reason ? data.reason : null;
     const { error } = await supabaseAdmin.rpc("reject_access_request" as any, {
       _request_id: data.requestId,
       _actor_id: userId,
-      _reason: data.reason ?? null,
+      _reason: reason,
     });
     if (error) throw toStableError("access.reject", error);
 
+    const req = await loadRequest(data.requestId);
+    const names = await companyNames(req.requested_company_id);
+    const { canonicalOrigin } = await import("@/lib/ops/origin.server");
+    const notification = await sendMail(
+      "access-request-decision",
+      req.email,
+      {
+        decision: "rejected",
+        kind: requestKind(req.join_method),
+        fullName: req.full_name,
+        referenceCode: req.reference_code,
+        companyNameAr: names.ar ?? req.new_company_name_ar,
+        companyNameEn: names.en ?? req.new_company_name_en,
+        note: reason,
+        requestUrl: `${canonicalOrigin()}/request-access`,
+      },
+      `access-request-decision:${req.id}:rejected`,
+    );
+
     await writeAudit(supabase, {
       actorId: userId,
-      companyId: null,
+      companyId: req.requested_company_id,
       action: "access_request.reject",
       entity: "access_requests",
       entityId: data.requestId,
-      metadata: { reason: data.reason ?? null },
+      metadata: { reason, emailSent: notification.sent },
     });
 
-    return { ok: true };
+    return { ok: true as const, notification };
   });
 
 // ---------------------------------------------------------------------------
-// Public: check the status of a previously submitted request. Requires both
-// the request id and the matching email (see check_access_request_status in
-// the migration for why that pair is safe to expose without auth). Rate
-// limited by IP -- fails CLOSED, same reasoning as submitAccessRequest: this
-// is an unauthenticated endpoint with no other barrier.
+// Recently approved requests and what became of them (H2): the resulting
+// company invitation (copy link, resend, re-issue) or, for investors, whether
+// the account exists and is active. Visibility follows RLS (owners: their
+// company's requests; platform admins: everything).
+// ---------------------------------------------------------------------------
+
+export type RecentDecision = {
+  id: string;
+  email: string;
+  fullName: string;
+  joinMethod: JoinMethod;
+  referenceCode: string | null;
+  reviewedAt: string | null;
+  companyId: string | null;
+  companyNameAr: string | null;
+  companyNameEn: string | null;
+  invitation: {
+    id: string;
+    role: string;
+    status: "pending" | "expired" | "accepted" | "revoked";
+    expiresAt: string;
+    inviteUrl: string | null;
+  } | null;
+  /** Investors (platform admins only): where the account stands. */
+  investorState: "no_account" | "awaiting_activation" | "active" | null;
+};
+
+export const listRecentAccessDecisions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<RecentDecision[]> => {
+    const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+    const { data: rows, error } = await (context.supabase.from("access_requests" as any) as any)
+      .select("id, email, full_name, join_method, reference_code, reviewed_at, requested_company_id, new_company_name_ar, new_company_name_en, resulting_invitation_id")
+      .eq("status", "approved")
+      .gte("reviewed_at", since)
+      .order("reviewed_at", { ascending: false })
+      .limit(100);
+    if (error) throw toStableError("access.recent", error);
+    const list = (rows ?? []) as Array<{
+      id: string;
+      email: string;
+      full_name: string;
+      join_method: JoinMethod;
+      reference_code: string | null;
+      reviewed_at: string | null;
+      requested_company_id: string | null;
+      new_company_name_ar: string | null;
+      new_company_name_en: string | null;
+      resulting_invitation_id: string | null;
+    }>;
+    if (list.length === 0) return [];
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { effectiveInvitationStatus, invitationUrl, isPlatformAdmin, adminRpc } = await import(
+      "@/lib/tenants/invitations.server"
+    );
+    const invIds = list.map((r) => r.resulting_invitation_id).filter((v): v is string => !!v);
+    const invites = new Map<string, { id: string; company_id: string; role: string; token: string; status: string; expires_at: string }>();
+    if (invIds.length > 0) {
+      const { data: invRows, error: invErr } = await supabaseAdmin
+        .from("company_invitations")
+        .select("id, company_id, role, token, status, expires_at")
+        .in("id", invIds);
+      if (invErr) throw toStableError("access.recent.invites", invErr);
+      for (const i of invRows ?? []) invites.set(i.id, i);
+    }
+    const companyIds = Array.from(
+      new Set(
+        list
+          .map((r) => r.requested_company_id ?? (r.resulting_invitation_id ? invites.get(r.resulting_invitation_id)?.company_id : null))
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const names = new Map<string, { name_ar: string; name_en: string }>();
+    if (companyIds.length > 0) {
+      const { data: cos } = await supabaseAdmin.from("companies").select("id, name_ar, name_en").in("id", companyIds);
+      for (const c of cos ?? []) names.set(c.id, { name_ar: c.name_ar, name_en: c.name_en });
+    }
+
+    // Investor rows: only platform admins see them (RLS), and only they get
+    // the account state, from the pending-activation queue.
+    // An invited account whose address is still unconfirmed has not used
+    // its invitation link yet: it counts as "no account" for the resend.
+    const queue = new Map<string, string>();
+    if (list.some((r) => r.join_method === "investor") && (await isPlatformAdmin(context.userId))) {
+      const { data: q, error: qErr } = await adminRpc<Array<{ email: string; source: string; email_confirmed: boolean | null }>>(
+        "admin_pending_activations",
+        { _actor_id: context.userId, _limit: 500 },
+      );
+      if (qErr) throw toStableError("access.recent.queue", qErr);
+      for (const e of q ?? []) {
+        if (queue.has(e.email)) continue;
+        queue.set(e.email, e.source === "investor_request" && e.email_confirmed !== true ? "invited_no_account" : e.source);
+      }
+    }
+
+    return list.map((r) => {
+      const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
+      const companyId = r.requested_company_id ?? inv?.company_id ?? null;
+      const co = companyId ? names.get(companyId) : undefined;
+      const status = inv ? (effectiveInvitationStatus(inv.status, inv.expires_at) as NonNullable<RecentDecision["invitation"]>["status"]) : null;
+      const source = queue.get(r.email.toLowerCase());
+      return {
+        id: r.id,
+        email: r.email,
+        fullName: r.full_name,
+        joinMethod: r.join_method,
+        referenceCode: r.reference_code,
+        reviewedAt: r.reviewed_at,
+        companyId,
+        companyNameAr: co?.name_ar ?? r.new_company_name_ar,
+        companyNameEn: co?.name_en ?? r.new_company_name_en,
+        invitation:
+          inv && status
+            ? { id: inv.id, role: inv.role, status, expiresAt: inv.expires_at, inviteUrl: status === "pending" ? invitationUrl(inv.token) : null }
+            : null,
+        investorState:
+          r.join_method !== "investor"
+            ? null
+            : source === "invited_no_account"
+              ? "no_account"
+              : source === "investor_request"
+                ? "awaiting_activation"
+                : "active",
+      };
+    });
+  });
+
+/** Platform admin: send the platform invitation of an approved investor again. */
+export const resendInvestorInvitation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ requestId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { isPlatformAdmin } = await import("@/lib/tenants/invitations.server");
+    if (!(await isPlatformAdmin(context.userId))) throw new Error("FORBIDDEN_ADMIN_REQUIRED");
+    const req = await loadRequest(data.requestId);
+    if (req.join_method !== "investor" || req.status !== "approved") throw new Error("REQUEST_NOT_FOUND");
+    if (!(await checkRateLimit(`investor-invite-resend:${req.id}`, 3, 3600))) throw new Error("RATE_LIMITED");
+    const welcome = await sendInvestorWelcome(req);
+    await writeAudit(context.supabase, {
+      actorId: context.userId,
+      action: "access_request.investor_invite_resend",
+      entity: "access_requests",
+      entityId: req.id,
+      metadata: { emailSent: welcome.sent, accountExists: welcome.accountExists },
+    });
+    return { notification: { sent: welcome.sent, reason: welcome.reason }, accountExists: welcome.accountExists };
+  });
+
+// ---------------------------------------------------------------------------
+// Public: check the status of a previously submitted request with its
+// reference (short code VU-XXXX-XXXX, or the older full request id) and the
+// matching email. Rate limited by IP -- fails CLOSED.
 // ---------------------------------------------------------------------------
 
 const StatusCheckInput = z.object({
-  requestId: z.string().uuid(),
+  reference: z.string().trim().min(1).max(64).optional(),
+  /** Older clients sent the request id under this name. */
+  requestId: z.string().trim().max(64).optional(),
   email: Email,
 });
 
@@ -271,24 +579,25 @@ export const checkAccessRequestStatus = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => StatusCheckInput.parse(input))
   .handler(async ({ data }) => {
     const request = getRequest();
-    const ok = await checkRateLimit(
-      clientKeyFromRequest(request, "access-request-status-ip"),
-      10,
-      3600,
-    );
+    const ok = await checkRateLimit(clientKeyFromRequest(request, "access-request-status-ip"), 10, 3600);
     if (!ok) throw new Error("RATE_LIMITED");
 
+    const ref = normalizeReference(data.reference ?? data.requestId ?? "");
+    if (!ref) return { found: false as const };
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin.rpc("check_access_request_status" as any, {
-      _id: data.requestId,
-      _email: data.email,
-    });
+    const { data: rows, error } = UUID_RE.test(ref)
+      ? await supabaseAdmin.rpc("check_access_request_status" as any, { _id: ref, _email: data.email })
+      : await supabaseAdmin.rpc("check_access_request_status_ref" as any, { _ref: ref, _email: data.email });
     if (error) throw toStableError("access.status", error);
-    const row = Array.isArray(rows) ? rows[0] : rows;
+    const row = (Array.isArray(rows) ? rows[0] : rows) as
+      | { status: string; reviewed_at: string | null; join_method?: string }
+      | undefined;
     if (!row) return { found: false as const };
     return {
       found: true as const,
       status: row.status as string,
       reviewedAt: row.reviewed_at as string | null,
+      joinMethod: (row.join_method ?? null) as string | null,
     };
   });

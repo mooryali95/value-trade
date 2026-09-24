@@ -4,15 +4,18 @@ import { NotFoundBlock } from "@/components/not-found-block";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { useI18n } from "@/lib/i18n";
-import { formatCurrency, formatInt } from "@/lib/format";
+import { formatCurrency, isolateLtr } from "@/lib/format";
 import { Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
-import { getMyOpenOrders } from "@/lib/trading/book.functions";
+import { getBook, getMyOpenOrders } from "@/lib/trading/book.functions";
 import { cancelOrder } from "@/lib/trading/order-mutations.functions";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
+import { estimateMarketFill, MAX_ORDER_QTY, orderCashCommitment, positionValue } from "@/lib/trading/calc";
+import { Num, formatNum } from "@/components/num";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useSignedIn } from "@/hooks/use-signed-in";
 import { useErrorMessage } from "@/hooks/use-error-message";
@@ -27,13 +30,15 @@ import {
   MarketDataError,
   Monogram,
   ShariahPill,
-  formatPrice,
   instrumentName,
   markOf,
   useMarketOverview,
 } from "@/components/market-data";
 import { ChartPanel, OrderBookPanel, RecentTradesPanel, useLiveInstrument } from "@/components/market-panels";
 import { toast } from "sonner";
+
+/** The engine's maximum value of one order (match_order c_max_notional). */
+const MAX_ORDER_VALUE = 5_000_000;
 
 /**
  * Trade desk for one published instrument. Everything shown comes from the
@@ -82,6 +87,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const brand = useLiveInstrument(initial);
   const { t, lang } = useI18n();
   const confirm = useConfirm();
+  const isMobile = useIsMobile();
   const mark = markOf(brand);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
@@ -94,14 +100,12 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const signedIn = useSignedIn();
   const errorMessage = useErrorMessage();
   const [outcome, setOutcome] = useState("");
-  const qtyError = validateQty(qty);
-  const priceError = orderType === "limit" ? validatePrice(price) : null;
-  const orderInvalid = !!qtyError || !!priceError;
   // Today's allowed limit-price range, as the engine enforces it (on the tick).
   const band = { low: brand.bandLow, high: brand.bandHigh };
 
-  // Real buying power: the signed-in investor's cash. A missing portfolio
-  // row means the account has not been funded yet, i.e. 0.
+  // The investor's cash, what their resting buys reserve and their buying
+  // power (cash - reserve), all from the database; the holding of this
+  // instrument and the units already promised to resting sells.
   const portfolioFn = useServerFn(getMyPortfolio);
   const portfolioQuery = useQuery({
     queryKey: ["portfolio"],
@@ -109,7 +113,18 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
     enabled: signedIn === true,
     staleTime: 15_000,
   });
-  const cashBalance = Number(portfolioQuery.data?.portfolio?.cash_balance ?? 0);
+  const summary = portfolioQuery.data?.summary ?? null;
+  const holding = portfolioQuery.data?.positions.find((p) => p.symbol.toUpperCase() === brand.symbol) ?? null;
+  const heldQty = holding?.qty ?? 0;
+  const availableQty = Math.max(0, heldQty - (holding?.reserved_qty ?? 0));
+
+  // The same aggregated book the book panel shows (shared query).
+  const bookFn = useServerFn(getBook);
+  const bookQuery = useQuery({
+    queryKey: ["book", brand.symbol],
+    queryFn: () => bookFn({ data: { symbol: brand.symbol } }),
+    refetchInterval: 10_000,
+  });
 
   // The trader's own resting orders on this instrument.
   const openOrdersFn = useServerFn(getMyOpenOrders);
@@ -121,6 +136,45 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
     refetchInterval: 15_000,
   });
   const myOpenOrders = (openOrdersQuery.data ?? []).filter((o) => o.symbol === brand.symbol);
+
+  // ---- order checks, the engine's rules (the engine re-checks everything) ----
+  const qtyError = validateQty(qty);
+  const priceFormatError = orderType === "limit" ? validatePrice(price) : null;
+  const qtyNum = qtyError ? 0 : Number(qty);
+  const limitPrice = orderType === "limit" && !priceFormatError ? Number(price) : null;
+  const outOfBand = limitPrice != null && (limitPrice < band.low || limitPrice > band.high);
+  const priceError = priceFormatError ?? (outOfBand ? ("priceOutOfBand" as const) : null);
+  // Worst price the order can execute at: its limit, or the band edge for a market order.
+  const worstPrice = orderType === "limit" ? limitPrice : side === "buy" ? band.high : band.low;
+  const orderValue = qtyNum > 0 && worstPrice != null ? positionValue(qtyNum, worstPrice) : 0;
+  // Size limit, measured like the engine: limit x qty, market at the top of the band.
+  const sizeValue = qtyNum > 0 ? positionValue(qtyNum, orderType === "limit" ? (limitPrice ?? 0) : band.high) : 0;
+  const tooLarge = sizeValue > MAX_ORDER_VALUE;
+  const cashNeeded = side === "buy" ? orderCashCommitment(qtyNum, orderType, limitPrice, band.high) : 0;
+  const haveAccount = signedIn === true && !!summary;
+  const shortCash = haveAccount && side === "buy" && cashNeeded > (summary?.buyingPower ?? 0);
+  const shortUnits = haveAccount && side === "sell" && qtyNum > availableQty;
+  const crossesOwn = myOpenOrders.some((o) => {
+    if (o.side === side || o.price == null) return false;
+    if (Number(o.qty) - Number(o.filled_qty ?? 0) <= 0) return false;
+    const p = Number(o.price);
+    return side === "buy" ? p <= (limitPrice ?? band.high) : p >= (limitPrice ?? band.low);
+  });
+  const book = bookQuery.data ?? null;
+  const marketEstimate =
+    orderType === "market" && qtyNum > 0 && book ? estimateMarketFill(side, qtyNum, book, band) : null;
+  const orderInvalid = !!qtyError || !!priceError || tooLarge || shortCash || shortUnits || crossesOwn;
+
+  // Largest whole quantity the account can place now.
+  const maxQty = (() => {
+    if (side === "sell") return availableQty;
+    const unit = orderType === "limit" ? limitPrice : band.high;
+    if (!summary || unit == null || !(unit > 0)) return 0;
+    const byCash = Math.floor((Math.round(summary.buyingPower * 100)) / Math.round(unit * 100));
+    const bySize = Math.floor(Math.round(MAX_ORDER_VALUE * 100) / Math.round(unit * 100));
+    return Math.max(0, Math.min(byCash, bySize, MAX_ORDER_QTY));
+  })();
+
   const refreshMarket = () => {
     qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
     qc.invalidateQueries({ queryKey: ["recent-trades", brand.symbol] });
@@ -159,6 +213,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
       const msg = errorMessage(e, undefined, "orderFailed");
       setOutcome(msg);
       toast.error(msg);
+      qc.invalidateQueries({ queryKey: ["portfolio"] });
     },
   });
   const alertMutation = useMutation({
@@ -176,6 +231,38 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
     .filter((b) => !needle || b.symbol.toLowerCase().includes(needle) || b.nameEn.toLowerCase().includes(needle) || b.nameAr.includes(q.trim()))
     .slice(0, 50);
   const name = instrumentName(brand, lang);
+  const sideLabel = side === "buy" ? t("buy") : t("sell");
+  const typeLabel = orderType === "limit" ? t("limit") : t("market");
+
+  const submit = async () => {
+    if (orderInvalid) return;
+    const money = (n: number) => isolateLtr(formatNum(n, "currency"));
+    const lines = [
+      `${sideLabel} · ${typeLabel} · ${isolateLtr(formatNum(qtyNum, "qty"))} ${brand.symbol}`,
+      orderType === "limit"
+        ? `${t("price")}: ${isolateLtr(formatNum(limitPrice, "number"))}`
+        : `${t("m_marketRange")}: ${isolateLtr(formatNum(band.low, "number"))} – ${isolateLtr(formatNum(band.high, "number"))}`,
+      side === "buy"
+        ? `${orderType === "limit" ? t("m_estCost") : t("m_maxCost")}: ${money(cashNeeded)}`
+        : `${orderType === "limit" ? t("m_estProceeds") : t("m_minPriceProceeds")}: ${money(orderValue)}`,
+      `${t("m_fees")}: ${t("m_feesNone")}`,
+    ];
+    const ok = await confirm({
+      title: t("confirmOrderTitle"),
+      description: `${lines.join(" · ")} — ${t("confirmOrderDesc")}`,
+      confirmLabel: sideLabel,
+      cancelLabel: t("cancel"),
+      tone: side === "sell" ? "danger" : "default",
+    });
+    if (ok) orderMutation.mutate();
+  };
+
+  const warning =
+    tooLarge ? t("orderTooLarge")
+    : crossesOwn ? t("errSelfTrade")
+    : shortCash ? t("m_shortCash")
+    : shortUnits ? (heldQty > 0 ? t("m_shortUnits") : t("m_noUnits"))
+    : null;
 
   return (
     <AppShell>
@@ -188,9 +275,11 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
           { label: t("nav_trade") },
         ]}
       />
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
+      {/* Mobile first: instrument, order ticket, chart and tape, then the list.
+          From lg: list | instrument + chart + tape | ticket + book + orders. */}
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
         {/* Watchlist */}
-        <aside className="rounded-xl border border-border/60 bg-card/60 p-3 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
+        <aside className="order-5 rounded-xl border border-border/60 bg-card/60 p-3 lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] lg:self-start">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("e2_listedInstruments")}</h3>
           </div>
@@ -224,8 +313,8 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
           </div>
         </aside>
 
-        {/* Chart center */}
-        <div className="min-w-0 space-y-4">
+        {/* Instrument and chart */}
+        <div className="order-1 min-w-0 space-y-4 lg:order-none lg:col-start-2 lg:row-start-1">
           <section className="rounded-xl border border-border/60 bg-card/60 p-4">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -239,62 +328,82 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 </div>
               </div>
               <div className="text-end">
-                <div className="font-mono text-xl font-bold text-foreground">{formatPrice(mark.price)}</div>
+                <Num value={mark.price} className="block font-mono text-xl font-bold text-foreground" />
                 <div className="text-[10px] text-muted-foreground">{mark.isReference ? t("e2_referencePriceNoTrades") : t("lastPrice")}</div>
                 <ChangeText pct={brand.change24hPct} className="text-xs" />
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-border/40 pt-3 text-xs">
-              <MiniStat label={t("e2_dayOpen")} v={brand.dayOpen != null ? formatPrice(brand.dayOpen) : "—"} />
-              <MiniStat label={t("e2_dayHigh")} v={brand.dayHigh != null ? formatPrice(brand.dayHigh) : "—"} />
-              <MiniStat label={t("e2_dayLow")} v={brand.dayLow != null ? formatPrice(brand.dayLow) : "—"} />
-              <MiniStat label={t("e2_volumeUnits24h")} v={formatInt(brand.volume24hUnits)} />
-              <MiniStat label={t("e2_value24h")} v={formatCurrency(brand.volume24hValue, true, lang)} />
-              <MiniStat label={t("referencePrice")} v={formatPrice(brand.referencePrice)} />
-            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 border-t border-border/40 pt-3 text-xs sm:grid-cols-3 xl:grid-cols-6">
+              <MiniStat label={t("e2_dayOpen")} v={<Num value={brand.dayOpen} />} />
+              <MiniStat label={t("e2_dayHigh")} v={<Num value={brand.dayHigh} />} />
+              <MiniStat label={t("e2_dayLow")} v={<Num value={brand.dayLow} />} />
+              <MiniStat label={t("e2_volumeUnits24h")} v={<Num value={brand.volume24hUnits} kind="qty" />} />
+              <MiniStat label={t("e2_value24h")} v={<span dir="ltr" className="tabular-nums" style={{ unicodeBidi: "isolate" }}>{formatCurrency(brand.volume24hValue, true, lang)}</span>} />
+              <MiniStat label={t("m_todaysRange")} v={<><Num value={band.low} /> – <Num value={band.high} /></>} />
+            </dl>
           </section>
-          <ChartPanel symbol={brand.symbol} height={460} />
-          <RecentTradesPanel symbol={brand.symbol} />
+          <ChartPanel symbol={brand.symbol} height={isMobile ? 300 : 460} />
         </div>
 
-        {/* Order panel */}
-        <aside className="space-y-4">
+        {/* Order ticket, book, own orders */}
+        <aside className="order-2 space-y-4 lg:order-none lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:self-start">
           <div className="rounded-xl border border-border/60 bg-card/60 p-4">
-            <div className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold">
-              <button onClick={() => setSide("buy")} className={`rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
-              <button onClick={() => setSide("sell")} className={`rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
+            <div className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold" role="group" aria-label={t("m_orderSide")}>
+              <button type="button" aria-pressed={side === "buy"} onClick={() => setSide("buy")} className={`min-h-10 rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
+              <button type="button" aria-pressed={side === "sell"} onClick={() => setSide("sell")} className={`min-h-10 rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
             </div>
-            <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-              <button onClick={() => setOrderType("limit")} className={`rounded border px-2 py-1.5 ${orderType === "limit" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("limit")}</button>
-              <button onClick={() => setOrderType("market")} className={`rounded border px-2 py-1.5 ${orderType === "market" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("market")}</button>
+            <div className="mb-3 grid grid-cols-2 gap-2 text-xs" role="group" aria-label={t("orderType")}>
+              <button type="button" aria-pressed={orderType === "limit"} onClick={() => setOrderType("limit")} className={`min-h-9 rounded border px-2 py-1.5 ${orderType === "limit" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("limit")}</button>
+              <button type="button" aria-pressed={orderType === "market"} onClick={() => setOrderType("market")} className={`min-h-9 rounded border px-2 py-1.5 ${orderType === "market" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{t("market")}</button>
             </div>
+            <p className="mb-1 text-[11px] leading-relaxed text-muted-foreground">
+              {orderType === "limit" ? t("m_limitHelp") : side === "buy" ? t("m_marketBuyHelp") : t("m_marketSellHelp")}
+            </p>
             {orderType === "limit" && (
-              <Field label={t("price")} error={priceError ? t(priceError) : undefined} errorId="order-price-error">
+              <Field label={t("price")} error={priceError ? t(priceError) : undefined} errorId="order-price-error" hintId="order-price-hint">
                 <input
                   type="number"
                   inputMode="decimal"
-                  min="0.01"
+                  min={band.low}
+                  max={band.high}
                   step="0.01"
+                  dir="ltr"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   aria-invalid={!!priceError}
-                  aria-describedby={priceError ? "order-price-error" : undefined}
+                  aria-describedby={priceError ? "order-price-hint order-price-error" : "order-price-hint"}
                   className="w-full bg-transparent text-end font-mono text-sm outline-none"
                 />
               </Field>
             )}
-            {orderType === "limit" && band && (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                {t("allowedPriceRange").replace("{low}", band.low.toFixed(2)).replace("{high}", band.high.toFixed(2))}
-              </p>
-            )}
-            <Field label={t("qty")} error={qtyError ? t(qtyError) : undefined} errorId="order-qty-error">
+            <p id="order-price-hint" className="mt-1 text-[10px] text-muted-foreground">
+              {t("m_allowedToday")}{" "}
+              <Num value={band.low} className="font-semibold text-ink-soft" /> – <Num value={band.high} className="font-semibold text-ink-soft" />
+            </p>
+            <Field
+              label={t("qty")}
+              error={qtyError ? t(qtyError) : undefined}
+              errorId="order-qty-error"
+              action={
+                signedIn === true && summary ? (
+                  <button
+                    type="button"
+                    onClick={() => maxQty > 0 && setQty(String(maxQty))}
+                    disabled={maxQty <= 0}
+                    className="rounded border border-border px-1.5 text-[10px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40"
+                  >
+                    {t("m_max")}
+                  </button>
+                ) : null
+              }
+            >
               <input
                 type="number"
                 inputMode="numeric"
                 min="1"
-                max="10000000"
+                max={MAX_ORDER_QTY}
                 step="1"
+                dir="ltr"
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
                 onKeyDown={(e) => {
@@ -305,6 +414,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 className="w-full bg-transparent text-end font-mono text-sm outline-none"
               />
             </Field>
+
             <div className="mt-3 rounded-md border border-border/60 bg-secondary/20 p-3">
               <div className="mb-1.5 text-label text-ink-soft" id="order-preview-heading">{t("orderPreview")}</div>
               <dl
@@ -314,51 +424,65 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 aria-atomic="true"
                 aria-labelledby="order-preview-heading"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="text-ink-soft">{t("orderType")}</dt>
-                  <dd className="font-semibold text-ink">
-                    {side === "buy" ? t("buy") : t("sell")} · {orderType === "limit" ? t("limit") : t("market")}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="text-ink-soft">{t("qty")}</dt>
-                  <dd className="num font-semibold text-ink">{qty || "0"} {brand.symbol}</dd>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="text-ink-soft">{t("price")}</dt>
-                  <dd className="num font-semibold text-ink">
-                    {orderType === "limit" ? Number(price || 0).toFixed(2) : t("market")}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-1">
-                  <dt className="text-ink-soft">{t("total")}</dt>
-                  <dd className="num font-semibold text-ink">
-                    {((orderType === "limit" ? Number(price) : mark.price) * Number(qty) || 0).toFixed(2)}
-                  </dd>
-                </div>
+                <Row label={t("orderType")} value={<span className="font-semibold text-ink">{sideLabel} · {typeLabel}</span>} />
+                <Row label={t("qty")} value={<span className="font-semibold text-ink"><Num value={qtyNum} kind="qty" /> {brand.symbol}</span>} />
+                <Row
+                  label={t("price")}
+                  value={orderType === "limit"
+                    ? <Num value={limitPrice} className="font-semibold text-ink" />
+                    : <span className="font-semibold text-ink">{t("m_bestInRange")}</span>}
+                />
+                {orderType === "market" && (
+                  <Row
+                    label={t("m_estFromBook")}
+                    value={
+                      bookQuery.isLoading ? <span className="text-ink-soft">…</span>
+                      : marketEstimate && marketEstimate.filledQty > 0 ? <Num value={marketEstimate.amount} kind="currency" className="font-semibold text-ink" />
+                      : <span className="text-ink-soft">{t("m_noLiquidity")}</span>
+                    }
+                  />
+                )}
+                <Row
+                  strong
+                  label={side === "buy"
+                    ? (orderType === "limit" ? t("m_estCost") : t("m_maxCost"))
+                    : (orderType === "limit" ? t("m_estProceeds") : t("m_minPriceProceeds"))}
+                  value={<Num value={side === "buy" ? cashNeeded : orderValue} kind="currency" className="font-semibold text-ink" />}
+                />
+                <Row label={t("m_fees")} value={<span className="font-semibold text-ink">{t("m_feesNone")}</span>} />
+                {signedIn === true && summary && (
+                  side === "buy" ? (
+                    <Row label={t("m_buyingPowerAfter")} value={<Num value={summary.buyingPower - cashNeeded} kind="currency" className={`font-semibold ${summary.buyingPower - cashNeeded < 0 ? "text-[var(--bear)]" : "text-ink"}`} />} />
+                  ) : (
+                    <Row label={t("m_availableUnits")} value={<Num value={availableQty} kind="qty" className="font-semibold text-ink" />} />
+                  )
+                )}
               </dl>
+              {orderType === "market" && marketEstimate && marketEstimate.filledQty > 0 && marketEstimate.filledQty < qtyNum && (
+                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                  {t("m_partialLiquidity").replace("{n}", formatNum(marketEstimate.filledQty, "qty"))}
+                </p>
+              )}
+              {side === "buy" && (
+                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                  {orderType === "limit" ? t("m_reserveNoteLimit") : t("m_reserveNoteMarket")}
+                </p>
+              )}
             </div>
+            {warning && (
+              <p role="alert" className="mt-2 rounded-md border border-[var(--bear)]/30 bg-[var(--bear)]/5 px-2 py-1.5 text-[11px] text-[var(--bear)]">
+                {warning}
+              </p>
+            )}
             <PermissionHint allowed={rolesLoading || isTrader} reason={signedIn === false ? t("signInToTrade") : t("traderRequired")}>
               <button
+                type="button"
                 disabled={orderMutation.isPending || rolesLoading || !isTrader || orderInvalid}
                 title={!isTrader ? (signedIn === false ? t("signInToTrade") : t("traderRequired")) : undefined}
-                onClick={async () => {
-                  if (orderInvalid) return;
-                  const unit = orderType === "limit" ? Number(price) : mark.price;
-                  const ok = await confirm({
-                    title: t("confirmOrderTitle"),
-                    description: `${side === "buy" ? t("buy") : t("sell")} ${qty} ${brand.symbol} @ ${
-                      orderType === "limit" ? Number(price || 0).toFixed(2) : t("market")
-                    } · ${t("total")} ${(unit * Number(qty) || 0).toFixed(2)} — ${t("confirmOrderDesc")}`,
-                    confirmLabel: side === "buy" ? t("buy") : t("sell"),
-                    cancelLabel: t("cancel"),
-                    tone: side === "sell" ? "danger" : "default",
-                  });
-                  if (ok) orderMutation.mutate();
-                }}
-                className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
+                onClick={() => void submit()}
+                className={`mt-3 min-h-11 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
               >
-                {orderMutation.isPending ? "…" : `${side === "buy" ? t("buy") : t("sell")} ${brand.symbol}`}
+                {orderMutation.isPending ? "…" : `${sideLabel} ${brand.symbol}`}
               </button>
             </PermissionHint>
             <div role="alert" aria-live="assertive" aria-atomic="true" className="sr-only">
@@ -366,23 +490,29 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 ? t("a11yOrderSubmitting")
                 : outcome}
             </div>
-            <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-              <span>{t("balance")}</span>
+
+            {/* Account: cash, reserved by resting buys, buying power */}
+            <div className="mt-3 border-t border-border/40 pt-3 text-[11px]">
               {signedIn === false ? (
                 <Link to="/auth" search={{ redirect: `/trade/${brand.slug}` }} className="font-semibold text-[var(--gold-deep)] hover:underline">
                   {t("signInToSeeBalance")}
                 </Link>
               ) : signedIn === null || portfolioQuery.isLoading ? (
-                <span className="h-3 w-20 animate-pulse rounded bg-secondary/60" aria-label={t("loading")} />
-              ) : portfolioQuery.isError ? (
-                <button onClick={() => portfolioQuery.refetch()} className="text-[var(--bear)] hover:underline">{t("errInternal")}</button>
+                <span className="block h-3 w-24 animate-pulse rounded bg-secondary/60" aria-label={t("loading")} />
+              ) : portfolioQuery.isError || !summary ? (
+                <button type="button" onClick={() => portfolioQuery.refetch()} className="text-[var(--bear)] hover:underline">{t("errInternal")}</button>
               ) : (
-                <span className="font-mono">{formatCurrency(cashBalance, false, lang)}</span>
+                <dl className="space-y-1">
+                  <Row label={t("m_buyingPower")} value={<Num value={summary.buyingPower} kind="currency" className="font-semibold text-ink" />} />
+                  <Row label={t("m_cashBalance")} value={<Num value={summary.cash} kind="currency" className="text-ink-soft" />} />
+                  <Row label={t("m_reservedByOrders")} value={<Num value={summary.reserved} kind="currency" className="text-ink-soft" />} />
+                  <Row label={t("m_heldUnits")} value={<span className="text-ink-soft"><Num value={heldQty} kind="qty" /> {brand.symbol}</span>} />
+                </dl>
               )}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button onClick={() => alertMutation.mutate("above")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↑ {t("alertAbove")}</button>
-              <button onClick={() => alertMutation.mutate("below")} className="rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↓ {t("alertBelow")}</button>
+              <button type="button" onClick={() => alertMutation.mutate("above")} className="min-h-9 rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↑ {t("alertAbove")}</button>
+              <button type="button" onClick={() => alertMutation.mutate("below")} className="min-h-9 rounded border border-border px-2 py-1.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">↓ {t("alertBelow")}</button>
             </div>
           </div>
 
@@ -397,14 +527,17 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
             ) : (
               <ul className="space-y-1">
                 {myOpenOrders.map((o) => (
-                  <li key={o.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-1 py-1 font-mono text-[11px]">
+                  <li key={o.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-1 py-1 text-[11px]">
                     <span className={o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}>
-                      {o.side === "buy" ? t("buy") : t("sell")} {Number(o.qty) - Number(o.filled_qty)}/{Number(o.qty)} @ {o.price == null ? t("market") : Number(o.price).toFixed(2)}
+                      {o.side === "buy" ? t("buy") : t("sell")}{" "}
+                      <Num value={Number(o.qty) - Number(o.filled_qty)} kind="qty" />/<Num value={Number(o.qty)} kind="qty" />{" @ "}
+                      {o.price == null ? t("market") : <Num value={Number(o.price)} />}
                     </span>
                     <button
+                      type="button"
                       onClick={() => cancelMutation.mutate(o.id)}
                       disabled={cancelMutation.isPending}
-                      className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--bear)] disabled:opacity-60"
+                      className="min-h-8 rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--bear)] disabled:opacity-60"
                     >
                       {t("cancel")}
                     </button>
@@ -414,27 +547,61 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
             )}
           </div>
         </aside>
+
+        {/* Executed trades */}
+        <div className="order-3 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2 lg:self-start">
+          <RecentTradesPanel symbol={brand.symbol} />
+        </div>
       </div>
     </AppShell>
   );
 }
 
-function Field({ label, children, error, errorId }: { label: string; children: React.ReactNode; error?: string; errorId?: string }) {
+function Field({
+  label,
+  children,
+  error,
+  errorId,
+  hintId,
+  action,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+  errorId?: string;
+  hintId?: string;
+  action?: React.ReactNode;
+}) {
+  void hintId;
   return (
     <div className="mt-2">
-      <label className={`block rounded-md border bg-background/60 px-3 py-2 ${error ? "border-[var(--bear)]/60" : "border-border"}`}>
-        <div className="mb-0.5 text-[10px] uppercase text-muted-foreground">{label}</div>
-        {children}
-      </label>
+      <div className={`rounded-md border bg-background/60 px-3 py-2 ${error ? "border-[var(--bear)]/60" : "border-border"}`}>
+        <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px] uppercase text-muted-foreground">
+          <span>{label}</span>
+          {action}
+        </div>
+        <label className="block">
+          <span className="sr-only">{label}</span>
+          {children}
+        </label>
+      </div>
       {error && <p id={errorId} className="mt-1 text-[10px] text-[var(--bear)]">{error}</p>}
     </div>
   );
 }
-function MiniStat({ label, v }: { label: string; v: string }) {
+function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
   return (
-    <div>
-      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
-      <div className="font-mono text-foreground">{v}</div>
+    <div className={`flex items-center justify-between gap-2 ${strong ? "border-t border-border/40 pt-1" : ""}`}>
+      <dt className="text-ink-soft">{label}</dt>
+      <dd className="text-end">{value}</dd>
+    </div>
+  );
+}
+function MiniStat({ label, v }: { label: string; v: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] uppercase text-muted-foreground">{label}</dt>
+      <dd className="font-mono text-foreground">{v}</dd>
     </div>
   );
 }

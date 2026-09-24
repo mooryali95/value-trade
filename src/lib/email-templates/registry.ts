@@ -22,6 +22,8 @@ import { template as priceAlertTemplate } from './price-alert'
 import { template as shariahDecisionTemplate } from './shariah-decision'
 import { template as positionUpdateTemplate } from './position-update'
 import { template as opsAlertTemplate } from './ops-alert'
+import { template as accessRequestReceivedTemplate } from './access-request-received'
+import { template as accessRequestDecisionTemplate } from './access-request-decision'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   invitation: invitationTemplate,
@@ -29,4 +31,6 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'shariah-decision': shariahDecisionTemplate,
   'position-update': positionUpdateTemplate,
   'ops-alert': opsAlertTemplate,
+  'access-request-received': accessRequestReceivedTemplate,
+  'access-request-decision': accessRequestDecisionTemplate,
 }

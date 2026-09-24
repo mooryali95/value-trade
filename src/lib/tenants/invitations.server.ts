@@ -26,6 +26,22 @@ export function effectiveInvitationStatus(status: string, expiresAt: string, now
   return status;
 }
 
+/**
+ * Calls a SECURITY DEFINER function that only the service role may execute
+ * (the onboarding functions take the verified actor id as an argument).
+ * Database text never leaves the server: the caller maps `error` with
+ * toStableError.
+ */
+export async function adminRpc<T>(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ data: T | null; error: { message: string; code?: string | null } | null }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabaseAdmin.rpc as any)(name, args);
+  return { data: (data ?? null) as T | null, error: error ?? null };
+}
+
 /** Sends the branded, bilingual invitation e-mail. Never throws. */
 export async function notifyInvitation(invite: InvitationRecord): Promise<InvitationEmailResult> {
   try {
@@ -72,4 +88,15 @@ export async function invitationManager(
   const isOwner = ownerRes.data === true;
   const isAdmin = adminRes.data === true;
   return { allowed: isOwner || isAdmin, isOwner, isAdmin };
+}
+
+/** Whether `userId` holds the platform_admin role. */
+export async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("has_role", { _user_id: userId, _role: "platform_admin" });
+  if (error) {
+    console.error("[invite] admin lookup failed", error.code ?? "");
+    throw new Error("INTERNAL_ERROR");
+  }
+  return data === true;
 }

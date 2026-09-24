@@ -1,14 +1,23 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { BrandMark } from "@/components/brand-mark";
 import { ENABLE_LEGACY_SELF_SIGNUP } from "@/lib/config/feature-flags";
-import { Loader2, Mail, KeyRound, User as UserIcon } from "lucide-react";
+import { authErrorCode, authRedirectErrorCode } from "@/lib/security/auth-errors";
+import { passwordIssue } from "@/lib/security/password-policy";
+import { consumePostAuthRedirect, safeRedirect, stashPostAuthRedirect } from "@/lib/security/redirect";
+import { requestPasswordReset } from "@/lib/account/password.functions";
+import { Loader2, Mail, KeyRound, User as UserIcon, MailOpen } from "lucide-react";
 
-const searchSchema = z.object({ redirect: z.string().optional() });
+const searchSchema = z.object({
+  redirect: z.string().max(2048).optional().catch(undefined),
+  mode: z.enum(["signin", "forgot"]).optional().catch(undefined),
+});
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (s) => searchSchema.parse(s),
@@ -29,32 +38,67 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-function safeRedirect(target: string | undefined): string {
-  if (!target) return "/";
-  if (target.startsWith("/") && !target.startsWith("//")) return target;
-  return "/";
-}
-
 function AuthPage() {
-  const { t, lang, dir } = useI18n();
-  const search = useSearch({ from: "/auth" }) as { redirect?: string };
+  const { t, dir } = useI18n();
+  const errorMessage = useErrorMessage();
+  const search = useSearch({ from: "/auth" }) as { redirect?: string; mode?: "signin" | "forgot" };
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const resetFn = useServerFn(requestPasswordReset);
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(search.mode === "forgot" ? "forgot" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const navigated = useRef(false);
 
   const target = safeRedirect(search.redirect);
+  // Signing in on the way to an invitation (or from an older invitation
+  // e-mail that linked to /invitations?token=...): people without an account
+  // create it from the invitation page instead.
+  const inviteToken =
+    /^\/invite\/([0-9a-f-]{36})$/i.exec(target.split(/[?#]/)[0])?.[1] ??
+    /^\/invitations\?(?:.*&)?token=([0-9a-f-]{36})(?:&|$)/i.exec(target)?.[1] ??
+    null;
+
+  // An e-mail link or the Google broker can come back with an error in the
+  // URL (e.g. #error=access_denied&error_code=otp_expired): show it in the
+  // user's language instead of failing silently.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = authRedirectErrorCode(window.location.hash) ?? authRedirectErrorCode(window.location.search);
+    if (code) {
+      setError(errorMessage(new Error(code)));
+      try {
+        const params = new URLSearchParams(window.location.search);
+        for (const k of ["error", "error_code", "error_description"]) params.delete(k);
+        const qs = params.toString();
+        window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+      } catch {
+        // ignore: the message is shown either way
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
+    const go = () => {
+      if (navigated.current) return;
+      navigated.current = true;
+      navigate({ to: consumePostAuthRedirect() ?? target, replace: true });
+    };
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: target, replace: true });
+      if (data.session) go();
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: target, replace: true });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // A recovery link that lands here still has to choose a password.
+      if (event === "PASSWORD_RECOVERY") {
+        navigated.current = true;
+        navigate({ to: "/auth/update-password", search: { flow: "recovery" }, replace: true });
+        return;
+      }
+      if (session) go();
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate, target]);
@@ -66,12 +110,11 @@ function AuthPage() {
     setNotice(null);
     try {
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/auth/update-password`,
-        });
-        if (error) throw error;
+        await resetFn({ data: { email: email.trim() } });
         setNotice(t("resetLinkSent"));
       } else if (mode === "signup") {
+        const issue = passwordIssue(password);
+        if (issue) throw new Error(issue);
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -80,14 +123,14 @@ function AuthPage() {
             data: { full_name: fullName || email.split("@")[0] },
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(authErrorCode(error));
         setNotice(t("auth_accountCreated"));
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw new Error(authErrorCode(error));
       }
-    } catch (err: any) {
-      setError(err?.message || "Authentication failed");
+    } catch (err: unknown) {
+      setError(errorMessage(err, undefined, "r_authFailed"));
     } finally {
       setLoading(false);
     }
@@ -96,19 +139,21 @@ function AuthPage() {
   async function handleGoogle() {
     setLoading(true);
     setError(null);
+    // The broker returns to the site origin: remember where to go next.
+    stashPostAuthRedirect(target);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
       if (result.error) {
-        setError((result.error as Error).message || "Google sign-in failed");
+        setError(errorMessage(new Error(authErrorCode(result.error)), undefined, "r_authOAuthFailed"));
         setLoading(false);
         return;
       }
       if (result.redirected) return;
       // Session set; effect above navigates
-    } catch (err: any) {
-      setError(err?.message || "Google sign-in failed");
+    } catch (err: unknown) {
+      setError(errorMessage(new Error(authErrorCode(err)), undefined, "r_authOAuthFailed"));
       setLoading(false);
     }
   }
@@ -217,17 +262,36 @@ function AuthPage() {
               )}
             </div>
 
-            <div className="mb-5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/5 px-3 py-2 text-xs text-muted-foreground">
-              {t("recommendedPath")}{" "}
-              <Link to="/request-access" className="font-medium text-[var(--gold-deep)] underline">
-                {t("requestAccess")}
-              </Link>
+            {inviteToken && (
+              <div className="mb-3 rounded-md border border-[var(--gold-deep)]/40 bg-card px-3 py-2.5 text-xs leading-relaxed text-ink">
+                <p>{t("r_authFromInvitation")}</p>
+                <Link
+                  to="/invite/$token"
+                  params={{ token: inviteToken }}
+                  className="mt-1 inline-block font-semibold text-[var(--gold-deep)] underline"
+                >
+                  {t("r_authOpenInvitation")}
+                </Link>
+              </div>
+            )}
+
+            <div className="mb-5 space-y-2 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/5 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+              <p className="flex items-start gap-2">
+                <MailOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--gold-deep)]" aria-hidden />
+                <span>{t("r_authInvitedHint")}</span>
+              </p>
+              <p>
+                {t("r_authNoAccountHint")}{" "}
+                <Link to="/request-access" className="font-medium text-[var(--gold-deep)] underline">
+                  {t("requestAccess")}
+                </Link>
+              </p>
               {ENABLE_LEGACY_SELF_SIGNUP && mode === "signup" && (
                 <span className="block mt-1 opacity-70">{t("signupLegacyNote")}</span>
               )}
             </div>
 
-            {(mode === "signin" || ENABLE_LEGACY_SELF_SIGNUP) && (
+            {(mode !== "signup" || ENABLE_LEGACY_SELF_SIGNUP) && (
               <form onSubmit={handleEmail} className="space-y-3">
                 {mode === "signup" && (
                   <Field icon={UserIcon} label={t("fullName")}>
@@ -252,13 +316,16 @@ function AuthPage() {
                     placeholder="you@company.com"
                   />
                 </Field>
+                {mode === "forgot" && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">{t("r_forgotHint")}</p>
+                )}
                 {mode !== "forgot" && (
                 <Field icon={KeyRound} label={t("password")}>
                   <input
                     type="password"
                     required
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                    minLength={8}
+                    minLength={mode === "signin" ? undefined : 8}
                     aria-label={t("password")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -268,16 +335,18 @@ function AuthPage() {
                 </Field>
                 )}
 
-                {error && (
-                  <div className="rounded-md border border-[var(--bear)]/40 bg-[var(--bear)]/5 px-3 py-2 text-xs text-[var(--bear)]">
-                    {error}
-                  </div>
-                )}
-                {notice && (
-                  <div className="rounded-md border border-[var(--bull)]/40 bg-[var(--bull)]/5 px-3 py-2 text-xs text-[var(--bull)]">
-                    {notice}
-                  </div>
-                )}
+                <div aria-live="polite" aria-atomic="true" className="space-y-2">
+                  {error && (
+                    <div role="alert" className="rounded-md border border-[var(--bear)]/40 bg-[var(--bear)]/5 px-3 py-2 text-xs leading-relaxed text-[var(--bear)]">
+                      {error}
+                    </div>
+                  )}
+                  {notice && (
+                    <div className="rounded-md border border-[var(--bull)]/40 bg-[var(--bull)]/5 px-3 py-2 text-xs leading-relaxed text-[var(--bull)]">
+                      {notice}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="submit"

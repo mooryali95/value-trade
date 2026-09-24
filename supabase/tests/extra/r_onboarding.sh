@@ -177,3 +177,37 @@ R_STALE=$(q service "SELECT id FROM public.create_company_invitation('$CO','stal
 su "UPDATE public.company_invitations SET expires_at = now() - interval '1 minute' WHERE id='$R_STALE';" >/dev/null
 expect_eq "approval is not blocked by a stale pending invitation" service "$CO" "SELECT company_id FROM public.approve_access_request('$R_JREQ2','$OWNER','viewer',NULL,NULL);"
 su_eq "stale invitation expired, new one pending" "expired|pending" "SELECT (SELECT status FROM public.company_invitations WHERE id='$R_STALE') || '|' || (SELECT status FROM public.company_invitations WHERE company_id='$CO' AND email='stale@test.local' AND id <> '$R_STALE');"
+
+section "(R) account address checks at acceptance"
+R_NULLMAIL=$(su "INSERT INTO auth.users (email) VALUES (NULL) RETURNING id;" | head -1)
+R_INV5=$(q service "SELECT id FROM public.create_company_invitation('$CO','nomail@test.local','viewer','$OWNER');")
+R_TOK5=$(su "SELECT token FROM public.company_invitations WHERE id='$R_INV5';")
+expect_err "an account without an e-mail address cannot accept" service "INVITATION_EMAIL_MISMATCH" "SELECT public.accept_company_invitation('$R_TOK5','$R_NULLMAIL','nomail@test.local');"
+expect_err "an unknown account cannot accept" service "NOT_AUTHENTICATED" "SELECT public.accept_company_invitation('$R_TOK5',gen_random_uuid(),'nomail@test.local');"
+expect_err "an empty caller address is refused" service "NOT_AUTHENTICATED" "SELECT public.accept_company_invitation('$R_TOK5','$R_NULLMAIL','');"
+su_eq "refused acceptances leave the invitation pending" "pending" "SELECT status FROM public.company_invitations WHERE id='$R_INV5';"
+
+section "(R) invitation migration on legacy data"
+# Legacy rows: a padded, mixed-case address that collides with a live
+# invitation once trimmed (never acceptable before), and a mixed-case one.
+su "ALTER TABLE public.company_invitations DISABLE TRIGGER company_invitations_guard;
+    INSERT INTO public.company_invitations (company_id, email, role, invited_by) VALUES
+      ('$CO','legacy-dup@test.local','viewer','$OWNER'),
+      ('$CO',' Legacy-Dup@Test.local ','viewer','$OWNER'),
+      ('$CO','Legacy-Case@Test.Local','finance','$OWNER');
+    ALTER TABLE public.company_invitations ENABLE TRIGGER company_invitations_guard;" >/dev/null
+R_LIFEMIG=$(ls "$REPO"/supabase/migrations/*_invitation_lifecycle.sql 2>/dev/null | head -1)
+if [ -n "$R_LIFEMIG" ] && out=$("${PSQL[@]}" -1 -f "$R_LIFEMIG" 2>&1 >/dev/null); then ok "invitation lifecycle migration re-applies over legacy rows"
+else bad "invitation lifecycle migration re-applies over legacy rows" "${R_LIFEMIG:-*_invitation_lifecycle.sql not found} ${out:-}"; fi
+su_eq "colliding padded copy expired, live one kept" "legacy-dup@test.local:expired,legacy-dup@test.local:pending" "SELECT string_agg(email || ':' || status, ',' ORDER BY status) FROM public.company_invitations WHERE company_id='$CO' AND lower(btrim(email))='legacy-dup@test.local';"
+su_eq "mixed-case address normalised" "legacy-case@test.local|pending" "SELECT email || '|' || status FROM public.company_invitations WHERE company_id='$CO' AND lower(email)='legacy-case@test.local';"
+for sig in "create_company_invitation(uuid, text, public.company_role, uuid)" "renew_company_invitation(uuid, uuid, boolean)" "invitation_preview(uuid)" "accept_company_invitation(uuid, uuid, text)"; do
+  su_eq "after re-applying, only service_role may EXECUTE $sig" "false|false|false|true" "SELECT has_function_privilege('public', 'public.$sig', 'EXECUTE') || '|' || has_function_privilege('anon', 'public.$sig', 'EXECUTE') || '|' || has_function_privilege('authenticated', 'public.$sig', 'EXECUTE') || '|' || has_function_privilege('service_role', 'public.$sig', 'EXECUTE');"
+done
+expect_err "API users still cannot insert invitations after re-applying" "$ALICE" "permission denied" "INSERT INTO public.company_invitations (company_id, email, role, invited_by) VALUES ('$CO','x@test.local','viewer',auth.uid());"
+
+section "(R) investor approval idempotence and reference lookups"
+expect_err "an approved investor request cannot be approved twice" service "REQUEST_NOT_PENDING" "SELECT * FROM public.approve_access_request('$R_REQ','$ADMIN',NULL,NULL,NULL);"
+expect_err "a rejected investor request cannot be approved" service "REQUEST_NOT_PENDING" "SELECT * FROM public.approve_access_request('$R_REQ2','$ADMIN',NULL,NULL,NULL);"
+expect_eq "status lookup ignores LIKE wildcards in the address" service "0" "SELECT count(*) FROM public.check_access_request_status_ref('$R_REF', 'investor1@test.loca_');"
+expect_eq "a legacy request id still works with the old lookup" service "approved" "SELECT status FROM public.check_access_request_status('$R_REQ', 'investor1@test.local');"
