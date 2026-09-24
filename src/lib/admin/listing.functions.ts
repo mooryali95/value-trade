@@ -11,8 +11,13 @@ import { isValidLimitPrice, isValidOrderQty } from "@/lib/trading/calc";
  *     that the previous close does);
  *   - issueUnits: primary allocation of a listed brand's units to an
  *     investor at the issue price (the holder's cost basis). Payment for a
- *     primary allocation is settled outside the order book.
- * Both run with the service role after the platform_admin check.
+ *     primary allocation is settled outside the order book;
+ *   - setInstrumentPublished: lists or delists an instrument. Delisting
+ *     closes its resting orders in the same transaction (holders keep their
+ *     units, trades and cash are untouched); listing needs a positive
+ *     reference price;
+ *   - listAdminInstruments: every instrument with its listing state.
+ * All run with the service role after the platform_admin check.
  */
 
 /** Stable codes the SQL functions raise that are safe to show to the admin. */
@@ -24,6 +29,21 @@ const LISTING_ERROR_CODES = new Set([
   "INSTRUMENT_NOT_FOUND",
   "USER_NOT_FOUND",
 ]);
+
+/** How an instrument got into public.brands, for the admin listing screen. */
+export type InstrumentOrigin = "submission" | "company" | "demo_seed";
+
+export type AdminInstrument = {
+  symbol: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  assetClass: string;
+  referencePrice: number;
+  published: boolean;
+  companyId: string | null;
+  origin: InstrumentOrigin;
+};
 
 const SYMBOL_RE = /^[A-Za-z0-9._-]{1,32}$/;
 
@@ -67,6 +87,13 @@ export function parseIssueUnitsInput(input: unknown): {
   if (note !== undefined && (typeof note !== "string" || note.length > 280)) throw new Error("INVALID_INPUT");
   const trimmed = typeof note === "string" ? note.trim() : "";
   return { userId: userId as string, symbol: sym, qty, price, ...(trimmed ? { note: trimmed } : {}) };
+}
+
+export function parsePublishInput(input: unknown): { symbol: string; published: boolean } {
+  const { symbol, published } = (input ?? {}) as { symbol?: unknown; published?: unknown };
+  const sym = parseSymbol(symbol);
+  if (typeof published !== "boolean") throw new Error("INVALID_INPUT");
+  return { symbol: sym, published };
 }
 
 /** Sets brands.reference_price for a listed instrument. */
@@ -138,4 +165,83 @@ export const issueUnits = createServerFn({ method: "POST" })
       metadata: { targetUserId: data.userId, symbol: data.symbol, qty: data.qty, price: data.price },
     });
     return { issuanceId: String(issuanceId), symbol: data.symbol, qty: data.qty };
+  });
+
+/**
+ * Lists (published = true) or delists (false) an instrument through
+ * set_instrument_published, which re-checks platform_admin, takes the
+ * engine's symbol lock and, when delisting, closes every resting order of
+ * the instrument (orders_audit 'delisted') in the same transaction.
+ * Listing requires a reference price > 0 (INVALID_PRICE otherwise).
+ */
+export const setInstrumentPublished = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { symbol: string; published: boolean }) => parsePublishInput(input))
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ symbol: string; published: boolean; changed: boolean; cancelledOrders: number }> => {
+      await ensureAdmin(context);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: rows, error } = await supabaseAdmin.rpc("set_instrument_published", {
+        _symbol: data.symbol,
+        _published: data.published,
+        _actor_id: context.userId,
+      });
+      if (error) {
+        const code = (error.message ?? "").trim();
+        if (LISTING_ERROR_CODES.has(code)) throw new Error(code);
+        console.error("[listing] set_instrument_published failed:", error.code ?? "unknown");
+        throw new Error("INTERNAL_ERROR");
+      }
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (!row) {
+        console.error("[listing] set_instrument_published returned no row");
+        throw new Error("INTERNAL_ERROR");
+      }
+      const result = {
+        symbol: row.symbol,
+        published: row.published,
+        changed: row.changed,
+        cancelledOrders: Number(row.cancelled_orders) || 0,
+      };
+      await writeAudit(context.supabase, {
+        actorId: context.userId,
+        companyId: row.company_id,
+        action: data.published ? "brand.publish" : "brand.unpublish",
+        entity: "brands",
+        entityId: row.brand_id,
+        metadata: { symbol: result.symbol, changed: result.changed, cancelledOrders: result.cancelledOrders },
+      });
+      return result;
+    },
+  );
+
+/** Every instrument (at most 1000, by symbol) with its listing state. */
+export const listAdminInstruments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminInstrument[]> => {
+    await ensureAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("brands")
+      .select("symbol, slug, name_ar, name_en, asset_class, reference_price, published, company_id, source_submission_id")
+      .order("symbol", { ascending: true })
+      .limit(1000);
+    if (error) {
+      console.error("[listing] instruments lookup failed:", error.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    return (rows ?? []).map((r) => ({
+      symbol: r.symbol,
+      slug: r.slug,
+      nameAr: r.name_ar,
+      nameEn: r.name_en,
+      assetClass: r.asset_class,
+      referencePrice: Number(r.reference_price),
+      published: r.published,
+      companyId: r.company_id,
+      origin: r.source_submission_id ? "submission" : r.company_id ? "company" : "demo_seed",
+    }));
   });

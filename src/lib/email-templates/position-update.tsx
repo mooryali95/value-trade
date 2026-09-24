@@ -48,7 +48,7 @@ export const template = {
     `تحديث على مركزك · ${d.symbol ?? ''} — Position update`,
   displayName: 'Position update',
   previewData: {
-    symbol: 'ARAMCO',
+    symbol: 'SAMPLE',
     headline: 'تحديث بيانات الرمز',
     detail: 'تم تحديث بيانات هذا الرمز، الرجاء مراجعة المحفظة.',
     viewUrl: 'https://hub.sunkvalue.com/portfolio',

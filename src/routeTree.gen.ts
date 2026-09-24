@@ -22,6 +22,7 @@ import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
 import { Route as MarketSlugRouteImport } from './routes/market.$slug'
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
 import { Route as LegalShariahDisclosuresRouteImport } from './routes/legal.shariah-disclosures'
+import { Route as LegalRiskRouteImport } from './routes/legal.risk'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
@@ -118,6 +119,11 @@ const LegalTermsRoute = LegalTermsRouteImport.update({
 const LegalShariahDisclosuresRoute = LegalShariahDisclosuresRouteImport.update({
   id: '/legal/shariah-disclosures',
   path: '/legal/shariah-disclosures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalRiskRoute = LegalRiskRouteImport.update({
+  id: '/legal/risk',
+  path: '/legal/risk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
@@ -371,6 +378,7 @@ export interface FileRoutesByTo {
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
     | '/market/$slug'
@@ -516,6 +526,7 @@ export interface FileRouteTypes {
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
     | '/market/$slug'
@@ -564,6 +575,7 @@ export interface FileRouteTypes {
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
     | '/market/$slug'
@@ -609,6 +621,7 @@ export interface RootRouteChildren {
   JoinSlugRoute: typeof JoinSlugRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalRiskRoute: typeof LegalRiskRoute
   LegalShariahDisclosuresRoute: typeof LegalShariahDisclosuresRoute
   LegalTermsRoute: typeof LegalTermsRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
@@ -712,6 +725,13 @@ declare module '@tanstack/react-router' {
       path: '/legal/shariah-disclosures'
       fullPath: '/legal/shariah-disclosures'
       preLoaderRoute: typeof LegalShariahDisclosuresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/risk': {
+      id: '/legal/risk'
+      path: '/legal/risk'
+      fullPath: '/legal/risk'
+      preLoaderRoute: typeof LegalRiskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/privacy': {
@@ -1023,6 +1043,7 @@ const rootRouteChildren: RootRouteChildren = {
   JoinSlugRoute: JoinSlugRoute,
   LegalCookiesRoute: LegalCookiesRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalRiskRoute: LegalRiskRoute,
   LegalShariahDisclosuresRoute: LegalShariahDisclosuresRoute,
   LegalTermsRoute: LegalTermsRoute,
   TradeSymbolRoute: TradeSymbolRoute,

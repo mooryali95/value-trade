@@ -72,7 +72,7 @@ export const template = {
     `تنبيه سعر · ${d.symbol ?? ''} — Price alert`,
   displayName: 'Price alert',
   previewData: {
-    symbol: 'ARAMCO',
+    symbol: 'SAMPLE',
     direction: 'above',
     targetPrice: '32.50',
     currentPrice: '32.68',

@@ -71,7 +71,7 @@ $$;
 -- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.set_instrument_published(text, boolean, uuid);
 CREATE FUNCTION public.set_instrument_published(_symbol text, _published boolean, _actor_id uuid)
-RETURNS TABLE(symbol text, published boolean, changed boolean, cancelled_orders integer)
+RETURNS TABLE(brand_id uuid, company_id uuid, symbol text, published boolean, changed boolean, cancelled_orders integer)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -106,7 +106,8 @@ BEGIN
     _n := public.close_instrument_orders(_brand.symbol, 'delisted', _actor_id);
   END IF;
 
-  RETURN QUERY SELECT _brand.symbol, _published, (_brand.published IS DISTINCT FROM _published), _n;
+  RETURN QUERY SELECT _brand.id, _brand.company_id, _brand.symbol, _published,
+    (_brand.published IS DISTINCT FROM _published), _n;
 END;
 $$;
 

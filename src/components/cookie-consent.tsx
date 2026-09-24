@@ -2,10 +2,16 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useI18n } from "@/lib/i18n";
 
-const KEY = "cookie-consent:v1";
+/**
+ * Informational notice, not a consent manager: the app sets no advertising or
+ * analytics cookies, only the browser-storage items listed on /legal/cookies,
+ * all needed for the feature they support. Dismissal is remembered in
+ * localStorage under KEY (listed on the cookie policy page).
+ */
+const KEY = "cookie-notice:v1";
 
 export function CookieConsent() {
-  const { t, lang, dir } = useI18n();
+  const { t, dir } = useI18n();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -13,13 +19,13 @@ export function CookieConsent() {
     try {
       if (!window.localStorage.getItem(KEY)) setOpen(true);
     } catch {
-      // ignore
+      // Storage unavailable (private mode): keep the notice hidden rather than nag on every page.
     }
   }, []);
 
-  const decide = (value: "accepted" | "rejected") => {
+  const dismiss = () => {
     try {
-      window.localStorage.setItem(KEY, value);
+      window.localStorage.setItem(KEY, "dismissed");
     } catch {
       // ignore
     }
@@ -42,22 +48,17 @@ export function CookieConsent() {
             to="/legal/cookies"
             className="text-[var(--gold-deep)] underline underline-offset-2"
           >
-            {t("legalCookies")}
+            {t("cc_link")}
           </Link>
           .
         </p>
         <div className="flex shrink-0 gap-2">
           <button
-            onClick={() => decide("rejected")}
-            className="min-h-11 rounded-md border border-border px-3 py-1.5 text-caption font-semibold text-ink-soft hover:border-[var(--gold-deep)]"
-          >
-            {t("cc_essentials")}
-          </button>
-          <button
-            onClick={() => decide("accepted")}
+            type="button"
+            onClick={dismiss}
             className="min-h-11 rounded-md gold-gradient px-4 py-1.5 text-caption font-semibold text-ink"
           >
-            {t("cc_accept")}
+            {t("cc_dismiss")}
           </button>
         </div>
       </div>

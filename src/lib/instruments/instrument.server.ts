@@ -1,9 +1,11 @@
 /**
- * Instrument lookup — server-side source of truth.
+ * Instrument lookup for the order paths (order placement, risk guards,
+ * Shariah gate): resolves the row in `public.brands`, including whether it
+ * is published, with the caller's client. One row per tradable symbol.
  *
- * `mock-data.ts` still feeds charts and the marketing surfaces, but anything
- * that moves money (order placement, risk guards, Shariah gate) resolves the
- * instrument from `public.brands` instead. One row per tradable symbol.
+ * Public market data for a listed instrument (prices, band, day range,
+ * Shariah status) is loaded by `loadPublicInstrument` in
+ * `@/lib/market/public-market.server` instead.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";

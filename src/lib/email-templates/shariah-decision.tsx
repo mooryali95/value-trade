@@ -66,9 +66,9 @@ const ShariahDecisionEmail = ({
       </Button>
     </div>
     <Text style={{ ...styles.textEn, marginTop: 22, color: brand.inkSoft }}>
-      هذا القرار صادر عن الهيئة الشرعية للمنصّة ولا يُعدّ نصيحة استثمارية.
+      هذا الحكم نتيجة المراجعة الشرعية في منصّة وحدة القيمة، ولا يُعدّ نصيحة استثمارية.
       <br />
-      This is a Shariah opinion, not investment advice.
+      This ruling is the outcome of Value Unit's Shariah review, not investment advice.
     </Text>
   </BrandLayout>
 )
@@ -79,10 +79,9 @@ export const template = {
     `قرار شرعي · ${d.symbol ?? ''} — Shariah decision`,
   displayName: 'Shariah decision',
   previewData: {
-    symbol: 'ARAMCO',
+    symbol: 'SAMPLE',
     status: 'halal',
-    reason: 'الشركة ضمن معايير الفلترة الشرعية للأنشطة والنسب المالية.',
-    reviewerName: 'الهيئة الشرعية',
+    reason: 'نص توضيحي لسبب الحكم (معاينة).',
     viewUrl: 'https://hub.sunkvalue.com/shariah',
   },
 } satisfies TemplateEntry
