@@ -16,6 +16,7 @@ vi.mock("@/lib/trading/book.server", () => ({
     },
   }),
 }));
+vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: { _middleware: true } }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   get supabaseAdmin() {
     throw new Error("public market data must not use the service role");
@@ -52,6 +53,7 @@ import {
   getRecentTrades,
 } from "./public-market.functions";
 import { getTradeInstrument } from "@/lib/instruments/instrument.functions";
+import { getBook } from "@/lib/trading/book.functions";
 
 const call = <T,>(fn: (i: never) => Promise<T>, data?: unknown) => fn({ data } as never);
 
@@ -169,6 +171,29 @@ describe("public market server functions", () => {
     await expect(call(getPublicCompanyProfile, { id })).resolves.toBeNull();
     calls.length = 0;
     await expect(call(getPublicCompanyProfile, { id: "not-a-uuid" })).resolves.toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("order book: published-only RPCs, errors are not an empty book", async () => {
+    responses.get_order_book = {
+      data: [
+        { side: "buy", price: "49.5", qty: "10" },
+        { side: "sell", price: 50.5, qty: 3 },
+      ],
+      error: null,
+    };
+    responses.get_symbol_last_trade = { data: [{ last_price: "50", traded_at: "2026-09-24T07:00:00Z" }], error: null };
+    await expect(call(getBook, { symbol: "acme" })).resolves.toEqual({
+      bids: [{ price: 49.5, qty: 10 }],
+      asks: [{ price: 50.5, qty: 3 }],
+      lastPrice: 50,
+      lastTradedAt: "2026-09-24T07:00:00Z",
+    });
+    expect(calls).toContainEqual({ name: "get_order_book", args: { _symbol: "ACME", _depth: 12 } });
+    responses.get_order_book = { data: null, error: { code: "57014" } };
+    await expect(call(getBook, { symbol: "ACME" })).rejects.toThrow(/^MARKET_DATA_UNAVAILABLE$/);
+    calls.length = 0;
+    await expect(call(getBook, { symbol: "a b" })).resolves.toEqual({ bids: [], asks: [], lastPrice: null, lastTradedAt: null });
     expect(calls).toHaveLength(0);
   });
 });

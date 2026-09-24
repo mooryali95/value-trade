@@ -18,6 +18,7 @@ export function ErrorState({ title, description, reset }: Props) {
       </p>
       <div className="mt-5 flex justify-center gap-2">
         <button
+          type="button"
           onClick={() => { router.invalidate(); reset?.(); }}
           className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
         >

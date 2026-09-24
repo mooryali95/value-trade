@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type Key } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
 import { StatusBadge } from "@/components/status-badge";
@@ -28,6 +28,8 @@ const SearchSchema = z.object({
   pageSize: z.coerce.number().int().catch(25).default(25),
 });
 type SearchState = z.infer<typeof SearchSchema>;
+
+const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
 
 export const Route = createFileRoute("/_authenticated/company/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
@@ -56,7 +58,7 @@ function CompanySubmissions() {
   const navigate = useNavigate({ from: Route.fullPath });
   const patch = (p: Partial<SearchState>) => navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
   const listFn = useServerFn(listCompanySubmissions);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["submissions", companyId],
     queryFn: () => listFn({ data: { companyId: companyId! } }),
     enabled: !!companyId,
@@ -68,7 +70,7 @@ function CompanySubmissions() {
     return rows.filter((r) => {
       if (search.status !== "all" && r.status !== search.status) return false;
       if (search.asset !== "all" && r.asset_class !== search.asset) return false;
-      if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q))) return false;
+      if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q) || (r.name_ar ?? "").includes(search.q.trim()))) return false;
       return true;
     });
   }, [rows, search.q, search.status, search.asset]);
@@ -99,36 +101,56 @@ function CompanySubmissions() {
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submissionsIn") }]}
       />
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-        <select aria-label={t("statusPending")} value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("g_searchSubmissions")} aria-label={t("g_searchSubmissions")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
+        <select aria-label={t("g_filterStatus")} value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="pending">{t("pending")}</option>
-          <option value="approved">{t("approve")}</option>
-          <option value="rejected">{t("reject")}</option>
+          <option value="pending">{t("statusPending")}</option>
+          <option value="approved">{t("statusApproved")}</option>
+          <option value="rejected">{t("statusRejected")}</option>
         </select>
-        <select aria-label={t("a11yAssetClass")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("g_filterAssetClass")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="stock">stock</option>
-          <option value="sukuk">sukuk</option>
-          <option value="brand">brand</option>
+          <option value="stock">{t("g_assetStock")}</option>
+          <option value="sukuk">{t("g_assetSukuk")}</option>
+          <option value="brand">{t("g_assetBrand")}</option>
         </select>
         <select aria-label={t("rowsPerPage")} value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
-        <button onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })} className="rounded-md border border-border px-2 py-1.5 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
+        <button type="button" onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })} className="rounded-md border border-border px-2 py-1.5 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
       </div>
-      {isLoading ? (
+      {!companyId ? (
+        <EmptyState title={t("g_noCompanyTitle")} description={t("g_noCompanyDesc")} />
+      ) : isLoading ? (
         <LuxurySkeleton lines={5} />
+      ) : isError ? (
+        <ErrorState reset={() => refetch()} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title={t("g_noSubmissionsTitle")}
+          description={t("g_noSubmissionsDesc")}
+          action={
+            canManageDocs ? (
+              <Link
+                to="/company/submit"
+                search={{ companyId }}
+                className="inline-flex min-h-11 items-center rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
+              >
+                {t("g_submitFirst")}
+              </Link>
+            ) : undefined
+          }
+        />
       ) : sorted.length === 0 ? (
         <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Symbol</SortHeader>
-            <SortHeader active={search.sortBy === "asset"} dir={search.sortDir} onClick={() => patch({ sortBy: "asset", sortDir: search.sortBy === "asset" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Class</SortHeader>
-            <SortHeader active={search.sortBy === "sector"} dir={search.sortDir} onClick={() => patch({ sortBy: "sector", sortDir: search.sortBy === "sector" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Sector</SortHeader>
-            <SortHeader active={search.sortBy === "submitted"} dir={search.sortDir} onClick={() => patch({ sortBy: "submitted", sortDir: search.sortBy === "submitted" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Submitted</SortHeader>
-            <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
+            <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colSymbol")}</SortHeader>
+            <SortHeader active={search.sortBy === "asset"} dir={search.sortDir} onClick={() => patch({ sortBy: "asset", sortDir: search.sortBy === "asset" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colClass")}</SortHeader>
+            <SortHeader active={search.sortBy === "sector"} dir={search.sortDir} onClick={() => patch({ sortBy: "sector", sortDir: search.sortBy === "sector" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("sector")}</SortHeader>
+            <SortHeader active={search.sortBy === "submitted"} dir={search.sortDir} onClick={() => patch({ sortBy: "submitted", sortDir: search.sortBy === "submitted" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colSubmitted")}</SortHeader>
+            <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colStatus")}</SortHeader>
           </div>
           {paged.map((s) => (
             <div key={s.id} className="border-b border-border/40 last:border-b-0">
@@ -137,12 +159,13 @@ function CompanySubmissions() {
                 <div className="truncate font-semibold text-ink">{lang === "ar" ? s.name_ar : s.name_en}</div>
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{s.symbol}</div>
               </div>
-              <div className="font-mono">{s.asset_class}</div>
+              <div>{ASSET_LABEL[s.asset_class] ? t(ASSET_LABEL[s.asset_class]) : s.asset_class}</div>
               <div className="text-muted-foreground">{s.sector ?? "—"}</div>
               <div className="text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={s.status} />
                 <button
+                  type="button"
                   onClick={() => setOpenDocs((cur) => (cur === s.id ? null : s.id))}
                   aria-expanded={openDocs === s.id}
                   className="rounded border border-border px-2 py-1 text-[10px] font-semibold text-ink-soft hover:border-[var(--gold-deep)]"

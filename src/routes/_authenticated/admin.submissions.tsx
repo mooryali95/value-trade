@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type Key } from "@/lib/i18n";
 import { listPendingSubmissions, reviewSubmission } from "@/lib/submissions/submissions.functions";
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
@@ -28,6 +28,8 @@ const SearchSchema = z.object({
   pageSize: z.coerce.number().int().catch(25).default(25),
 });
 type SearchState = z.infer<typeof SearchSchema>;
+
+const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
 
 export const Route = createFileRoute("/_authenticated/admin/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
@@ -76,7 +78,8 @@ function AdminSubmissions() {
     return rows.filter((r) => {
       if (search.status !== "all" && r.status !== search.status) return false;
       if (search.asset !== "all" && r.asset_class !== search.asset) return false;
-      if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q) || (r.companies?.name_en ?? "").toUpperCase().includes(q))) return false;
+      const qAr = search.q.trim();
+      if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q) || (r.name_ar ?? "").includes(qAr) || (r.companies?.name_en ?? "").toUpperCase().includes(q) || (r.companies?.name_ar ?? "").includes(qAr))) return false;
       return true;
     });
   }, [rows, search.q, search.status, search.asset]);
@@ -101,9 +104,6 @@ function AdminSubmissions() {
   const page = clampPage(search.page, pageCount);
   const paged = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
-  if (isLoading) return <AppShell><LuxurySkeleton lines={6} /></AppShell>;
-  if (isError) return <AppShell><div className="py-16"><ErrorState reset={() => refetch()} /></div></AppShell>;
-
   if (!rolesLoading && !isReviewer) {
     return (
       <AppShell>
@@ -112,45 +112,50 @@ function AdminSubmissions() {
     );
   }
 
+  if (isLoading) return <AppShell><LuxurySkeleton lines={6} /></AppShell>;
+  if (isError) return <AppShell><div className="py-16"><ErrorState reset={() => refetch()} /></div></AppShell>;
+
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
+        eyebrow={t("g_adminEyebrow")}
         title={t("submissionsAdmin")}
         description={!rolesLoading && !isReviewer ? t("reviewerRequired") : undefined}
-        crumbs={[{ label: "Admin", to: "/admin/submissions" }, { label: t("submissionsAdmin") }]}
+        crumbs={[{ label: t("g_adminEyebrow"), to: "/admin/submissions" }, { label: t("submissionsAdmin") }]}
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("search")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
-        <select value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("g_searchSubmissions")} aria-label={t("g_searchSubmissions")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
+        <select aria-label={t("g_filterStatus")} value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="pending">{t("pending")}</option>
-          <option value="approved">{t("approve")}</option>
-          <option value="rejected">{t("reject")}</option>
+          <option value="pending">{t("statusPending")}</option>
+          <option value="approved">{t("statusApproved")}</option>
+          <option value="rejected">{t("statusRejected")}</option>
         </select>
-        <select value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("g_filterAssetClass")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="stock">stock</option>
-          <option value="sukuk">sukuk</option>
-          <option value="brand">brand</option>
+          <option value="stock">{t("g_assetStock")}</option>
+          <option value="sukuk">{t("g_assetSukuk")}</option>
+          <option value="brand">{t("g_assetBrand")}</option>
         </select>
-        <select value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("rowsPerPage")} value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
-        <button onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })} className="rounded-md border border-border px-2 py-1.5 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
+        <button type="button" onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })} className="rounded-md border border-border px-2 py-1.5 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
       </div>
 
-      {sorted.length === 0 ? (
+      {rows.length === 0 ? (
+        <EmptyState title={t("g_noReviewQueueTitle")} description={t("g_noReviewQueueDesc")} />
+      ) : sorted.length === 0 ? (
         <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Symbol</SortHeader>
-            <SortHeader active={search.sortBy === "company"} dir={search.sortDir} onClick={() => patch({ sortBy: "company", sortDir: search.sortBy === "company" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("companies")}</SortHeader>
-            <SortHeader active={search.sortBy === "asset"} dir={search.sortDir} onClick={() => patch({ sortBy: "asset", sortDir: search.sortBy === "asset" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Class</SortHeader>
-            <SortHeader active={search.sortBy === "submitted"} dir={search.sortDir} onClick={() => patch({ sortBy: "submitted", sortDir: search.sortBy === "submitted" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Submitted</SortHeader>
-            <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
+            <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colSymbol")}</SortHeader>
+            <SortHeader active={search.sortBy === "company"} dir={search.sortDir} onClick={() => patch({ sortBy: "company", sortDir: search.sortBy === "company" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("company")}</SortHeader>
+            <SortHeader active={search.sortBy === "asset"} dir={search.sortDir} onClick={() => patch({ sortBy: "asset", sortDir: search.sortBy === "asset" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colClass")}</SortHeader>
+            <SortHeader active={search.sortBy === "submitted"} dir={search.sortDir} onClick={() => patch({ sortBy: "submitted", sortDir: search.sortBy === "submitted" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colSubmitted")}</SortHeader>
+            <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colStatus")}</SortHeader>
           </div>
           {paged.map((s) => (
             <div key={s.id} className="border-b border-border/40 last:border-b-0">
@@ -158,11 +163,12 @@ function AdminSubmissions() {
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? s.name_ar : s.name_en}</div>
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">
-                  {s.symbol} · {s.asset_class} · {lang === "ar" ? s.companies?.name_ar : s.companies?.name_en}
+                  {s.symbol} · {ASSET_LABEL[s.asset_class] ? t(ASSET_LABEL[s.asset_class]) : s.asset_class} · {lang === "ar" ? s.companies?.name_ar : s.companies?.name_en}
                 </div>
               </div>
               <input
                 placeholder={t("reason")}
+                aria-label={`${t("g_reviewNoteLabel")} — ${s.symbol}`}
                 value={reason[s.id] ?? ""}
                 onChange={(e) => setReason((r) => ({ ...r, [s.id]: e.target.value }))}
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
@@ -171,8 +177,9 @@ function AdminSubmissions() {
                 <StatusBadge status={s.status} />
                 {s.status === "pending" && (
                   <>
-                    <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ submissionId: s.id, status: "approved", reason: reason[s.id] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
+                    <button type="button" disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ submissionId: s.id, status: "approved", reason: reason[s.id] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
                     <button
+                      type="button"
                       disabled={!isReviewer || (reason[s.id] ?? "").trim().length < 10}
                       title={!isReviewer ? t("reviewerRequired") : (reason[s.id] ?? "").trim().length < 10 ? t("rejectionReasonRequired") : undefined}
                       onClick={() => mutation.mutate({ submissionId: s.id, status: "rejected", reason: reason[s.id] })}

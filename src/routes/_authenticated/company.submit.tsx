@@ -6,15 +6,18 @@ import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/error-state";
+import { EmptyState } from "@/components/empty-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type Key } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
 import { submitProduct } from "@/lib/submissions/submissions.functions";
 import { toast } from "sonner";
+
+const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
 
 export const Route = createFileRoute("/_authenticated/company/submit")({
   validateSearch: (s: Record<string, unknown>) =>
@@ -100,6 +103,10 @@ function SubmitPage() {
 
       {list.isLoading ? (
         <LuxurySkeleton lines={4} />
+      ) : list.isError ? (
+        <div className="py-8"><ErrorState reset={() => list.refetch()} /></div>
+      ) : (list.data ?? []).length === 0 ? (
+        <EmptyState title={t("g_noCompaniesTitle")} description={t("g_noCompaniesDesc")} />
       ) : (
         <div className="mx-auto max-w-2xl space-y-3 rounded-xl border border-border/60 bg-card p-6">
           <ol className="mb-2 grid grid-cols-3 gap-2">
@@ -128,17 +135,17 @@ function SubmitPage() {
           <>
           <Field label={t("company")}>
             <select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-              <option value="">—</option>
+              <option value="">{t("g_selectCompany")}</option>
               {(list.data ?? []).map((m) => (
                 <option key={m.company.id} value={m.company.id}>{lang === "ar" ? m.company.name_ar : m.company.name_en}</option>
               ))}
             </select>
           </Field>
-          <Field label={t("orderType")}>
+          <Field label={t("g_colClass")}>
             <select value={form.asset_class} onChange={(e) => setForm({ ...form, asset_class: e.target.value as never })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-              <option value="stock">{t("stocks")}</option>
-              <option value="sukuk">{t("sukukAll")}</option>
-              <option value="brand">{t("brands")}</option>
+              <option value="stock">{t("g_assetStock")}</option>
+              <option value="sukuk">{t("g_assetSukuk")}</option>
+              <option value="brand">{t("g_assetBrand")}</option>
             </select>
           </Field>
           </>
@@ -170,7 +177,7 @@ function SubmitPage() {
             <div className="space-y-3">
               <dl className="divide-y divide-border/40 rounded-lg border border-border/60 bg-secondary/20 text-caption">
                 <Row label={t("company")} value={companyName ? (lang === "ar" ? companyName.name_ar : companyName.name_en) : "—"} />
-                <Row label={t("orderType")} value={form.asset_class} />
+                <Row label={t("g_colClass")} value={t(ASSET_LABEL[form.asset_class])} />
                 <Row label={t("brandSymbol")} value={form.symbol.toUpperCase() || "—"} />
                 <Row label={t("nameAr")} value={form.name_ar || "—"} />
                 <Row label={t("nameEn")} value={form.name_en || "—"} />
@@ -186,6 +193,7 @@ function SubmitPage() {
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <button
+              type="button"
               disabled={step === 1}
               onClick={() => setStep((s) => Math.max(1, s - 1))}
               className="min-h-11 rounded-md border border-border px-4 text-sm font-semibold text-ink disabled:opacity-40"
@@ -194,6 +202,7 @@ function SubmitPage() {
             </button>
             {step < 3 ? (
               <button
+                type="button"
                 disabled={step === 1 ? !step1Ok : !step2Ok}
                 onClick={() => setStep((s) => Math.min(3, s + 1))}
                 className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"
@@ -202,6 +211,7 @@ function SubmitPage() {
               </button>
             ) : (
               <button
+                type="button"
                 disabled={mutation.isPending || !step1Ok || !step2Ok}
                 onClick={() => mutation.mutate()}
                 className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"

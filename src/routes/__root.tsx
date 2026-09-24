@@ -7,39 +7,59 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getCookie } from "@tanstack/react-start/server";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { I18nProvider } from "../lib/i18n";
+import {
+  I18nProvider,
+  LANG_COOKIE,
+  ensureLang,
+  langFromCookieString,
+  parseLang,
+  useI18n,
+  type Lang,
+} from "../lib/i18n";
+import { SITE, canonicalUrl } from "@/lib/config/site";
 import { AppModeProvider } from "@/lib/nav/app-mode";
 import { supabase } from "../integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { CookieConsent } from "@/components/cookie-consent";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 
+/**
+ * Interface language for this request: the `vu_lang` cookie on the server,
+ * the same cookie in the browser (Arabic when absent). Resolved in the root
+ * `beforeLoad` so the shell renders `<html lang dir>` correctly on first paint.
+ */
+const readLang = createIsomorphicFn()
+  .server((): Lang => parseLang(getCookie(LANG_COOKIE)) ?? "ar")
+  .client((): Lang => langFromCookieString(document.cookie) ?? "ar");
+
 function NotFoundComponent() {
+  const { t } = useI18n();
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist, was renamed, or has been moved. Check the
-          address, or continue from one of the links below.
+        <p className="text-7xl font-bold text-foreground" aria-hidden="true">
+          404
         </p>
+        <h1 className="mt-4 text-xl font-semibold text-foreground">{t("g_pageNotFoundTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("g_pageNotFoundDesc")}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <Link
             to="/"
             className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {t("g_goHome")}
           </Link>
           <Link
             to="/market"
             className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60"
           >
-            Browse market
+            {t("g_browseMarket")}
           </Link>
         </div>
       </div>
@@ -50,86 +70,86 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const { t } = useI18n();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("errorTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("g_rootErrorDesc")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
+            type="button"
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {t("tryAgain")}
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {t("g_goHome")}
           </a>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
+const SITE_TITLE = `${SITE.brandAr} | ${SITE.brandEn}`;
+const SITE_DESCRIPTION =
+  "وحدة القيمة سوق خاصة بالدعوة فقط: تُدرج الشركات وحدات علاماتها التجارية، ويتداولها مستثمرون تفعّلهم إدارة المنصة. Value Unit is a private, invitation-only market for brand units.";
+const OG_IMAGE = canonicalUrl("/og-image.png");
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "وحدة القيمة — Value Unit Exchange" },
-      {
-        name: "description",
-        content:
-          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
-      },
-      { name: "author", content: "Value Unit" },
-      { property: "og:title", content: "وحدة القيمة — Value Unit Exchange" },
-      {
-        property: "og:description",
-        content:
-          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "وحدة القيمة — Value Unit Exchange" },
-      {
-        name: "twitter:description",
-        content:
-          "منصة مؤسسية لإنشاء، تقييم، وتداول وحدة القيمة عبر 256 براند داخل المنظومة — بمعايير AAOIFI.",
-      },
-      {
-        property: "og:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/thEZAbOkxuZ8a2AI4lIeuTI7GOP2/social-images/social-1783885408396-Screenshot_2026-07-12_at_22.41.17.webp",
-      },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-    ],
-  }),
+  beforeLoad: () => ({ lang: readLang() }),
+  head: async ({ match }) => {
+    // Load the dictionary before the first render (server and hydration) so
+    // an English page never renders Arabic copy first.
+    await ensureLang(match.context.lang ?? "ar");
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: SITE_TITLE },
+        { name: "description", content: SITE_DESCRIPTION },
+        { name: "author", content: SITE.brandEn },
+        { name: "application-name", content: SITE.brandEn },
+        { name: "apple-mobile-web-app-title", content: SITE.brandAr },
+        { name: "theme-color", content: "#071123" },
+        { property: "og:site_name", content: SITE_TITLE },
+        { property: "og:title", content: SITE_TITLE },
+        { property: "og:description", content: SITE_DESCRIPTION },
+        { property: "og:type", content: "website" },
+        { property: "og:locale", content: "ar_SA" },
+        { property: "og:locale:alternate", content: "en_US" },
+        { property: "og:image", content: OG_IMAGE },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { property: "og:image:alt", content: SITE_TITLE },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: SITE_TITLE },
+        { name: "twitter:description", content: SITE_DESCRIPTION },
+        { name: "twitter:image", content: OG_IMAGE },
+      ],
+      links: [
+        {
+          rel: "stylesheet",
+          href: appCss,
+        },
+        { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+        { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+        { rel: "manifest", href: "/site.webmanifest" },
+      ],
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -137,8 +157,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const { lang } = Route.useRouteContext();
+  // The provider wraps the whole document so the root 404 / error screens
+  // (rendered instead of RootComponent) are translated too.
   return (
-    <html lang="en">
+    <I18nProvider initialLang={lang ?? "ar"}>
+      <Document>{children}</Document>
+    </I18nProvider>
+  );
+}
+
+function Document({ children }: { children: ReactNode }) {
+  const { lang, dir } = useI18n();
+  return (
+    <html lang={lang} dir={dir}>
       <head>
         <HeadContent />
       </head>
@@ -165,15 +197,13 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <I18nProvider>
-        <AppModeProvider>
-          <ConfirmProvider>
-            <Outlet />
-            <CookieConsent />
-            <Toaster />
-          </ConfirmProvider>
-        </AppModeProvider>
-      </I18nProvider>
+      <AppModeProvider>
+        <ConfirmProvider>
+          <Outlet />
+          <CookieConsent />
+          <Toaster />
+        </ConfirmProvider>
+      </AppModeProvider>
     </QueryClientProvider>
   );
 }

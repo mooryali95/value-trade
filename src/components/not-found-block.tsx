@@ -10,14 +10,22 @@ export function NotFoundBlock({ kind = "symbol" }: { kind?: "symbol" | "company"
       <div className="py-16">
         <EmptyState
           title={kind === "company" ? t("notFoundCompanyTitle") : t("notFoundSymbolTitle")}
-          description={kind === "company" ? undefined : t("notFoundSymbolDesc")}
+          description={kind === "company" ? t("g_notFoundCompanyDesc") : t("notFoundSymbolDesc")}
           action={
-            <Link
-              to="/market"
-              className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
-            >
-              {t("goToMarket")}
-            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Link
+                to="/market"
+                className="inline-flex min-h-11 items-center rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
+              >
+                {t("goToMarket")}
+              </Link>
+              <Link
+                to="/"
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-background px-4 py-2 text-xs font-semibold text-ink-soft hover:border-[var(--gold-deep)]"
+              >
+                {t("g_goHome")}
+              </Link>
+            </div>
           }
         />
       </div>

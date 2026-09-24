@@ -4,21 +4,48 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const SymbolInput = z.object({ symbol: z.string().min(1).max(32) });
 
+export type BookLevel = { price: number; qty: number };
+export type PublicBook = { bids: BookLevel[]; asks: BookLevel[]; lastPrice: number | null; lastTradedAt: string | null };
+
 /**
  * Aggregated order book and last trades for a symbol. Market depth is public
  * data: the database function returns price/size levels only, never any
- * counterparty identity.
+ * counterparty identity, for published instruments only. A malformed symbol
+ * is an empty book; a database failure throws MARKET_DATA_UNAVAILABLE (so
+ * the page shows an error state, not an empty book).
  */
 export const getBook = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => SymbolInput.parse(input))
-  .handler(async ({ data }) => {
+  .inputValidator((input: { symbol: string }) => {
+    const parsed = SymbolInput.safeParse(input);
+    return parsed.success ? parsed.data : { symbol: "" };
+  })
+  .handler(async ({ data }): Promise<PublicBook> => {
+    // Symbols are stored upper-case (brands_guard).
+    const symbol = data.symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9._-]{1,32}$/.test(symbol)) {
+      return { bids: [], asks: [], lastPrice: null, lastTradedAt: null };
+    }
     const { getPublicClient } = await import("./book.server");
-    const client = getPublicClient();
+    let client: ReturnType<typeof getPublicClient>;
+    try {
+      client = getPublicClient();
+    } catch {
+      console.error("[getBook] client unavailable");
+      throw new Error("MARKET_DATA_UNAVAILABLE");
+    }
 
-    const [{ data: levels }, { data: last }] = await Promise.all([
-      client.rpc("get_order_book", { _symbol: data.symbol, _depth: 12 }),
-      client.rpc("get_symbol_last_trade", { _symbol: data.symbol }),
+    const [book, lastTrade] = await Promise.all([
+      client.rpc("get_order_book", { _symbol: symbol, _depth: 12 }),
+      client.rpc("get_symbol_last_trade", { _symbol: symbol }),
     ]);
+    for (const r of [book, lastTrade]) {
+      if (r.error) {
+        console.error("[getBook] rpc failed", r.error.code ?? "unknown");
+        throw new Error("MARKET_DATA_UNAVAILABLE");
+      }
+    }
+    const levels = book.data;
+    const last = lastTrade.data;
 
     const rows = levels ?? [];
     const lastRow = (Array.isArray(last) ? last[0] : last) ?? null;

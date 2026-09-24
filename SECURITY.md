@@ -88,6 +88,54 @@ units, and only invited, admin-activated investors trade them.
 - **HIBP** leaked-password protection enabled on auth.
 - **HTTPS** enforced by hosting; strict cookies for the Supabase session.
 
+## Public market data
+
+The market pages are public (no sign-in), and every number they show comes
+from the database; nothing is generated.
+
+- **Read path.** Browser-facing reads go through server functions in
+  `src/lib/market/public-market.functions.ts` (`getMarketOverview`,
+  `getPublicInstrument`, `getCandles`, `getRecentTrades`,
+  `getPublicShariahRulings`, `getPublicCompanyProfile`; the trade page's
+  `getTradeInstrument` is an alias of the same loader). They use the
+  publishable (anon) key, never the service role, and call `SECURITY
+  DEFINER` functions that anon may execute: `public_market_overview`,
+  `public_market_summary`, `public_instrument`, `public_candles`,
+  `public_recent_trades`, `public_shariah_rulings`,
+  `public_company_profile` (plus `get_order_book` and
+  `get_symbol_last_trade`). Failures reach the browser as
+  `MARKET_DATA_UNAVAILABLE`.
+- **Published instruments only.** Every function, including the order book
+  and last trade, answers for `brands.published` instruments only; a company
+  appears only when it has a published instrument.
+- **No identities.** Results are aggregates and trade prints (price,
+  quantity, time): never a user id, order id, trade id, issuance holder or
+  Shariah reviewer. The only uuid returned is a company id. anon can read
+  `shariah_decisions` without `reviewer_id` / `updated_by`.
+- **Caps.** Board ≤ 1000 rows, candles ≤ 500 buckets, trade tape ≤ 50
+  prints, order book depth ≤ 50.
+- **Same definitions as the engine.** Last price = last trade; 24h change vs
+  the last trade at least 24h old, else the first trade in the window;
+  volume counted once per trade; trading day = Asia/Riyadh; the band shown
+  (`bandLow`/`bandHigh`) is `band_reference_price()` ± 20% on the 0.01 tick,
+  exactly the limit prices `match_order` accepts; the Shariah status is
+  `current_shariah_status()`. Before the first trade the UI shows the
+  listing reference price, labelled as such, never as a trade price.
+- **Listing control.** Only a platform admin lists or delists an instrument
+  (`setInstrumentPublished` → `set_instrument_published`, service role
+  only, audited as `brand.publish` / `brand.unpublish`). Delisting closes
+  the instrument's resting orders in the same transaction (`orders_audit`
+  action `delisted`) under the engine's symbol lock; positions, cash and
+  trades are untouched. A resting order can never be written for an
+  unpublished instrument (trigger), and a published instrument always has a
+  reference price in (0, 1,000,000,000] (check constraint), so its band
+  always exists.
+- **Demo listings removed.** `20260925100200_delist_demo_instruments.sql`
+  unpublished every seeded demo instrument (brands with no company and no
+  source submission: real listed issuers with invented prices and synthetic
+  brands) and closed their resting orders. Rows are kept; an admin can
+  republish one after setting a real reference price.
+
 ## Data Retention & Backups
 
 | Data | Retention | Notes |

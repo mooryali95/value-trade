@@ -189,6 +189,9 @@ SERVICE_ONLY=(
   "band_reference_price(text)"
   "deactivate_trader(uuid, uuid)"
   "issue_units(uuid, uuid, text, numeric, numeric, text)"
+  "market_instrument_rows(uuid, uuid)"
+  "close_instrument_orders(text, text, uuid)"
+  "set_instrument_published(text, boolean, uuid)"
 )
 for sig in "${SERVICE_ONLY[@]}"; do
   name=${sig%%(*}
@@ -203,8 +206,8 @@ done
 expect_err "anon cannot insert access_requests directly" anon "permission denied" "INSERT INTO public.access_requests (email, full_name, join_method, new_company_name_ar, new_company_name_en) VALUES ('a@b.c','A','new_company','x','y');"
 expect_err "authenticated cannot insert access_requests directly" "$ALICE" "permission denied" "INSERT INTO public.access_requests (email, full_name, join_method, new_company_name_ar, new_company_name_en) VALUES ('a@b.c','A','new_company','x','y');"
 expect_err "anon cannot update access_requests" anon "permission denied" "UPDATE public.access_requests SET status='approved';"
-su_eq "SECURITY DEFINER functions executable by anon = public market data only" "get_order_book,get_symbol_last_trade" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon', p.oid, 'EXECUTE');"
-su_eq "SECURITY DEFINER functions executable by authenticated = RLS helpers + market data" "get_market_snapshot,get_order_book,get_symbol_last_trade,get_symbol_market_stats,has_company_role,has_role,is_company_member,is_company_owner" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated', p.oid, 'EXECUTE');"
+su_eq "SECURITY DEFINER functions executable by anon = public market data only" "get_order_book,get_symbol_last_trade,public_candles,public_company_profile,public_instrument,public_market_overview,public_market_summary,public_recent_trades,public_shariah_rulings" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon', p.oid, 'EXECUTE');"
+su_eq "SECURITY DEFINER functions executable by authenticated = RLS helpers + market data" "get_market_snapshot,get_order_book,get_symbol_last_trade,get_symbol_market_stats,has_company_role,has_role,is_company_member,is_company_owner,public_candles,public_company_profile,public_instrument,public_market_overview,public_market_summary,public_recent_trades,public_shariah_rulings" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated', p.oid, 'EXECUTE');"
 su_eq "every SECURITY DEFINER function pins search_path" "0" "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}')) c WHERE c LIKE 'search_path=%');"
 
 # ------------------------------------------------- (d) engine validation ---
@@ -707,6 +710,219 @@ su_eq "re-run adds no duplicate hold" "2" "SELECT count(*) FROM public.launch_re
 # unit invariants below stay meaningful.
 su "DELETE FROM public.positions WHERE user_id IN ('$MAL','$NEGP','$NEGQ','$NANQ');
     DELETE FROM public.orders WHERE user_id IN ('$NEGP','$NEGQ','$NANQ');" >/dev/null
+
+# ------------------------------------------ (o) public market data API ---
+section "(o) public market data API: anon, published instruments only, aggregates only"
+RIYADH_DAY="(date_trunc('day', now() AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'Asia/Riyadh')"
+PUBLIC_MARKET_FNS="'public_market_overview','public_market_summary','public_instrument','public_candles','public_recent_trades','public_shariah_rulings','public_company_profile'"
+su_eq "seeded demo instruments are not listed after the migrations" "0|true" "SELECT (SELECT count(*) FROM public.brands WHERE published AND (symbol IN ('2222','1120','7010','2010','EMAAR','ADCB','KSA-30') OR symbol ~ '^[A-Z]{3}[0-9]{3}\$')) || '|' || (SELECT count(*) > 250 FROM public.brands WHERE NOT published AND symbol ~ '^[A-Z]{3}[0-9]{3}\$');"
+expect_eq "no demo seed in the public market board" anon "0" "SELECT count(*) FROM public.public_market_overview() WHERE symbol IN ('2222','1120','7010','2010','EMAAR','ADCB','KSA-30') OR symbol ~ '^[A-Z]{3}[0-9]{3}\$';"
+MKB=$(newuser mkt-buyer@test.local); MKS=$(newuser mkt-seller@test.local)
+su "INSERT INTO public.user_roles (user_id, role) VALUES ('$MKB','trader'), ('$MKS','trader');
+    INSERT INTO public.brands (symbol, slug, name_ar, name_en, sector, reference_price, published, company_id) VALUES
+      ('MKTA','mkt-a','ma','Market A','retail',50,true,'$CO'),
+      ('MKTB','mkt-b','mb','Market B',NULL,33.33,true,NULL),
+      ('MKTC','mkt-c','mc','Market C',NULL,10,true,NULL),
+      ('MKTK','mkt-k','mk','Market K',NULL,10,true,NULL),
+      ('MKTX','mkt-x','mx','Market X',NULL,20,true,NULL),
+      ('MKTD','mkt-d','md','Market D',NULL,20,true,NULL);" >/dev/null
+q service "SELECT public.post_cash_movement('$MKB','deposit',100000,NULL,'seed','$ADMIN');" >/dev/null
+for s in MKTA MKTC MKTX MKTD; do q service "SELECT public.issue_units('$ADMIN','$MKS','$s',1000,10,'market data test');" >/dev/null; done
+# Two investors trade through match_order: the seller's ask, then the buyer's crossing bid.
+mtrade() { mo "$MKS" "$1" sell limit "$2" "$3" >/dev/null; mo "$MKB" "$1" buy limit "$2" "$3" >/dev/null; }
+mtrade MKTA 10 50; mtrade MKTA 5 52; mtrade MKTA 20 55; mtrade MKTA 4 51
+su_eq "scenario: four MKTA trades between the two investors" "4|$MKB|$MKS" "SELECT count(*) || '|' || min(buyer_id::text) || '|' || min(seller_id::text) FROM public.trades WHERE symbol='MKTA';"
+# 50 three days ago, 52 thirty hours ago (the previous close, >= 24h old),
+# 55 earlier today (Asia/Riyadh), 51 just now.
+su "UPDATE public.trades SET created_at = now() - interval '3 days' WHERE symbol='MKTA' AND price=50;
+    UPDATE public.trades SET created_at = now() - interval '30 hours' WHERE symbol='MKTA' AND price=52;
+    UPDATE public.trades SET created_at = $RIYADH_DAY + (now() - $RIYADH_DAY) / 2 WHERE symbol='MKTA' AND price=55;" >/dev/null
+LASTAT=$(su "SELECT max(created_at) FROM public.trades WHERE symbol='MKTA';")
+for fn in "public_market_overview()" "public_market_overview('$CO')" "public_market_summary()" "public_instrument('mkt-a')" "public_candles('MKTA','1d',10)" "public_recent_trades('MKTA',10)" "public_shariah_rulings()" "public_company_profile('$CO')"; do
+  label=${fn//$CO/<company>}
+  expect_ok "anon can call $label" anon "SELECT count(*) FROM public.$fn;"
+  expect_ok "signed-in user can call $label" "$ALICE" "SELECT count(*) FROM public.$fn;"
+done
+expect_eq "overview: last price, 24h change vs the last trade >= 24h old, volume once per trade" anon "MKTA|51|-1.92|24|1304|2|$LASTAT" \
+  "SELECT symbol || '|' || trim_scale(last_price) || '|' || change_24h_pct || '|' || trim_scale(volume_24h_units) || '|' || trim_scale(volume_24h_value) || '|' || trades_24h || '|' || last_trade_at FROM public.public_market_overview() WHERE symbol='MKTA';"
+expect_eq "overview: listing data and the company of a published instrument" anon "mkt-a|Market A|retail|brand|50|$CO|Acme" \
+  "SELECT slug || '|' || name_en || '|' || sector || '|' || asset_class || '|' || trim_scale(reference_price) || '|' || company_id || '|' || company_name_en FROM public.public_market_overview() WHERE symbol='MKTA';"
+expect_eq "overview: no trade yet -> null prices, zero volume, reference price kept" anon "|||0|0|0||33.33" \
+  "SELECT coalesce(last_price::text,'') || '|' || coalesce(change_24h_pct::text,'') || '|' || coalesce(last_trade_at::text,'') || '|' || volume_24h_units || '|' || volume_24h_value || '|' || trades_24h || '|' || coalesce(shariah_status,'') || '|' || trim_scale(reference_price) FROM public.public_market_overview() WHERE symbol='MKTB';"
+expect_eq "overview agrees with get_symbol_market_stats" "$ALICE" "t" \
+  "SELECT (o.last_price, o.change_24h_pct, o.volume_24h_units, o.trades_24h) IS NOT DISTINCT FROM (s.last_price, s.change_24h_pct, s.volume_24h, s.trade_count_24h) FROM public.public_market_overview() o, public.get_symbol_market_stats('MKTA') s WHERE o.symbol='MKTA';"
+expect_eq "overview lists every published instrument, only those, by symbol" anon "true|0|true" \
+  "SELECT ((SELECT count(*) FROM public.public_market_overview()) = (SELECT listed_count FROM public.public_market_summary())) || '|' || (SELECT count(*) FROM public.public_market_overview() WHERE symbol = 'TSTU') || '|' || (SELECT array_agg(symbol) = array_agg(symbol ORDER BY symbol) FROM public.public_market_overview());"
+su_eq "listed count = published instruments" "t" "SELECT (SELECT count(*) FROM public.brands WHERE published) = $(q anon "SELECT listed_count FROM public.public_market_summary();");"
+PUB_TRADES=$(su "SELECT count(*) || '|' || coalesce(trim_scale(round(sum(t.qty * t.price), 2)), 0) || '|' || (SELECT max(t2.created_at) FROM public.trades t2 JOIN public.brands b2 ON b2.symbol = t2.symbol AND b2.published) FROM public.trades t JOIN public.brands b ON b.symbol = t.symbol AND b.published WHERE t.created_at > now() - interval '24 hours';")
+expect_eq "summary: 24h trades, value and last trade over published instruments" anon "$PUB_TRADES" \
+  "SELECT trades_24h || '|' || trim_scale(volume_24h_value) || '|' || last_trade_at FROM public.public_market_summary();"
+expect_eq "summary = sum of the board rows" anon "t" \
+  "SELECT (s.trades_24h, s.volume_24h_value, s.last_trade_at) = (SELECT sum(trades_24h), sum(volume_24h_value), max(last_trade_at) FROM public.public_market_overview()) FROM public.public_market_summary() s;"
+expect_eq "instrument by slug: today's open/high/low and the band anchored on the previous close" anon "MKTA|55|55|51|52|41.60|62.40" \
+  "SELECT symbol || '|' || trim_scale(day_open) || '|' || trim_scale(day_high) || '|' || trim_scale(day_low) || '|' || trim_scale(band_reference) || '|' || band_low || '|' || band_high FROM public.public_instrument('mkt-a');"
+expect_eq "instrument by symbol, case-insensitive" anon "MKTA|MKTA|MKTA" \
+  "SELECT (SELECT symbol FROM public.public_instrument('MKTA')) || '|' || (SELECT symbol FROM public.public_instrument(' mkta ')) || '|' || (SELECT symbol FROM public.public_instrument('Mkt-A'));"
+expect_eq "instrument: unknown, unpublished or malformed -> no row" anon "0" \
+  "SELECT (SELECT count(*) FROM public.public_instrument('nope')) + (SELECT count(*) FROM public.public_instrument('TSTU')) + (SELECT count(*) FROM public.public_instrument(NULL)) + (SELECT count(*) FROM public.public_instrument(repeat('a', 65)));"
+expect_eq "instrument without trades: no day range, band from the reference price" anon "|||33.33|26.67|39.99" \
+  "SELECT coalesce(day_open::text,'') || '|' || coalesce(day_high::text,'') || '|' || coalesce(day_low::text,'') || '|' || trim_scale(band_reference) || '|' || band_low || '|' || band_high FROM public.public_instrument('MKTB');"
+# The band shown is exactly the range match_order accepts, at both edges.
+band_edge() { # band_edge <name> <user> <symbol> <side> <price> <expect: open|PRICE_OUT_OF_BAND>
+  local out; out=$(mo "$2" "$3" "$4" limit 1 "$5")
+  if [ "$6" = open ] && [ "$(cut -d'|' -f4 <<<"$out")" = open ]; then
+    ok "$1"; q service "SELECT * FROM public.cancel_order('$2', '$(cut -d'|' -f1 <<<"$out")');" >/dev/null
+  elif [ "$6" != open ] && grep -q "$6" <<<"$out"; then ok "$1"
+  else bad "$1" "$out"; fi
+}
+band_edge "engine accepts a buy at band_high (62.40)" "$MKB" MKTA buy 62.40 open
+band_edge "engine refuses a buy one tick above band_high" "$MKB" MKTA buy 62.41 PRICE_OUT_OF_BAND
+band_edge "engine accepts a sell at band_low (41.60)" "$MKS" MKTA sell 41.60 open
+band_edge "engine refuses a sell one tick below band_low" "$MKS" MKTA sell 41.59 PRICE_OUT_OF_BAND
+band_edge "rounded band: engine accepts 39.99 (33.33 * 1.2 = 39.996)" "$MKB" MKTB buy 39.99 open
+band_edge "rounded band: engine refuses 40.00" "$MKB" MKTB buy 40.00 PRICE_OUT_OF_BAND
+band_edge "rounded band: engine accepts 26.67 (33.33 * 0.8 = 26.664)" "$MKB" MKTB buy 26.67 open
+band_edge "rounded band: engine refuses 26.66" "$MKB" MKTB buy 26.66 PRICE_OUT_OF_BAND
+expect_eq "recent trades: newest first, price and quantity only" anon "51x4,55x20,52x5,50x10" \
+  "SELECT string_agg(trim_scale(price) || 'x' || trim_scale(qty), ',' ORDER BY n) FROM public.public_recent_trades('mkta') WITH ORDINALITY AS r(price, qty, traded_at, n);"
+expect_eq "recent trades: limit honoured" anon "51x4,55x20" \
+  "SELECT string_agg(trim_scale(price) || 'x' || trim_scale(qty), ',' ORDER BY n) FROM public.public_recent_trades('MKTA', 2) WITH ORDINALITY AS r(price, qty, traded_at, n);"
+# Candles on fixed timestamps (Asia/Riyadh = UTC+3): three trades in the
+# 09:00 hour, one at 11:15, one at 01:30 the next Riyadh day (still
+# 2026-01-10 in UTC).
+mtrade MKTC 1 10; mtrade MKTC 2 12; mtrade MKTC 3 9; mtrade MKTC 4 11; mtrade MKTC 5 11.5
+su "UPDATE public.trades SET created_at = CASE price WHEN 10 THEN timestamptz '2026-01-10 09:05+03' WHEN 12 THEN timestamptz '2026-01-10 09:40+03'
+      WHEN 9 THEN timestamptz '2026-01-10 09:50+03' WHEN 11 THEN timestamptz '2026-01-10 11:15+03' ELSE timestamptz '2026-01-11 01:30+03' END
+    WHERE symbol='MKTC';" >/dev/null
+CANDLE="to_char(bucket_start AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI') || '|' || trim_scale(open_price) || '|' || trim_scale(high_price) || '|' || trim_scale(low_price) || '|' || trim_scale(close_price) || '|' || trim_scale(volume_units) || '|' || trade_count"
+expect_eq "1d candles: Asia/Riyadh days, OHLC by trade time, volume in units" anon "2026-01-09T21:00|10|12|9|11|10|4
+2026-01-10T21:00|11.5|11.5|11.5|11.5|5|1" "SELECT $CANDLE FROM public.public_candles('mktc', '1d', 10);"
+expect_eq "1h candles: only hours that have trades, oldest first" anon "2026-01-10T06:00|10|12|9|9|6|3
+2026-01-10T08:00|11|11|11|11|4|1
+2026-01-10T22:00|11.5|11.5|11.5|11.5|5|1" "SELECT $CANDLE FROM public.public_candles('MKTC', '1h', 10);"
+expect_eq "candles limit keeps the most recent buckets, still ascending" anon "2026-01-10T08:00|11|11|11|11|4|1
+2026-01-10T22:00|11.5|11.5|11.5|11.5|5|1" "SELECT $CANDLE FROM public.public_candles('MKTC', '1h', 2);"
+expect_eq "candles: unknown interval or symbol -> nothing" anon "0" \
+  "SELECT (SELECT count(*) FROM public.public_candles('MKTC', '5m', 10)) + (SELECT count(*) FROM public.public_candles('NOPE', '1d', 10)) + (SELECT count(*) FROM public.public_candles('TSTU', '1d', 10));"
+expect_eq "old trades only: last price kept, 24h change 0, no 24h volume" anon "11.5|0.00|0|0" \
+  "SELECT trim_scale(last_price) || '|' || change_24h_pct || '|' || volume_24h_units || '|' || trades_24h FROM public.public_market_overview() WHERE symbol='MKTC';"
+# Caps: 600 hourly trades (buyer = seller, units unchanged) and 1000 extra listings.
+su "INSERT INTO public.trades (symbol, asset_class, qty, price, buyer_id, seller_id, created_at)
+    SELECT 'MKTK', 'brand', 1, 10, '$MKB', '$MKB', now() - interval '40 days' - g * interval '1 hour' FROM generate_series(1, 600) g;" >/dev/null
+expect_eq "candles capped at 500 buckets (default 200, minimum 1)" anon "500|200|200|1" \
+  "SELECT (SELECT count(*) FROM public.public_candles('MKTK', '1h', 100000)) || '|' || (SELECT count(*) FROM public.public_candles('MKTK', '1h', NULL)) || '|' || (SELECT count(*) FROM public.public_candles('MKTK', '1h')) || '|' || (SELECT count(*) FROM public.public_candles('MKTK', '1h', -5));"
+expect_eq "recent trades capped at 50 (default 20, minimum 1)" anon "50|20|1" \
+  "SELECT (SELECT count(*) FROM public.public_recent_trades('MKTK', 100000)) || '|' || (SELECT count(*) FROM public.public_recent_trades('MKTK')) || '|' || (SELECT count(*) FROM public.public_recent_trades('MKTK', 0));"
+su "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published)
+    SELECT 'CAP' || lpad(g::text, 4, '0'), 'cap' || lpad(g::text, 4, '0'), 'c', 'Cap', 1, true FROM generate_series(1, 1000) g;" >/dev/null
+expect_eq "market board capped at 1000 rows; the summary still counts every listing" anon "1000|true" \
+  "SELECT (SELECT count(*) FROM public.public_market_overview()) || '|' || ((SELECT listed_count FROM public.public_market_summary()) > 1000);"
+su "DELETE FROM public.brands WHERE symbol LIKE 'CAP____';" >/dev/null
+# Shariah: the ruling in force, same pick as the engine.
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('MKTA','halal','compliant');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('MKTA','reviewing','annual review');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('TSTU','halal','unlisted');" >/dev/null
+expect_eq "rulings: the ruling in force with its reason" anon "MKTA|mkt-a|reviewing|annual review" \
+  "SELECT symbol || '|' || slug || '|' || status || '|' || reason FROM public.public_shariah_rulings() WHERE symbol='MKTA';"
+expect_eq "rulings match current_shariah_status for every listed symbol" service "0|true" \
+  "SELECT (SELECT count(*) FROM public.public_shariah_rulings() r WHERE r.status IS DISTINCT FROM public.current_shariah_status(r.symbol)) || '|' || ((SELECT count(*) FROM public.public_shariah_rulings()) = (SELECT count(*) FROM public.brands b WHERE b.published AND EXISTS (SELECT 1 FROM public.shariah_decisions d WHERE d.symbol = b.symbol)));"
+expect_eq "rulings and board: unpublished instruments excluded, status on the board" anon "0|reviewing" \
+  "SELECT (SELECT count(*) FROM public.public_shariah_rulings() WHERE symbol='TSTU') || '|' || (SELECT shariah_status FROM public.public_market_overview() WHERE symbol='MKTA');"
+expect_err "anon cannot read who ruled (reviewer_id)" anon "permission denied" "SELECT reviewer_id FROM public.shariah_decisions LIMIT 1;"
+expect_err "anon cannot read updated_by either" anon "permission denied" "SELECT updated_by FROM public.shariah_decisions LIMIT 1;"
+expect_ok "anon still reads the public ruling columns" anon "SELECT id, symbol, status, reason, created_at, updated_at, effective_at FROM public.shariah_decisions ORDER BY effective_at DESC LIMIT 5;"
+# Company profile.
+expect_eq "company profile: a company with a published instrument" anon "$CO|Acme" "SELECT id || '|' || name_en FROM public.public_company_profile('$CO');"
+expect_eq "company profile: its published instruments" anon "MKTA,NEWB,TSTC" "SELECT string_agg(symbol, ',' ORDER BY symbol) FROM public.public_market_overview('$CO');"
+expect_eq "company profile: no published instrument or unknown id -> nothing" anon "0|0" \
+  "SELECT (SELECT count(*) FROM public.public_company_profile('$NEWCO')) || '|' || (SELECT count(*) FROM public.public_company_profile(gen_random_uuid()));"
+# No user, order, trade, instrument or reviewer ids anywhere.
+IDS_OUT=$(q anon "SELECT (to_jsonb(r) - 'company_id')::text FROM public.public_market_overview() r;
+  SELECT (to_jsonb(r) - 'company_id')::text FROM public.public_market_overview('$CO') r;
+  SELECT to_jsonb(r)::text FROM public.public_market_summary() r;
+  SELECT (to_jsonb(r) - 'company_id')::text FROM public.public_instrument('mkt-a') r;
+  SELECT to_jsonb(r)::text FROM public.public_candles('MKTA', '1h', 500) r;
+  SELECT to_jsonb(r)::text FROM public.public_recent_trades('MKTA', 50) r;
+  SELECT to_jsonb(r)::text FROM public.public_shariah_rulings() r;
+  SELECT (to_jsonb(r) - 'id')::text FROM public.public_company_profile('$CO') r;")
+if grep -q '"MKTA"' <<<"$IDS_OUT" && ! grep -qiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$IDS_OUT"; then
+  ok "public results carry no uuid besides the company id"
+else bad "public results carry no uuid besides the company id" "$(grep -oiE '"[a-z_]+": "[0-9a-f]{8}-[0-9a-f-]{27}"' <<<"$IDS_OUT" | head -3) $(head -c 300 <<<"$IDS_OUT")"; fi
+expect_eq "the only uuids returned are ids of companies" service "0" \
+  "SELECT count(*) FROM public.public_market_overview() r WHERE r.company_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.companies c WHERE c.id = r.company_id);"
+su_eq "result columns: no id except the company's" "public_company_profile:id,public_instrument:company_id,public_market_overview:company_id" \
+  "SELECT string_agg(p.proname || ':' || a.name, ',' ORDER BY p.proname, a.name) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     CROSS JOIN LATERAL unnest(p.proargnames, p.proargmodes) AS a(name, mode)
+    WHERE n.nspname = 'public' AND p.proname IN ($PUBLIC_MARKET_FNS) AND a.mode = 't' AND a.name ~ '(^id\$|_id\$)';"
+su_eq "public functions are SECURITY DEFINER, STABLE and pin search_path" "7|7|7" \
+  "SELECT count(*) FILTER (WHERE p.prosecdef) || '|' || count(*) FILTER (WHERE p.provolatile = 's') || '|' || count(*) FILTER (WHERE 'search_path=public' = ANY(p.proconfig)) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname IN ($PUBLIC_MARKET_FNS);"
+
+section "(o) listing control: set_instrument_published (service role, platform admins)"
+mtrade MKTX 5 20
+XBID=$(mo_id "$MKB" MKTX buy limit 2 19)
+XASK=$(mo_id "$MKS" MKTX sell limit 3 21)
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('MKTX','halal');" >/dev/null
+LISTED0=$(q anon "SELECT listed_count FROM public.public_market_summary();")
+POS0=$(su "SELECT md5(string_agg(user_id || symbol || qty || '/' || coalesce(avg_price::text, ''), ',' ORDER BY user_id, symbol)) FROM public.positions;")
+CASH0=$(total_cash); LEDGER0=$(su "SELECT count(*) FROM public.cash_ledger;"); TRADES0=$(su "SELECT count(*) FROM public.trades;")
+expect_err "non-admin actor refused" service "FORBIDDEN_ADMIN_REQUIRED" "SELECT * FROM public.set_instrument_published('MKTX', false, '$BOB');"
+expect_err "unknown instrument" service "INSTRUMENT_NOT_FOUND" "SELECT * FROM public.set_instrument_published('NOPE', false, '$ADMIN');"
+expect_err "malformed symbol" service "INSTRUMENT_NOT_FOUND" "SELECT * FROM public.set_instrument_published('a b', false, '$ADMIN');"
+expect_err "published flag required" service "INVALID_INPUT" "SELECT * FROM public.set_instrument_published('MKTX', NULL, '$ADMIN');"
+expect_eq "unpublish closes the instrument's resting orders" service "MKTX|false|true|2" \
+  "SELECT symbol || '|' || published || '|' || changed || '|' || cancelled_orders FROM public.set_instrument_published('mktx', false, '$ADMIN');"
+su_eq "closed orders audited as delisted by the admin" "cancelled|delisted|$ADMIN|cancelled|delisted|$ADMIN" \
+  "SELECT (SELECT status FROM public.orders WHERE id='$XBID') || '|' || (SELECT action || '|' || changed_by FROM public.orders_audit WHERE order_id='$XBID') || '|' || (SELECT status FROM public.orders WHERE id='$XASK') || '|' || (SELECT action || '|' || changed_by FROM public.orders_audit WHERE order_id='$XASK');"
+check "unpublish leaves positions untouched" "$(su "SELECT md5(string_agg(user_id || symbol || qty || '/' || coalesce(avg_price::text, ''), ',' ORDER BY user_id, symbol)) FROM public.positions;")" "$POS0"
+check "unpublish leaves cash, the ledger and trades untouched" "$(total_cash)|$(su "SELECT count(*) FROM public.cash_ledger;")|$(su "SELECT count(*) FROM public.trades;")" "$CASH0|$LEDGER0|$TRADES0"
+expect_eq "unpublished instrument disappears from every public result" anon "0|0|0|0|0|0|0|0" \
+  "SELECT (SELECT count(*) FROM public.public_market_overview() WHERE symbol='MKTX') || '|' || (SELECT count(*) FROM public.public_instrument('mkt-x')) || '|' || (SELECT count(*) FROM public.public_candles('MKTX', '1d', 10)) || '|' || (SELECT count(*) FROM public.public_recent_trades('MKTX', 10)) || '|' || (SELECT count(*) FROM public.public_shariah_rulings() WHERE symbol='MKTX') || '|' || (SELECT count(*) FROM public.get_order_book('MKTX', 10)) || '|' || (SELECT count(*) FROM public.get_symbol_last_trade('MKTX')) || '|' || (SELECT count(*) FROM public.public_market_summary() WHERE listed_count <> $LISTED0 - 1);"
+expect_err "no new order on an unpublished instrument" service "INSTRUMENT_NOT_FOUND" "SELECT * FROM public.match_order('$MKB','MKTX','brand','buy','limit',1,20);"
+expect_err "a resting order cannot be written for an unpublished instrument at all" service "INSTRUMENT_NOT_FOUND" \
+  "INSERT INTO public.orders (user_id, symbol, side, type, qty, price, status, filled_qty) VALUES ('$MKB','MKTX','buy','limit',1,20,'open',0);"
+expect_eq "unpublish again is a no-op" service "false|0" "SELECT changed || '|' || cancelled_orders FROM public.set_instrument_published('MKTX', false, '$ADMIN');"
+expect_eq "republish" service "MKTX|true|true|0" "SELECT symbol || '|' || published || '|' || changed || '|' || cancelled_orders FROM public.set_instrument_published('MKTX', true, '$ADMIN');"
+expect_eq "republished instrument is back on the board with its history" anon "MKTX|20" "SELECT symbol || '|' || trim_scale(last_price) FROM public.public_market_overview() WHERE symbol='MKTX';"
+su "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('MKTZ','mkt-z','mz','Market Z',0,false);" >/dev/null
+expect_err "publishing needs a positive reference price" service "INVALID_PRICE" "SELECT * FROM public.set_instrument_published('MKTZ', true, '$ADMIN');"
+expect_err "a published instrument always has a usable reference price (constraint)" service "brands_published_reference_price" "UPDATE public.brands SET published = true WHERE symbol='MKTZ';"
+expect_err "published reference price cannot be set to 0" service "brands_published_reference_price" "UPDATE public.brands SET reference_price = 0 WHERE symbol='MKTA';"
+for mig in public_market_data instrument_publish_control; do
+  f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
+  if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies cleanly"
+  else bad "$mig migration re-applies cleanly" "${f:-*_$mig.sql not found} ${out:-}"; fi
+done
+expect_eq "grants survive a re-apply" anon "MKTA" "SELECT symbol FROM public.public_instrument('mkt-a');"
+
+section "(o) delisting the demo instruments (migration)"
+# MKTD: no company, no submission (a demo seed). MKTA belongs to a company,
+# NEWB came from a submission: both stay listed.
+DBID=$(mo_id "$MKB" MKTD buy limit 2 19)
+DASK=$(mo_id "$MKS" MKTD sell limit 3 21)
+ABID=$(mo_id "$MKB" MKTA buy limit 1 50)
+POS0=$(su "SELECT md5(string_agg(user_id || symbol || qty || '/' || coalesce(avg_price::text, ''), ',' ORDER BY user_id, symbol)) FROM public.positions;")
+CASH0=$(total_cash); LEDGER0=$(su "SELECT count(*) FROM public.cash_ledger;"); TRADES0=$(su "SELECT count(*) FROM public.trades;")
+DEMO_OPEN=$(su "SELECT count(*) FROM public.orders o JOIN public.brands b ON b.symbol = o.symbol WHERE b.company_id IS NULL AND b.source_submission_id IS NULL AND o.status IN ('open','partial');")
+DELISTED0=$(su "SELECT count(*) FROM public.orders_audit WHERE action='delisted';")
+DELIST=$(ls "$REPO"/supabase/migrations/*_delist_demo_instruments.sql 2>/dev/null | head -1)
+if [ -n "$DELIST" ] && out=$("${PSQL[@]}" -1 -f "$DELIST" 2>&1 >/dev/null); then ok "delist migration applies to a live market"
+else bad "delist migration applies to a live market" "${DELIST:-*_delist_demo_instruments.sql not found} ${out:-}"; fi
+su_eq "every brand without company or submission is unpublished" "0|false" \
+  "SELECT (SELECT count(*) FROM public.brands WHERE published AND company_id IS NULL AND source_submission_id IS NULL) || '|' || (SELECT published FROM public.brands WHERE symbol='MKTD');"
+su_eq "company and submission instruments stay listed" "true|true|true" \
+  "SELECT string_agg(published::text, '|' ORDER BY symbol) FROM public.brands WHERE symbol IN ('MKTA','NEWB','TSTC');"
+su_eq "their resting orders closed with a 'delisted' audit row" "cancelled|delisted|cancelled|delisted" \
+  "SELECT (SELECT status FROM public.orders WHERE id='$DBID') || '|' || (SELECT action FROM public.orders_audit WHERE order_id='$DBID' ORDER BY changed_at DESC LIMIT 1) || '|' || (SELECT status FROM public.orders WHERE id='$DASK') || '|' || (SELECT action FROM public.orders_audit WHERE order_id='$DASK' ORDER BY changed_at DESC LIMIT 1);"
+su_eq "one audit row per closed order" "$((DELISTED0 + DEMO_OPEN))" "SELECT count(*) FROM public.orders_audit WHERE action='delisted';"
+su_eq "a listed company's resting order is untouched" "open" "SELECT status FROM public.orders WHERE id='$ABID';"
+su_eq "no resting order left on an unpublished instrument" "0" \
+  "SELECT count(*) FROM public.orders o WHERE o.status IN ('open','partial') AND NOT EXISTS (SELECT 1 FROM public.brands b WHERE b.symbol = o.symbol AND b.published);"
+check "delisting leaves positions untouched" "$(su "SELECT md5(string_agg(user_id || symbol || qty || '/' || coalesce(avg_price::text, ''), ',' ORDER BY user_id, symbol)) FROM public.positions;")" "$POS0"
+check "delisting leaves cash, the ledger and trades untouched" "$(total_cash)|$(su "SELECT count(*) FROM public.cash_ledger;")|$(su "SELECT count(*) FROM public.trades;")" "$CASH0|$LEDGER0|$TRADES0"
+if out=$("${PSQL[@]}" -1 -f "$DELIST" 2>&1 >/dev/null); then ok "delist migration is re-runnable"; else bad "delist migration is re-runnable" "$out"; fi
+su_eq "re-run closes nothing new" "$((DELISTED0 + DEMO_OPEN))" "SELECT count(*) FROM public.orders_audit WHERE action='delisted';"
+expect_eq "a platform admin can republish a delisted instrument" service "MKTD|true" "SELECT symbol || '|' || published FROM public.set_instrument_published('MKTD', true, '$ADMIN');"
+q service "SELECT * FROM public.cancel_order('$MKB', '$ABID');" >/dev/null
 
 # ------------------------------------------------ global invariants (d, f) ---
 section "(d)(f) global invariants after every scenario above"
