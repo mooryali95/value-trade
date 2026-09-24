@@ -24,7 +24,10 @@ export const addWatcher = createServerFn({ method: "POST" })
     const { error } = await context.supabase
       .from("symbol_watchers")
       .upsert({ user_id: context.userId, symbol: data.symbol, asset_class: data.asset_class });
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[watchers] write failed", error);
+      throw new Error("INTERNAL_ERROR");
+    }
     return { ok: true };
   });
 
@@ -37,6 +40,9 @@ export const removeWatcher = createServerFn({ method: "POST" })
       .delete()
       .eq("user_id", context.userId)
       .eq("symbol", data.symbol);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[watchers] write failed", error);
+      throw new Error("INTERNAL_ERROR");
+    }
     return { ok: true };
   });

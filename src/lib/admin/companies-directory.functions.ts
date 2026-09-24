@@ -26,6 +26,21 @@ const ListInput = z.object({
   search: z.string().max(120).optional(),
 });
 
+/**
+ * Makes free text safe to embed in a PostgREST `.or()` filter value: drops
+ * every character that is filter syntax (`,` `(` `)` `.` `:` `*` `%` `_` `\`
+ * quotes) and caps the length. Letters (incl. Arabic), digits, spaces and
+ * hyphens survive, which is all a company name/slug search needs.
+ */
+function sanitizeSearch(input: string): string {
+  return input
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
 export const listAllCompaniesAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ListInput.parse(input ?? {}))
@@ -37,13 +52,15 @@ export const listAllCompaniesAdmin = createServerFn({ method: "GET" })
       .from("companies")
       .select("id, slug, name_ar, name_en, plan, sector, created_at")
       .order("created_at", { ascending: false });
-    if (data.search) {
-      q = q.or(
-        `name_ar.ilike.%${data.search}%,name_en.ilike.%${data.search}%,slug.ilike.%${data.search}%`,
-      );
+    const term = data.search ? sanitizeSearch(data.search) : "";
+    if (term) {
+      q = q.or(`name_ar.ilike.*${term}*,name_en.ilike.*${term}*,slug.ilike.*${term}*`);
     }
     const { data: companies, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[companies-directory] list failed", error.code);
+      throw new Error("INTERNAL_ERROR");
+    }
     const rows = companies ?? [];
     if (rows.length === 0) return [];
 

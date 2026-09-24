@@ -61,7 +61,7 @@ function CompanySubmissions() {
     queryFn: () => listFn({ data: { companyId: companyId! } }),
     enabled: !!companyId,
   });
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
   const cmp = comparator(search.sortDir);
   const filtered = useMemo(() => {
     const q = search.q.trim().toUpperCase();
@@ -71,7 +71,6 @@ function CompanySubmissions() {
       if (q && !(r.symbol.toUpperCase().includes(q) || (r.name_en ?? "").toUpperCase().includes(q))) return false;
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, search.q, search.status, search.asset]);
   const sorted = useMemo(() => {
     const list = filtered.slice();

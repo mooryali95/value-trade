@@ -7,7 +7,7 @@ export const renderEmailPreview = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        template: z.string().min(1),
+        template: z.string().min(1).max(120),
         data: z.record(z.string(), z.unknown()).optional(),
       })
       .parse(input),
@@ -20,6 +20,9 @@ export const renderEmailPreview = createServerFn({ method: "POST" })
     if (!isAdmin) throw new Error("FORBIDDEN");
 
     const { TEMPLATES } = await import("@/lib/email-templates/registry");
+    if (!Object.prototype.hasOwnProperty.call(TEMPLATES, data.template)) {
+      throw new Error("UNKNOWN_TEMPLATE");
+    }
     const entry = TEMPLATES[data.template];
     if (!entry) throw new Error("UNKNOWN_TEMPLATE");
 

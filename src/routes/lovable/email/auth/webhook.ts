@@ -31,7 +31,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "value-trade"
+const SITE_NAME = "Value Unit"
 const SENDER_DOMAIN = "notify.hub.sunkvalue.com"
 const ROOT_DOMAIN = "hub.sunkvalue.com"
 const FROM_DOMAIN = "notify.hub.sunkvalue.com"

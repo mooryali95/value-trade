@@ -9,6 +9,7 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { PermissionHint } from "@/components/permission-hint";
 import { useI18n, pick } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct, formatInt } from "@/lib/format";
 import { useActiveCompany } from "@/hooks/use-active-company";
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/_authenticated/workspace")({
 
 function WorkspacePage() {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { active, activeId, isLoading: coLoading } = useActiveCompany();
@@ -71,7 +73,7 @@ function WorkspacePage() {
     mutationFn: (sym: string) => addBrandFn({ data: { companyId: activeId!, brandSymbol: sym } }),
     onSuccess: () => { toast.success(t("brandAdded")); setNewBrand(""); invalidate(); },
     onError: (e: unknown) =>
-      toast.error(e instanceof Error && e.message === "BRAND_CAP_REACHED" ? t("brandCapReached") : "Error"),
+      toast.error(errorMessage(e)),
   });
   const removeBrandMut = useMutation({
     mutationFn: (brandId: string) => removeBrandFn({ data: { brandId } }),
@@ -85,7 +87,7 @@ function WorkspacePage() {
       setInviteEmail("");
     },
     onError: (e: unknown) =>
-      toast.error(e instanceof Error && e.message === "INVITATION_ALREADY_PENDING" ? t("inviteAlreadyPending") : "Error"),
+      toast.error(errorMessage(e)),
   });
 
   if (coLoading || (activeId && details.isLoading)) {

@@ -7,6 +7,7 @@ import { MagicLinkEmail } from '@/lib/email-templates/magic-link'
 import { RecoveryEmail } from '@/lib/email-templates/recovery'
 import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
+import { bearerToken, safeEqualSecret } from '@/lib/ops/timing-safe.server'
 
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   signup: SignupEmail,
@@ -18,7 +19,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "value-trade"
+const SITE_NAME = "Value Unit"
 const ROOT_DOMAIN = "hub.sunkvalue.com"
 
 // Sample data for preview mode ONLY (not used in actual email sending).
@@ -75,7 +76,7 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
 
         // Verify the caller is authorized with LOVABLE_API_KEY
         const authHeader = request.headers.get('Authorization')
-        if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
+        if (!safeEqualSecret(bearerToken(authHeader), apiKey)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 

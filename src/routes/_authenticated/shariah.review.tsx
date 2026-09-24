@@ -15,6 +15,7 @@ import { recordShariahDecision, listShariahDecisions, updateShariahDecision, lis
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export const Route = createFileRoute("/_authenticated/shariah/review")({
 
 function ReviewPage() {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
@@ -76,7 +78,7 @@ function ReviewPage() {
       toast.success(t("submitDecision"));
       qc.invalidateQueries({ queryKey: ["shariah-decisions"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "FORBIDDEN" ? t("reviewerRequired") : e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
   });
   const editMut = useMutation({
     mutationFn: (v: { id: string; status: "halal" | "non_halal" | "reviewing"; reason?: string; changeReason: string }) => updateFn({ data: v }),
@@ -86,7 +88,7 @@ function ReviewPage() {
       qc.invalidateQueries({ queryKey: ["shariah-audit"] });
       setEditing(null);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error && e.message === "FORBIDDEN" ? t("reviewerRequired") : e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
   });
 
   const pool = BRANDS.filter((b) => b.assetClass !== "sukuk" || b.shariah === "reviewing").slice(0, 20);

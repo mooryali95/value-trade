@@ -82,7 +82,7 @@ function HealthPage() {
         <LuxurySkeleton lines={8} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-live="polite">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-live="polite" aria-atomic="false">
             <Card label={t("emailsSent24h")} value={String(data.email.sent24h)} />
             <Card
               label={t("emailsFailed24h")}

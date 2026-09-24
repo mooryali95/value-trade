@@ -1,8 +1,27 @@
 import { mockProvider } from "./mock-provider";
-import { fetchUpstreamQuotes } from "./market.functions";
+import { fetchUpstreamQuotes, MAX_SYMBOLS, type UpstreamQuote } from "./market.functions";
 import { internalProvider } from "./internal-provider";
 import { setMarketProvider, type MarketDataProvider } from "./provider";
 import type { Instrument } from "./types";
+
+/**
+ * Quotes for `symbols`, fetched in chunks the server function accepts. Any
+ * failure (signed out, rate limited, vendor down) yields no quotes so the
+ * caller keeps the mock values.
+ */
+async function quotesFor(symbols: string[]): Promise<UpstreamQuote[]> {
+  const out: UpstreamQuote[] = [];
+  const valid = symbols.filter((s) => /^[A-Za-z0-9._-]{1,32}$/.test(s));
+  for (let i = 0; i < valid.length; i += MAX_SYMBOLS) {
+    try {
+      const { quotes } = await fetchUpstreamQuotes({ data: { symbols: valid.slice(i, i + MAX_SYMBOLS) } });
+      out.push(...quotes);
+    } catch {
+      return out;
+    }
+  }
+  return out;
+}
 
 /**
  * Hybrid provider: prices come from the real feed when it answers, everything
@@ -15,7 +34,7 @@ export const liveProvider: MarketDataProvider = {
 
   async listInstruments(): Promise<Instrument[]> {
     const base = await mockProvider.listInstruments();
-    const { quotes } = await fetchUpstreamQuotes({ data: { symbols: base.map((i) => i.symbol) } });
+    const quotes = await quotesFor(base.map((i) => i.symbol));
     if (!quotes.length) return base;
     const bySymbol = new Map(quotes.map((q) => [q.symbol, q]));
     return base.map((i) => {
@@ -29,7 +48,7 @@ export const liveProvider: MarketDataProvider = {
   async getInstrument(slug: string) {
     const base = await mockProvider.getInstrument(slug);
     if (!base) return undefined;
-    const { quotes } = await fetchUpstreamQuotes({ data: { symbols: [base.symbol] } });
+    const quotes = await quotesFor([base.symbol]);
     const q = quotes[0];
     return q ? { ...base, price: q.price, change24h: q.change24h } : base;
   },

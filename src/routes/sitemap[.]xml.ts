@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { publicSiteOrigin } from "@/lib/ops/origin.server";
 
+// Indexable pages only: anything rendered with a noindex robots meta
+// (e.g. /request-access, /auth, /unsubscribe) must not be listed here.
 const PUBLIC_PATHS = [
   "/",
   "/market",
   "/shariah",
-  "/request-access",
   "/legal/terms",
   "/legal/privacy",
   "/legal/shariah-disclosures",
@@ -52,8 +54,9 @@ async function publishedBrandSlugs(): Promise<{ slug: string; updatedAt: string 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const origin = new URL(request.url).origin;
+      GET: async () => {
+        // Always the canonical public host, whichever host served the request.
+        const origin = publicSiteOrigin();
         const now = new Date().toISOString();
         const brands = await publishedBrandSlugs();
         const urls = [

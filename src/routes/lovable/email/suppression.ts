@@ -115,7 +115,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
 
         if (suppressError) {
           console.error('Failed to upsert suppressed email', {
-            error: suppressError,
+            code: suppressError.code,
             email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
           })
           return Response.json({ error: 'Failed to write suppression' }, { status: 500 })
@@ -139,7 +139,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
         if (insertError) {
           // Non-fatal — log and continue. The suppression was already recorded.
           console.warn('Failed to insert email_send_log', {
-            error: insertError,
+            code: insertError.code,
           })
         }
 

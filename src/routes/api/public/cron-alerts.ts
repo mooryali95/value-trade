@@ -1,19 +1,61 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
-import { BRANDS } from "@/lib/mock-data";
+import { createHmac } from "crypto";
 import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
+import { bearerToken, safeEqualSecret as safeEqual } from "@/lib/ops/timing-safe.server";
 
-/** Constant-time string compare that tolerates differing lengths. */
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
+type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
+
+/**
+ * Real market prices for the given symbols: the last trade price from
+ * public.trades (latest by time), else brands.reference_price. Symbols with
+ * neither are omitted (their alerts are skipped this run).
+ */
+async function currentPrices(supabaseAdmin: Admin, symbols: string[]): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  if (symbols.length === 0) return prices;
+
+  const lastTrades = await Promise.all(
+    symbols.map(async (symbol) => {
+      const { data, error } = await supabaseAdmin
+        .from("trades")
+        .select("price")
+        .eq("symbol", symbol)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error("[cron-alerts] last trade lookup failed", { symbol, code: error.code });
+        return [symbol, null] as const;
+      }
+      return [symbol, data ? Number(data.price) : null] as const;
+    }),
+  );
+  for (const [symbol, price] of lastTrades) {
+    if (price !== null && Number.isFinite(price) && price > 0) prices.set(symbol, price);
+  }
+
+  const missing = symbols.filter((s) => !prices.has(s));
+  if (missing.length > 0) {
+    const { data: brands, error } = await supabaseAdmin
+      .from("brands")
+      .select("symbol, reference_price")
+      .in("symbol", missing);
+    if (error) {
+      console.error("[cron-alerts] reference price lookup failed", { code: error.code });
+    }
+    for (const b of brands ?? []) {
+      const p = Number(b.reference_price);
+      if (Number.isFinite(p) && p > 0) prices.set(b.symbol, p);
+    }
+  }
+  return prices;
 }
 
 // Public endpoint intended to be called by pg_cron or an external scheduler.
 // Accepts either an HMAC signature over the raw body (CRON_ALERTS_SECRET) or a
 // service-role bearer token (used by the in-database pg_cron schedule), then
-// scans active price_alerts against the latest quote and marks any that fire.
+// scans active price_alerts against the latest market price (last trade, else
+// the instrument's reference price) and marks any that fire.
 export const Route = createFileRoute("/api/public/cron-alerts")({
   server: {
     handlers: {
@@ -28,7 +70,7 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
         if (!ok) return new Response("Rate limit exceeded", { status: 429 });
 
         const signature = request.headers.get("x-signature") ?? "";
-        const bearer = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+        const bearer = bearerToken(request.headers.get("authorization"));
         const body = await request.text();
         const hmacOk =
           !!secret &&
@@ -42,12 +84,28 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { notifySymbolEvent } = await import("@/lib/notifications/notify.server");
         const { logOpsRun } = await import("@/lib/ops/run-log.server");
-        const { data: alerts } = await supabaseAdmin
+        const { canonicalOrigin } = await import("@/lib/ops/origin.server");
+        const { data: alerts, error: alertsError } = await supabaseAdmin
           .from("price_alerts")
           .select("id, user_id, symbol, direction, target_price")
           .eq("active", true);
+        if (alertsError) {
+          console.error("[cron-alerts] alert scan failed", { code: alertsError.code });
+          await logOpsRun({
+            job: "cron-alerts",
+            status: "fail",
+            detail: "alert scan failed",
+            metrics: { auth: bearerOk ? "bearer" : "hmac" },
+            durationMs: Date.now() - startedAt,
+          });
+          return new Response(JSON.stringify({ error: "INTERNAL_ERROR" }), {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          });
+        }
 
-        const priceBySymbol = new Map(BRANDS.map((b) => [b.symbol, b.price] as const));
+        const symbols = Array.from(new Set((alerts ?? []).map((a) => a.symbol)));
+        const priceBySymbol = await currentPrices(supabaseAdmin, symbols);
         let triggered = 0;
         let emailed = 0;
         for (const a of alerts ?? []) {
@@ -56,10 +114,19 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
           const target = Number(a.target_price);
           const fires = a.direction === "above" ? p >= target : p <= target;
           if (!fires) continue;
-          await supabaseAdmin
+          // Only the run that flips active=true -> false notifies, so two
+          // overlapping runs cannot double-send.
+          const { data: flipped, error: flipError } = await supabaseAdmin
             .from("price_alerts")
             .update({ active: false, triggered_at: new Date().toISOString() })
-            .eq("id", a.id);
+            .eq("id", a.id)
+            .eq("active", true)
+            .select("id");
+          if (flipError) {
+            console.error("[cron-alerts] alert update failed", { alertId: a.id, code: flipError.code });
+            continue;
+          }
+          if (!flipped || flipped.length === 0) continue;
           triggered += 1;
           try {
             const r = await notifySymbolEvent({
@@ -75,12 +142,15 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
                 targetPrice: target.toFixed(2),
                 currentPrice: p.toFixed(2),
                 currency: "SAR",
-                viewUrl: "https://hub.sunkvalue.com/portfolio",
+                viewUrl: `${canonicalOrigin()}/portfolio`,
               },
             });
             emailed += r.notified;
           } catch (err) {
-            console.error("[cron-alerts] email enqueue failed", { alertId: a.id, err });
+            console.error("[cron-alerts] email enqueue failed", {
+              alertId: a.id,
+              err: err instanceof Error ? err.name : "unknown",
+            });
           }
         }
 

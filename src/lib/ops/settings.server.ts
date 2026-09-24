@@ -58,7 +58,10 @@ export async function saveOpsSettings(
   if (patch.emailRetryAttempts !== undefined) row['email_retry_attempts'] = patch.emailRetryAttempts;
 
   const { error } = await supabaseAdmin.from("ops_settings").upsert(row as never, { onConflict: "id" });
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[ops-settings] save failed", error);
+    throw new Error("INTERNAL_ERROR");
+  }
 
   await logOpsRun({
     job: "ops-settings",

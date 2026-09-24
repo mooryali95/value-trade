@@ -23,22 +23,41 @@ export type Instrument = {
 
 type Client = SupabaseClient<Database>;
 
+const COLUMNS =
+  "id, symbol, slug, name_ar, name_en, sector, asset_class, reference_price, published, company_id";
+
+/** Slugs and symbols are plain identifiers; anything else cannot match a row. */
+const IDENT_RE = /^[A-Za-z0-9._-]{1,64}$/;
+
 /** Resolves a tradable instrument by slug or symbol (case-insensitive). */
 export async function getInstrument(
   supabase: Client,
   slugOrSymbol: string,
 ): Promise<Instrument | null> {
-  const slug = slugOrSymbol.trim().toLowerCase();
-  const symbol = slugOrSymbol.trim().toUpperCase();
-  const { data, error } = await supabase
+  const raw = slugOrSymbol.trim();
+  if (!IDENT_RE.test(raw)) return null;
+  const slug = raw.toLowerCase();
+  const symbol = raw.toUpperCase();
+  // Two parameterized lookups instead of an interpolated .or() filter string,
+  // so user input can never inject PostgREST filter syntax.
+  let { data, error } = await supabase
     .from("brands")
-    .select(
-      "id, symbol, slug, name_ar, name_en, sector, asset_class, reference_price, published, company_id",
-    )
-    .or(`slug.eq.${slug},symbol.eq.${symbol}`)
+    .select(COLUMNS)
+    .eq("slug", slug)
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (!error && !data) {
+    ({ data, error } = await supabase
+      .from("brands")
+      .select(COLUMNS)
+      .eq("symbol", symbol)
+      .limit(1)
+      .maybeSingle());
+  }
+  if (error) {
+    console.error("[instrument] lookup failed", error.code);
+    throw new Error("INTERNAL_ERROR");
+  }
   if (!data) return null;
   return {
     id: data.id,

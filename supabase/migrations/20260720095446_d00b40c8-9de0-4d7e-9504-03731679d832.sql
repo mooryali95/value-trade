@@ -24,6 +24,10 @@ BEGIN
     'public.check_rate_limit(text, integer, integer)',
     'public.set_updated_at()'
   ]) LOOP
+    -- email_queue_dispatch()/email_queue_wake() are created outside the
+    -- migration history on some projects; skip whatever does not exist so a
+    -- fresh rebuild does not fail here.
+    CONTINUE WHEN to_regprocedure(fn) IS NULL;
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
   END LOOP;

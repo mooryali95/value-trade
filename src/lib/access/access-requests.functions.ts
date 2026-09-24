@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
 import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
+import { toStableError } from "@/lib/ops/errors.server";
 
 // NOTE ON `as any` CASTS BELOW:
 // `access_requests`, `search_companies_public`, `get_company_by_slug_public`,
@@ -28,7 +29,7 @@ export const searchCompaniesPublic = createServerFn({ method: "GET" })
     const { data: rows, error } = await supabaseAdmin.rpc("search_companies_public" as any, {
       _query: data.query,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.search", error);
     return (rows ?? []) as { id: string; slug: string; name_ar: string; name_en: string }[];
   });
 
@@ -39,7 +40,7 @@ export const getCompanyBySlugPublic = createServerFn({ method: "GET" })
     const { data: row, error } = await supabaseAdmin.rpc("get_company_by_slug_public" as any, {
       _slug: data.slug,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.slug", error);
     const rows = (row ?? []) as { id: string; slug: string; name_ar: string; name_en: string }[];
     return rows[0] ?? null;
   });
@@ -47,38 +48,50 @@ export const getCompanyBySlugPublic = createServerFn({ method: "GET" })
 // ---------------------------------------------------------------------------
 // Public: submit an access request. No Supabase Auth account is created here
 // -- see AGENTS-facing note in the migration for why. Rate limited by IP and
-// by email, fails closed (unlike most rate limits in this codebase, since
-// this endpoint has no auth barrier at all).
+// by email; checkRateLimit fails closed, since this endpoint has no auth
+// barrier at all. Direct anon/authenticated INSERT on access_requests is
+// revoked: this server function (service role, after validation and rate
+// limiting) is the only write path.
 // ---------------------------------------------------------------------------
+
+const Email = z.string().trim().toLowerCase().email().max(320);
+const Name = z.string().trim().min(1).max(160);
+const CompanyName = z.string().trim().min(1).max(120);
 
 const SubmitInput = z.discriminatedUnion("join_method", [
   z.object({
     join_method: z.enum(["search", "link"]),
-    email: z.string().email().max(200),
-    full_name: z.string().min(1).max(160),
+    email: Email,
+    full_name: Name,
     requested_company_id: z.string().uuid(),
   }),
   z.object({
     join_method: z.literal("new_company"),
-    email: z.string().email().max(200),
-    full_name: z.string().min(1).max(160),
-    new_company_name_ar: z.string().min(1).max(120),
-    new_company_name_en: z.string().min(1).max(120),
+    email: Email,
+    full_name: Name,
+    new_company_name_ar: CompanyName,
+    new_company_name_en: CompanyName,
   }),
 ]);
+
+/** Rate-limit key for an email without storing the address itself. */
+async function emailKey(scope: string, email: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${scope}:${hex.slice(0, 32)}`;
+}
 
 export const submitAccessRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => SubmitInput.parse(input))
   .handler(async ({ data }) => {
     const request = getRequest();
     const ipKey = clientKeyFromRequest(request, "access-request-ip");
-    const emailKey = `access-request-email:${data.email.toLowerCase()}`;
+    const perEmailKey = await emailKey("access-request-email", data.email);
 
-    // Fail CLOSED here (unlike checkRateLimit's default fail-open behavior
-    // elsewhere): this is the only unauthenticated write path in the app.
+    // checkRateLimit fails CLOSED: this is the only unauthenticated write path.
     const [ipOk, emailOk] = await Promise.all([
       checkRateLimit(ipKey, 5, 3600),
-      checkRateLimit(emailKey, 3, 86400),
+      checkRateLimit(perEmailKey, 3, 86400),
     ]);
     if (!ipOk || !emailOk) throw new Error("RATE_LIMITED");
 
@@ -104,9 +117,9 @@ export const submitAccessRequest = createServerFn({ method: "POST" })
       .insert(insert)
       .select("id")
       .single();
-    if (error) throw new Error(error.message);
+    if (error || !row) throw toStableError("access.submit", error);
 
-    return { id: row.id };
+    return { id: row.id as string };
   });
 
 // ---------------------------------------------------------------------------
@@ -136,7 +149,7 @@ export const listAccessRequests = createServerFn({ method: "GET" })
       .select("*, companies:companies(id, name_ar, name_en, slug)")
       .eq("status", "pending")
       .order("created_at", { ascending: true });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.list", error);
     return (rows ?? []) as AccessRequestRow[];
   });
 
@@ -150,7 +163,8 @@ const ApproveInput = z.object({
     .max(48)
     .regex(/^[a-z0-9-]+$/)
     .optional(), // required for new_company
-  origin: z.string().url().optional(),
+  // Ignored (kept optional for older clients): links use the server origin.
+  origin: z.string().max(2048).optional(),
 });
 
 export const approveAccessRequest = createServerFn({ method: "POST" })
@@ -166,7 +180,7 @@ export const approveAccessRequest = createServerFn({ method: "POST" })
       _sector: data.sector ?? null,
       _slug: data.slug ?? null,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.approve", error);
     const result = (Array.isArray(rpcRows) ? rpcRows[0] : rpcRows) as {
       invitation_id: string;
       invitation_token: string;
@@ -188,11 +202,12 @@ export const approveAccessRequest = createServerFn({ method: "POST" })
         .eq("id", result.company_id)
         .single();
       const co = (company ?? {}) as { name_en?: string; name_ar?: string };
-      const base = data.origin ?? process.env.PUBLIC_APP_ORIGIN ?? "";
+      const { canonicalOrigin } = await import("@/lib/ops/origin.server");
       await sendInvitationEmailBestEffort({
         email: invite.email,
         companyName: co.name_en || co.name_ar || "Value Unit",
-        acceptUrl: `${base}/invitations?token=${invite.token}`,
+        acceptUrl: `${canonicalOrigin()}/invitations?token=${encodeURIComponent(invite.token)}`,
+        invitationId: invite.id,
         role: invite.role,
       });
     }
@@ -225,7 +240,7 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
       _actor_id: userId,
       _reason: data.reason ?? null,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.reject", error);
 
     await writeAudit(supabase, {
       actorId: userId,
@@ -249,7 +264,7 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
 
 const StatusCheckInput = z.object({
   requestId: z.string().uuid(),
-  email: z.string().email().max(200),
+  email: Email,
 });
 
 export const checkAccessRequestStatus = createServerFn({ method: "POST" })
@@ -266,9 +281,9 @@ export const checkAccessRequestStatus = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin.rpc("check_access_request_status" as any, {
       _id: data.requestId,
-      _email: data.email.toLowerCase(),
+      _email: data.email,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw toStableError("access.status", error);
     const row = Array.isArray(rows) ? rows[0] : rows;
     if (!row) return { found: false as const };
     return {

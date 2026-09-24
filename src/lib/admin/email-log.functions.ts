@@ -12,8 +12,8 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
 
 const ListInput = z.object({
   status: z.enum(["all", "pending", "sent", "failed", "dlq", "suppressed", "bounced", "complained"]).default("all"),
-  template: z.string().optional(),
-  search: z.string().optional(),
+  template: z.string().max(120).optional(),
+  search: z.string().max(120).optional(),
   limit: z.number().int().min(1).max(200).default(50),
   offset: z.number().int().min(0).default(0),
 });
@@ -84,5 +84,10 @@ export const retryEmail = createServerFn({ method: "POST" })
       label: meta.label ?? row.template_name,
       // do NOT reuse idempotencyKey — we want a fresh message
     });
+    if (!r.sent) {
+      // Raw provider/driver text stays in the server log.
+      if (r.detail) console.error("[email-log] retry failed", r.reason, r.detail);
+      return { sent: false as const, reason: r.reason };
+    }
     return r;
   });

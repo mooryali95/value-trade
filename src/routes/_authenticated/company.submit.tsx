@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
@@ -33,6 +34,7 @@ export const Route = createFileRoute("/_authenticated/company/submit")({
 
 function SubmitPage() {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const { companyId } = Route.useSearch();
   const navigate = useNavigate();
   const listFn = useServerFn(listMyCompanies);
@@ -68,7 +70,7 @@ function SubmitPage() {
       toast.success(t("submissionSubmitted"));
       navigate({ to: "/company/submissions", search: { companyId: form.companyId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc", page: 1, pageSize: 25 } });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   const targetCompanyId = form.companyId || companyId || activeId || "";

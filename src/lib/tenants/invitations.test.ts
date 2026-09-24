@@ -82,7 +82,18 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: supabaseMock,
 }));
 
-// (no further mocks needed)
+const rateLimit = { allow: true };
+vi.mock("@/lib/security/rate-limit.server", () => ({
+  checkRateLimit: vi.fn(async () => rateLimit.allow),
+}));
+
+const sentInvites: { acceptUrl: string; email: string }[] = [];
+vi.mock("./invitation-email.server", () => ({
+  sendInvitationEmailBestEffort: vi.fn(async (input: { acceptUrl: string; email: string }) => {
+    sentInvites.push(input);
+    return { sent: true, provider: "lovable", messageId: "m-1" };
+  }),
+}));
 
 // Replace the createServerFn behavior with a light shim that runs .handler() directly.
 vi.mock("@tanstack/react-start", () => {
@@ -120,7 +131,7 @@ vi.mock("@tanstack/react-start", () => {
 });
 
 // Import after mocks are registered.
-import { acceptInvitation, revokeInvitation } from "./invitations.functions";
+import { acceptInvitation, resendInvitationEmail, revokeInvitation } from "./invitations.functions";
 
 describe("invitation lifecycle guards", () => {
   beforeEach(() => {
@@ -199,5 +210,58 @@ describe("invitation lifecycle guards", () => {
     await expect(
       acceptInvitation({ data: { token: "00000000-0000-0000-0000-000000000004" } }),
     ).rejects.toThrow(/INVITATION_NOT_PENDING/);
+  });
+
+  it("resend builds the link from the server origin and ignores a client origin", async () => {
+    delete process.env.APP_ORIGIN;
+    delete process.env.PUBLIC_SITE_URL;
+    delete process.env.PUBLIC_APP_ORIGIN;
+    sentInvites.length = 0;
+    rateLimit.allow = true;
+    state.rows.push({
+      id: "00000000-0000-0000-0000-0000000000b1",
+      status: "pending",
+      email: "invitee@example.com",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Object.assign(state.rows[0] as any, {
+      token: "00000000-0000-0000-0000-000000000011",
+      company_id: "00000000-0000-0000-0000-0000000000c1",
+      role: "viewer",
+    });
+
+    await resendInvitationEmail({
+      data: { invitationId: state.rows[0].id, origin: "https://evil.example" },
+    });
+    expect(sentInvites).toHaveLength(1);
+    expect(sentInvites[0].acceptUrl).toBe(
+      "https://hub.sunkvalue.com/invitations?token=00000000-0000-0000-0000-000000000011",
+    );
+  });
+
+  it("resend is rate limited per actor with RATE_LIMITED", async () => {
+    sentInvites.length = 0;
+    rateLimit.allow = false;
+    state.rows.push({
+      id: "00000000-0000-0000-0000-0000000000b2",
+      status: "pending",
+      email: "invitee@example.com",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Object.assign(state.rows[0] as any, {
+      token: "00000000-0000-0000-0000-000000000012",
+      company_id: "00000000-0000-0000-0000-0000000000c1",
+      role: "viewer",
+    });
+
+    await expect(
+      resendInvitationEmail({ data: { invitationId: state.rows[0].id } }),
+    ).rejects.toThrow(/RATE_LIMITED/);
+    expect(sentInvites).toHaveLength(0);
+    rateLimit.allow = true;
   });
 });

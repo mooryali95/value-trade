@@ -10,14 +10,28 @@ handler authenticates its own caller. Base URLs (immutable, rename-safe):
 
 ## `POST /api/public/cron-alerts`
 
-Scans active `price_alerts` against the latest quote, deactivates the ones that
-fired, and enqueues a `price-alert` email to each alert owner (subject to
-`notification_preferences.price_alerts_email` and the suppression list).
+Scans active `price_alerts` against the current market price, deactivates the
+ones that fired, and enqueues a `price-alert` email to each alert owner
+(subject to `notification_preferences.price_alerts_email` and the suppression
+list).
 
-**Auth** — HMAC-SHA256 over the raw request body using `CRON_ALERTS_SECRET`,
-hex-encoded, in the `x-signature` header. Compared in constant time.
+**Price source** — for each symbol with an active alert: the latest trade price
+in `public.trades` (by `created_at`), else `public.brands.reference_price`.
+Symbols with neither are skipped for that run (their alerts stay active).
 
-**Rate limit** — 30 requests / 60 s per source IP (`public.check_rate_limit`).
+**Auth** — either:
+
+- HMAC-SHA256 over the raw request body using `CRON_ALERTS_SECRET`,
+  hex-encoded, in the `x-signature` header (external schedulers and the
+  admin smoke suite), or
+- `Authorization: Bearer <service-role key>` (the in-database pg_cron job,
+  which reads the key from Vault).
+
+Both are compared in constant time (SHA-256 digests + `timingSafeEqual`).
+
+**Rate limit** — 30 requests / 60 s per source IP (`public.check_rate_limit`,
+client IP from `cf-connecting-ip`). The limiter fails closed: if the check
+itself errors, the request gets `429`.
 
 **Request**
 
@@ -34,12 +48,14 @@ content-type: application/json
 | Status | Meaning |
 | --- | --- |
 | `200` | `{ "scanned": number, "triggered": number, "emailed": number }` |
-| `401` | Missing/invalid signature |
-| `429` | Rate limit exceeded |
-| `503` | `CRON_ALERTS_SECRET` not configured |
+| `401` | Missing/invalid signature or bearer |
+| `429` | Rate limit exceeded (or the rate-limit check failed) |
+| `500` | `{ "error": "INTERNAL_ERROR" }` — alert scan failed |
+| `503` | Neither `CRON_ALERTS_SECRET` nor the service-role key is configured |
 
-**Idempotency** — email sends are keyed on `price-alert:<alertId>`, and alerts
-are set `active = false` when fired, so a replayed call is a no-op.
+**Idempotency** — email sends are keyed on `price-alert:<alertId>`, and an
+alert is only notified by the run that flips it from `active = true` to
+`false`, so a replayed or overlapping call is a no-op.
 
 **Scheduling example (pg_cron)**
 

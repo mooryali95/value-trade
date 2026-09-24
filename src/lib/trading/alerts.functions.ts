@@ -24,7 +24,10 @@ export const createPriceAlert = createServerFn({ method: "POST" })
       })
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error("[alerts] insert failed", error.code ?? "", error.message);
+      throw new Error("INTERNAL_ERROR");
+    }
     return row;
   });
 

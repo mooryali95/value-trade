@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { Badge } from "@/components/badge";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import {
   listAccessRequests,
   approveAccessRequest,
@@ -48,6 +49,7 @@ function slugify(nameEn: string): string {
 
 function AccessRequestsPage() {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const listFn = useServerFn(listAccessRequests);
   const approveFn = useServerFn(approveAccessRequest);
@@ -87,14 +89,7 @@ function AccessRequestsPage() {
       toast.success(t("accessRequestApproved"));
       qc.invalidateQueries({ queryKey: ["access-requests"] });
     },
-    onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error && e.message === "INVITATION_ALREADY_PENDING"
-          ? t("inviteAlreadyPending")
-          : e instanceof Error
-            ? e.message
-            : "Error",
-      ),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   const reject = useMutation({
@@ -103,7 +98,7 @@ function AccessRequestsPage() {
       toast.success(t("accessRequestRejected"));
       qc.invalidateQueries({ queryKey: ["access-requests"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   if (isLoading)

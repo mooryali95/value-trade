@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -52,6 +53,7 @@ export const Route = createFileRoute("/_authenticated/company/settings")({
 
 function CompanySettings() {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const listFn = useServerFn(listMyCompanies);
@@ -114,14 +116,7 @@ function CompanySettings() {
       invalidateInvites();
       setNewInvite({ email: "", role: "viewer" });
     },
-    onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error && e.message === "INVITATION_ALREADY_PENDING"
-          ? t("inviteAlreadyPending")
-          : e instanceof Error
-            ? e.message
-            : "Error",
-      ),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const revokeInviteMut = useMutation({
     mutationFn: (invitationId: string) => revokeInviteFn({ data: { invitationId } }),
@@ -142,6 +137,7 @@ function CompanySettings() {
         },
       });
     },
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const resendMut = useMutation({
     mutationFn: (invitationId: string) =>
@@ -153,7 +149,7 @@ function CompanySettings() {
       }),
     onSuccess: (row: { notification?: { sent: boolean } }) =>
       toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured")),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   const createMut = useMutation({
@@ -165,7 +161,7 @@ function CompanySettings() {
       setSelected(row.id);
       setActive(row.id);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const invalidateDetails = () => qc.invalidateQueries({ queryKey: ["company-details", activeId] });
   const memberMut = useMutation({
@@ -178,7 +174,7 @@ function CompanySettings() {
       invalidateDetails();
       setNewMember({ userId: "", role: "viewer" });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Error"),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const removeMemberMut = useMutation({
     mutationFn: (memberId: string) => removeMemberFn({ data: { memberId } }),
@@ -186,14 +182,7 @@ function CompanySettings() {
       toast.success(t("memberRemoved"));
       invalidateDetails();
     },
-    onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error && e.message === "LAST_OWNER_PROTECTED"
-          ? t("lastOwnerProtected")
-          : e instanceof Error
-            ? e.message
-            : "Error",
-      ),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const memberRoleMut = useMutation({
     mutationFn: (v: {
@@ -204,14 +193,7 @@ function CompanySettings() {
       toast.success(t("memberRoleUpdated"));
       invalidateDetails();
     },
-    onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error && e.message === "LAST_OWNER_PROTECTED"
-          ? t("lastOwnerProtected")
-          : e instanceof Error
-            ? e.message
-            : "Error",
-      ),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const brandMut = useMutation({
     mutationFn: (sym: string) => addBrandFn({ data: { companyId: activeId!, brandSymbol: sym } }),
@@ -220,10 +202,7 @@ function CompanySettings() {
       invalidateDetails();
       setNewBrand("");
     },
-    onError: (e: unknown) =>
-      toast.error(
-        e instanceof Error && e.message === "BRAND_CAP_REACHED" ? t("brandCapReached") : "Error",
-      ),
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const removeBrandMut = useMutation({
     mutationFn: (brandId: string) => removeBrandFn({ data: { brandId } }),
@@ -231,6 +210,7 @@ function CompanySettings() {
       toast.success(t("brandRemoved"));
       invalidateDetails();
     },
+    onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
   return (

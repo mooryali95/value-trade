@@ -21,12 +21,15 @@ import {
   EnvelopeSimple,
   Bell,
   Buildings,
+  UsersThree,
 } from "@phosphor-icons/react";
+import { useMyRoles } from "@/hooks/use-my-roles";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { t, lang } = useI18n();
+  const { isAdmin } = useMyRoles();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -54,8 +57,9 @@ export function CommandPalette() {
       { path: "/company/settings", label: t("companySettings"), icon: Briefcase },
       { path: "/invitations", label: t("invitations"), icon: EnvelopeSimple },
       { path: "/settings/notifications", label: t("cmd_notifications"), icon: Bell },
+      ...(isAdmin ? [{ path: "/admin/investors", label: t("nav_investors"), icon: UsersThree }] : []),
     ],
-    [t, lang],
+    [t, lang, isAdmin],
   );
 
   return (

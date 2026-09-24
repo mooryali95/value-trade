@@ -3,22 +3,26 @@ import { createHmac } from "crypto";
 
 /**
  * End-to-end integration test for the price-alert flow:
- *   1. A trader places two orders (buy NOOR001 above target, sell MADA002 below target).
+ *   1. A trader's orders execute, producing trades (NOOR001 @ 120, MADA002 @ 40).
  *   2. Matching price alerts are created for the two symbols.
  *   3. The scheduled cron endpoint is invoked with a valid HMAC signature.
  *   4. The alerts whose target is met are marked inactive with a `triggered_at`
  *      timestamp that falls within the invocation window; the third alert stays active.
  *
- * The database and mock-data provider are stubbed so the test is deterministic
- * and does not require network or a real Supabase instance.
+ * The database is stubbed so the test is deterministic and does not require
+ * network or a real Supabase instance. The cron prices symbols from the latest
+ * row in public.trades (falling back to brands.reference_price).
  */
 
-vi.mock("@/lib/mock-data", () => ({
-  BRANDS: [
-    { symbol: "NOOR001", price: 120 },
-    { symbol: "MADA002", price: 40 },
-  ],
+vi.mock("@/lib/security/rate-limit.server", () => ({
+  checkRateLimit: async () => true,
+  clientKeyFromRequest: (_r: Request, scope: string) => `${scope}:test`,
 }));
+vi.mock("@/lib/notifications/notify.server", () => ({
+  notifySymbolEvent: async () => ({ notified: 0 }),
+}));
+vi.mock("@/lib/ops/run-log.server", () => ({ logOpsRun: async () => undefined }));
+vi.mock("@/lib/ops/ops-alert.server", () => ({ maybeAlertAdmins: async () => undefined }));
 
 type Order = {
   id: string;
@@ -40,10 +44,33 @@ type Alert = {
   triggered_at: string | null;
 };
 
-const state: { orders: Order[]; alerts: Alert[] } = { orders: [], alerts: [] };
+type Trade = { symbol: string; price: number; created_at: string };
+
+const state: { orders: Order[]; alerts: Alert[]; trades: Trade[] } = { orders: [], alerts: [], trades: [] };
+
+function tradesQuery() {
+  let symbol = "";
+  const q = {
+    select: () => q,
+    eq: (_c: string, v: string) => { symbol = v; return q; },
+    order: () => q,
+    limit: () => q,
+    maybeSingle: async () => {
+      const rows = state.trades
+        .filter((t) => t.symbol === symbol)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      return { data: rows[0] ? { price: rows[0].price } : null, error: null };
+    },
+  };
+  return q;
+}
 
 const supabaseAdmin = {
-  from(table: "orders" | "price_alerts") {
+  from(table: "orders" | "price_alerts" | "trades" | "brands") {
+    if (table === "trades") return tradesQuery();
+    if (table === "brands") {
+      return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
+    }
     return {
       select() {
         return {
@@ -61,20 +88,33 @@ const supabaseAdmin = {
         return Promise.resolve({ data: row, error: null });
       },
       update(patch: Partial<Alert>) {
-        return {
+        const filters: { col: string; val: unknown }[] = [];
+        const chain = {
           eq(col: string, val: unknown) {
-            for (const a of state.alerts) {
-              if ((a as unknown as Record<string, unknown>)[col] === val) Object.assign(a, patch);
-            }
-            return Promise.resolve({ error: null });
+            filters.push({ col, val });
+            return chain;
+          },
+          select() {
+            const hit = state.alerts.filter((a) =>
+              filters.every((f) => (a as unknown as Record<string, unknown>)[f.col] === f.val),
+            );
+            for (const a of hit) Object.assign(a, patch);
+            return Promise.resolve({ data: hit.map((a) => ({ id: a.id })), error: null });
           },
         };
+        return chain;
       },
     };
   },
 };
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin }));
+
+/** Seeds the in-memory store (what the trader's orders and alerts wrote). */
+function seed(table: "orders" | "price_alerts", row: Order | Alert) {
+  if (table === "orders") state.orders.push(row as Order);
+  else state.alerts.push(row as Alert);
+}
 
 async function getCronHandler() {
   const mod = await import("@/routes/api/public/cron-alerts");
@@ -95,29 +135,34 @@ describe("integration: order -> price_alert -> cron", () => {
     process.env.CRON_ALERTS_SECRET = SECRET;
     state.orders = [];
     state.alerts = [];
+    state.trades = [];
   });
 
   it("fires only the alerts whose price target was met after orders execute", async () => {
     // 1) Trader places two orders (recorded in the in-memory store).
-    await supabaseAdmin.from("orders").insert({
+    seed("orders", {
       id: "o1", user_id: USER, symbol: "NOOR001", side: "buy",
       qty: 10, price: 120, status: "filled", created_at: NOW(),
     });
-    await supabaseAdmin.from("orders").insert({
+    seed("orders", {
       id: "o2", user_id: USER, symbol: "MADA002", side: "sell",
       qty: 5, price: 40, status: "filled", created_at: NOW(),
     });
 
-    // 2) Alerts seeded relative to the mocked live prices (NOOR=120, MADA=40).
-    await supabaseAdmin.from("price_alerts").insert({
+    // The executed orders' trades set the market price (NOOR=120, MADA=40).
+    state.trades.push({ symbol: "NOOR001", price: 120, created_at: NOW() });
+    state.trades.push({ symbol: "MADA002", price: 40, created_at: NOW() });
+
+    // 2) Alerts seeded relative to the last trade prices (NOOR=120, MADA=40).
+    seed("price_alerts", {
       id: "al-noor", user_id: USER, symbol: "NOOR001",
       direction: "above", target_price: 100, active: true, triggered_at: null,
     });
-    await supabaseAdmin.from("price_alerts").insert({
+    seed("price_alerts", {
       id: "al-mada", user_id: USER, symbol: "MADA002",
       direction: "below", target_price: 50, active: true, triggered_at: null,
     });
-    await supabaseAdmin.from("price_alerts").insert({
+    seed("price_alerts", {
       id: "al-noop", user_id: USER, symbol: "NOOR001",
       direction: "below", target_price: 10, active: true, triggered_at: null,
     });

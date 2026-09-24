@@ -210,6 +210,9 @@ REVOKE ALL ON FUNCTION public.match_order(uuid, text, text, text, text, numeric,
 GRANT EXECUTE ON FUNCTION public.match_order(uuid, text, text, text, text, numeric, numeric) TO service_role;
 
 -- Public market data: last traded price for a symbol.
+-- The output column was renamed (last_traded_at -> traded_at); Postgres
+-- refuses to change a function's result columns in place.
+DROP FUNCTION IF EXISTS public.get_symbol_last_trade(text);
 CREATE OR REPLACE FUNCTION public.get_symbol_last_trade(_symbol text)
 RETURNS TABLE(last_price numeric, traded_at timestamp with time zone)
 LANGUAGE sql

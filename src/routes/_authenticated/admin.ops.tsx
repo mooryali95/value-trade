@@ -223,7 +223,7 @@ function OpsPage() {
         </div>
       )}
 
-      <div className="mt-6" role="status" aria-live="polite">
+      <div className="mt-6" role="status" aria-live="polite" aria-atomic="true">
         {smoke.isError && (
           <p className="text-sm text-[var(--bear)]">
             {(smoke.error as Error).message}
@@ -448,7 +448,7 @@ function OpsPage() {
               >
                 {saveThresholds.isPending ? t("loading") : t("saveThresholds")}
               </button>
-              <span className="text-caption text-ink-soft" role="status" aria-live="polite">
+              <span className="text-caption text-ink-soft" role="status" aria-live="polite" aria-atomic="true">
                 {saveThresholds.isError
                   ? (saveThresholds.error as Error).message
                   : saveThresholds.isSuccess

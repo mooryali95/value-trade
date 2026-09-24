@@ -1,13 +1,15 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { UserPlus, ClipboardText, EnvelopeSimple, Buildings } from "@phosphor-icons/react";
+import { UserPlus, ClipboardText, EnvelopeSimple, Buildings, UsersThree } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
 import { listAccessRequests } from "@/lib/access/access-requests.functions";
 import { DashCard } from "@/components/dash-card";
+import { useMyRoles } from "@/hooks/use-my-roles";
 
 export function PlatformDashboard() {
   const { t, dir } = useI18n();
   const listFn = useServerFn(listAccessRequests);
+  const { isAdmin } = useMyRoles();
 
   const { data } = useQuery({
     queryKey: ["access-requests"],
@@ -51,6 +53,14 @@ export function PlatformDashboard() {
           title={t("nav_submissions")}
           hint={t("reviewBrandSubmissions")}
         />
+        {isAdmin && (
+          <DashCard
+            to="/admin/investors"
+            icon={UsersThree}
+            title={t("nav_investors")}
+            hint={t("investorsDashHint")}
+          />
+        )}
         <DashCard
           to="/admin/email-log"
           icon={EnvelopeSimple}
