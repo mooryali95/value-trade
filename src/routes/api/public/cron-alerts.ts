@@ -7,15 +7,27 @@ type Admin = (typeof import("@/integrations/supabase/client.server"))["supabaseA
 
 /**
  * Real market prices for the given symbols: the last trade price from
- * public.trades (latest by time), else brands.reference_price. Symbols with
- * neither are omitted (their alerts are skipped this run).
+ * public.trades (latest by time), for instruments listed on the market
+ * (brands.published) only. An instrument that is not listed, or has not
+ * traded yet, has no market price: its alerts stay pending (a reference
+ * price is not a traded price and never fires an alert).
  */
 async function currentPrices(supabaseAdmin: Admin, symbols: string[]): Promise<Map<string, number>> {
   const prices = new Map<string, number>();
   if (symbols.length === 0) return prices;
 
+  const { data: listed, error: listedError } = await supabaseAdmin
+    .from("brands")
+    .select("symbol")
+    .eq("published", true)
+    .in("symbol", symbols);
+  if (listedError) {
+    console.error("[cron-alerts] listed instruments lookup failed", { code: listedError.code });
+    return prices;
+  }
+
   const lastTrades = await Promise.all(
-    symbols.map(async (symbol) => {
+    (listed ?? []).map(async ({ symbol }) => {
       const { data, error } = await supabaseAdmin
         .from("trades")
         .select("price")
@@ -33,29 +45,14 @@ async function currentPrices(supabaseAdmin: Admin, symbols: string[]): Promise<M
   for (const [symbol, price] of lastTrades) {
     if (price !== null && Number.isFinite(price) && price > 0) prices.set(symbol, price);
   }
-
-  const missing = symbols.filter((s) => !prices.has(s));
-  if (missing.length > 0) {
-    const { data: brands, error } = await supabaseAdmin
-      .from("brands")
-      .select("symbol, reference_price")
-      .in("symbol", missing);
-    if (error) {
-      console.error("[cron-alerts] reference price lookup failed", { code: error.code });
-    }
-    for (const b of brands ?? []) {
-      const p = Number(b.reference_price);
-      if (Number.isFinite(p) && p > 0) prices.set(b.symbol, p);
-    }
-  }
   return prices;
 }
 
 // Public endpoint intended to be called by pg_cron or an external scheduler.
 // Accepts either an HMAC signature over the raw body (CRON_ALERTS_SECRET) or a
 // service-role bearer token (used by the in-database pg_cron schedule), then
-// scans active price_alerts against the latest market price (last trade, else
-// the instrument's reference price) and marks any that fire.
+// scans active price_alerts against the last traded price of listed
+// instruments and marks any that fire.
 export const Route = createFileRoute("/api/public/cron-alerts")({
   server: {
     handlers: {
@@ -141,7 +138,8 @@ export const Route = createFileRoute("/api/public/cron-alerts")({
                 direction: a.direction,
                 targetPrice: target.toFixed(2),
                 currentPrice: p.toFixed(2),
-                currency: "SAR",
+                // No currency: the platform names none (see the legal pages).
+                currency: "",
                 viewUrl: `${canonicalOrigin()}/portfolio`,
               },
             });

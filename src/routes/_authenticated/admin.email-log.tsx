@@ -217,7 +217,7 @@ function EmailLogContent() {
         <input
           value={symbol}
           onChange={(e) => { setSymbol(e.target.value); setPage(0); }}
-          placeholder={ar ? "فلترة بالرمز (مثل ARAMCO)…" : "Filter by symbol (e.g. ARAMCO)…"}
+          placeholder={ar ? "فلترة برمز الأداة…" : "Filter by symbol…"}
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono uppercase text-foreground"
         />
         <button

@@ -65,11 +65,15 @@ units, and only invited, admin-activated investors trade them.
   rulings and their audit trail is stamped from the session, never from client
   input.
 - **Instrument integrity.** Company owners may edit descriptive brand fields
-  only; `symbol`, `company_id`, `published` and `reference_price` change only
-  through the service role or a platform admin (trigger `brands_guard`).
-  Product submissions always start `pending`, move only from `pending` to
-  `approved` (which requires the published brand the server lists first) or
-  `rejected`, and are frozen afterwards; submission documents must belong to a
+  only; `symbol`, `company_id` and `reference_price` change only through the
+  service role or a platform admin (trigger `brands_guard`), and `published`
+  changes only inside `set_instrument_published` (no API caller, not even a
+  platform admin or the service role, can insert a published brand or flip
+  the flag directly). Product submissions always start `pending`, move only
+  from `pending` to `approved` (which requires the instrument the server
+  creates first, off the market with no reference price, together with the
+  approving reviewer's Shariah ruling) or `rejected`, and are frozen
+  afterwards; submission documents must belong to a
   submission of the same company and live under
   `<company_id>/<submission_id>/`. Units of a listed brand enter the market
   only through primary issuance (`issue_units`, platform admins, recorded in
@@ -110,10 +114,16 @@ from the database; nothing is generated.
   appears only when it has a published instrument.
 - **No identities.** Results are aggregates and trade prints (price,
   quantity, time): never a user id, order id, trade id, issuance holder or
-  Shariah reviewer. The only uuid returned is a company id. anon can read
-  `shariah_decisions` without `reviewer_id` / `updated_by`.
+  Shariah reviewer. The only uuid returned is a company id. anon cannot read
+  `shariah_decisions` at all (public pages use `public_shariah_rulings`);
+  signed-in users read the rulings of published instruments only and never
+  `reviewer_id` / `updated_by`; Shariah board members and platform admins
+  read every ruling (the review console's `listShariahDecisions` requires one
+  of those roles).
 - **Caps.** Board ≤ 1000 rows, candles ≤ 500 buckets, trade tape ≤ 50
-  prints, order book depth ≤ 50.
+  prints, order book depth ≤ 50. `public_candles` walks the buckets newest
+  first with one index probe per bucket and reads only the trades inside the
+  buckets it returns, never a symbol's whole history.
 - **Same definitions as the engine.** Last price = last trade; 24h change vs
   the last trade at least 24h old, else the first trade in the window;
   volume counted once per trade; trading day = Asia/Riyadh; the band shown
@@ -123,7 +133,12 @@ from the database; nothing is generated.
   listing reference price, labelled as such, never as a trade price.
 - **Listing control.** Only a platform admin lists or delists an instrument
   (`setInstrumentPublished` → `set_instrument_published`, service role
-  only, audited as `brand.publish` / `brand.unpublish`). Delisting closes
+  only; the `brand.publish` / `brand.unpublish` audit row is written in the
+  same transaction). Listing needs a reference price set by an admin (0
+  means "not set", the column default) and a Shariah ruling in force
+  (`SHARIAH_RULING_REQUIRED`), so every listed instrument carries one. Price
+  alerts fire on the last traded price of listed instruments only, never on
+  a reference price. Delisting closes
   the instrument's resting orders in the same transaction (`orders_audit`
   action `delisted`) under the engine's symbol lock; positions, cash and
   trades are untouched. A resting order can never be written for an
@@ -133,8 +148,13 @@ from the database; nothing is generated.
 - **Demo listings removed.** `20260925100200_delist_demo_instruments.sql`
   unpublished every seeded demo instrument (brands with no company and no
   source submission: real listed issuers with invented prices and synthetic
-  brands) and closed their resting orders. Rows are kept; an admin can
-  republish one after setting a real reference price.
+  brands) and closed their resting orders. Rows are kept.
+  `20260925110100_unlist_unconfirmed_instruments.sql` then took off the
+  market every instrument whose reference price no platform admin set (the
+  old approval path published at a default of 100, or kept a seed's price)
+  or that has no ruling in force, and reset every unconfirmed price of an
+  unlisted instrument to 0, so nothing can be republished at an invented
+  price: an admin sets a real reference price first.
 
 ## Data Retention & Backups
 

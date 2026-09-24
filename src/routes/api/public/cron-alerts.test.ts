@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createHmac } from "crypto";
 
-// The route prices symbols from public.trades (last trade) with a fallback to
-// brands.reference_price, and reads/writes alerts through supabaseAdmin. We
-// mock the admin client per table so the test is isolated and deterministic.
+// The route prices symbols from public.trades (last trade) of listed
+// (published) instruments only: a reference price never fires an alert. It
+// reads/writes alerts through supabaseAdmin. We mock the admin client per
+// table so the test is isolated and deterministic.
 
 const alertRows = [
   { id: "a1", user_id: "u1", symbol: "NOOR001", direction: "above", target_price: 90 }, // fires (trade 100 >= 90)
   { id: "a2", user_id: "u1", symbol: "NOOR001", direction: "below", target_price: 90 }, // no
-  { id: "a3", user_id: "u2", symbol: "MADA002", direction: "below", target_price: 60 }, // fires (ref 50 <= 60)
-  { id: "a4", user_id: "u3", symbol: "GHOST", direction: "above", target_price: 1 }, // no price -> skipped
+  { id: "a3", user_id: "u2", symbol: "MADA002", direction: "below", target_price: 60 }, // listed, never traded (ref 50) -> pending
+  { id: "a4", user_id: "u3", symbol: "GHOST", direction: "above", target_price: 1 }, // unknown -> skipped
+  { id: "a5", user_id: "u3", symbol: "DELI003", direction: "above", target_price: 1 }, // traded, then delisted -> skipped
 ];
-const lastTrade: Record<string, number> = { NOOR001: 100 };
-const referencePrice: Record<string, number> = { NOOR001: 999, MADA002: 50 };
+const lastTrade: Record<string, number> = { NOOR001: 100, DELI003: 40 };
+const listed = new Set(["NOOR001", "MADA002"]);
 
 const updateChain = vi.fn();
 const tradesEq = vi.fn();
@@ -53,11 +55,11 @@ function tradesTable() {
 function brandsTable() {
   return {
     select: vi.fn(() => ({
-      in: vi.fn(async (_c: string, symbols: string[]) => ({
-        data: symbols
-          .filter((s) => s in referencePrice)
-          .map((s) => ({ symbol: s, reference_price: referencePrice[s] })),
-        error: null,
+      eq: vi.fn((col: string, v: unknown) => ({
+        in: vi.fn(async (_c: string, symbols: string[]) => ({
+          data: col === "published" && v === true ? symbols.filter((s) => listed.has(s)).map((s) => ({ symbol: s })) : [],
+          error: null,
+        })),
       })),
     })),
   };
@@ -78,7 +80,7 @@ vi.mock("@/lib/security/rate-limit.server", () => ({
   checkRateLimit: vi.fn(async () => true),
   clientKeyFromRequest: (_r: Request, scope: string) => `${scope}:test`,
 }));
-const notifySymbolEvent = vi.fn(async (_i: { templateData: { currentPrice: string } }) => ({ notified: 1 }));
+const notifySymbolEvent = vi.fn(async (_i: { templateData: { currentPrice: string; currency: string } }) => ({ notified: 1 }));
 vi.mock("@/lib/notifications/notify.server", () => ({ notifySymbolEvent }));
 vi.mock("@/lib/ops/run-log.server", () => ({ logOpsRun: vi.fn(async () => undefined) }));
 vi.mock("@/lib/ops/ops-alert.server", () => ({ maybeAlertAdmins: vi.fn(async () => undefined) }));
@@ -133,7 +135,7 @@ describe("POST /api/public/cron-alerts", () => {
     if (serviceKey) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
   });
 
-  it("prices from the last trade, falls back to the reference price, skips unpriced symbols", async () => {
+  it("prices from the last trade of listed instruments only, never from a reference price", async () => {
     const handler = await getHandler();
     const body = "{}";
     const res = await handler({
@@ -145,18 +147,20 @@ describe("POST /api/public/cron-alerts", () => {
     });
     expect(res.status).toBe(200);
     const json = (await res.json()) as { scanned: number; triggered: number; emailed: number };
-    expect(json.scanned).toBe(4);
-    expect(json.triggered).toBe(2);
-    expect(json.emailed).toBe(2);
-    expect(updateChain).toHaveBeenCalledTimes(2);
+    expect(json.scanned).toBe(5);
+    expect(json.triggered).toBe(1);
+    expect(json.emailed).toBe(1);
+    expect(updateChain).toHaveBeenCalledTimes(1);
     const calls = updateChain.mock.calls as unknown as Array<[{ active: boolean; triggered_at: string }]>;
     const arg = calls[0][0];
     expect(arg.active).toBe(false);
     expect(typeof arg.triggered_at).toBe("string");
-    // One last-trade lookup per distinct symbol.
-    expect(tradesEq).toHaveBeenCalledTimes(3);
+    // One last-trade lookup per distinct listed symbol.
+    expect(tradesEq.mock.calls.map((c) => c[0]).sort()).toEqual(["MADA002", "NOOR001"]);
     const prices = notifySymbolEvent.mock.calls.map((c) => c[0].templateData.currentPrice).sort();
-    expect(prices).toEqual(["100.00", "50.00"]);
+    expect(prices).toEqual(["100.00"]);
+    // The platform names no currency.
+    expect(notifySymbolEvent.mock.calls[0][0].templateData.currency).toBe("");
   });
 
   it("accepts the service-role bearer token", async () => {

@@ -63,7 +63,11 @@ function AdminSubmissions() {
 
   const mutation = useMutation({
     mutationFn: (v: { submissionId: string; status: "approved" | "rejected"; reason?: string }) => reviewFn({ data: v }),
-    onSuccess: () => { toast.success(t("submissionReviewed")); qc.invalidateQueries({ queryKey: ["admin-submissions"] }); },
+    onSuccess: (_res, v) => {
+      // An approved product is created off the market: an admin prices and lists it.
+      toast.success(t(v.status === "approved" ? "fx_submissionApprovedUnlisted" : "submissionReviewed"));
+      qc.invalidateQueries({ queryKey: ["admin-submissions"] });
+    },
     onError: (e: unknown) => {
       toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired", SUBMISSION_NOT_PENDING: "errSubmissionNotPending", SUBMISSION_NOT_FOUND: "errSubmissionNotPending", INVALID_SYMBOL: "errInvalidSymbol" }));
       qc.invalidateQueries({ queryKey: ["admin-submissions"] });

@@ -16,8 +16,10 @@ export const SITE = {
   addressAr: "",
   addressEn: "",
   contactEmail: "",
-  privacyEmail: "privacy@valueunit.app",
-  securityEmail: "security@valueunit.app",
+  // Not confirmed by the owner yet (a monitored mailbox is required before
+  // launch): left empty so no unowned address is shown to users.
+  privacyEmail: "",
+  securityEmail: "",
   complaintsEmail: "",
   licensingStatusAr: "",
   licensingStatusEn: "",

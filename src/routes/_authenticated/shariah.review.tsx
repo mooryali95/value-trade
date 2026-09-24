@@ -10,7 +10,7 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS } from "@/lib/mock-data";
+import { MarketDataError, ShariahPill, instrumentName, useMarketOverview } from "@/components/market-data";
 import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit } from "@/lib/trading/shariah.functions";
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
@@ -62,7 +62,7 @@ function ReviewPage() {
   const recordFn = useServerFn(recordShariahDecision);
   const updateFn = useServerFn(updateShariahDecision);
   const auditFn = useServerFn(listDecisionAudit);
-  const { data: decisions, isLoading } = useQuery({ queryKey: ["shariah-decisions"], queryFn: () => listFn() });
+  const { data: decisions, isLoading, isError: decisionsError, refetch: refetchDecisions } = useQuery({ queryKey: ["shariah-decisions"], queryFn: () => listFn(), enabled: isReviewer });
   const [reason, setReason] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<null | { id: string; status: "halal" | "non_halal" | "reviewing"; reason: string; changeReason: string; symbol: string }>(null);
   const [openAudit, setOpenAudit] = useState<string | null>(null);
@@ -77,6 +77,7 @@ function ReviewPage() {
     onSuccess: () => {
       toast.success(t("submitDecision"));
       qc.invalidateQueries({ queryKey: ["shariah-decisions"] });
+      qc.invalidateQueries({ queryKey: ["market-overview"] });
     },
     onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
   });
@@ -91,7 +92,21 @@ function ReviewPage() {
     onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
   });
 
-  const pool = BRANDS.filter((b) => b.assetClass !== "sukuk" || b.shariah === "reviewing").slice(0, 20);
+  // Instruments to rule on: the published instruments on the market, each
+  // with the ruling currently in force, from the database.
+  const market = useMarketOverview();
+  const [poolQ, setPoolQ] = useState("");
+  const poolAll = market.data?.instruments ?? [];
+  const poolNeedle = poolQ.trim().toLowerCase();
+  const poolMatches = poolAll.filter(
+    (b) => !poolNeedle || b.symbol.toLowerCase().includes(poolNeedle) || b.nameEn.toLowerCase().includes(poolNeedle) || b.nameAr.includes(poolQ.trim()),
+  );
+  // Instruments without a ruling, then under review, first.
+  const rank = (s: string | null) => (s == null ? 0 : s === "reviewing" ? 1 : s === "non_halal" ? 2 : 3);
+  const pool = poolMatches
+    .slice()
+    .sort((a, b) => rank(a.shariahStatus) - rank(b.shariahStatus) || a.symbol.localeCompare(b.symbol))
+    .slice(0, 50);
 
   const cmp = comparator(search.sortDir);
   const filtered = useMemo(() => {
@@ -138,12 +153,34 @@ function ReviewPage() {
       />
 
       <section className="mb-8">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-ink">{t("e2_reviewPoolTitle")}</h2>
+          <input
+            value={poolQ}
+            onChange={(e) => setPoolQ(e.target.value)}
+            placeholder={t("e2_searchInstruments")}
+            aria-label={t("e2_searchInstruments")}
+            className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+          />
+        </div>
+        {market.isLoading ? (
+          <LuxurySkeleton lines={4} />
+        ) : !market.data ? (
+          <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+        ) : poolAll.length === 0 ? (
+          <EmptyState title={t("e2_reviewPoolEmptyTitle")} description={t("e2_reviewPoolEmptyDesc")} />
+        ) : pool.length === 0 ? (
+          <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+        ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           {pool.map((b) => (
-            <div key={b.id} className="grid grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
+            <div key={b.symbol} className="grid grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? b.nameAr : b.nameEn}</div>
-                <div className="text-[10px] uppercase text-muted-foreground">{b.symbol} · {b.sector}</div>
+                <div className="truncate text-sm font-semibold text-ink">{instrumentName(b, lang)}</div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase text-muted-foreground">
+                  <span>{[b.symbol, b.sector].filter(Boolean).join(" · ")}</span>
+                  <ShariahPill status={b.shariahStatus} />
+                </div>
               </div>
               <input
                 placeholder={t("reason")}
@@ -158,7 +195,11 @@ function ReviewPage() {
               </div>
             </div>
           ))}
+          {poolMatches.length > pool.length && (
+            <p className="px-4 py-2 text-[11px] text-muted-foreground">{t("e2_reviewPoolMore").replace("{n}", String(poolMatches.length - pool.length))}</p>
+          )}
         </div>
+        )}
       </section>
 
       <section>
@@ -187,17 +228,19 @@ function ReviewPage() {
             <button onClick={() => patch({ q: "", status: "all", page: 1 })} className="rounded-md border border-border px-2 py-1 text-xs text-ink-soft hover:border-[var(--gold-deep)]">{t("resetFilters")}</button>
           </div>
         </div>
-        {isLoading ? (
+        {isLoading || rolesLoading ? (
           <LuxurySkeleton lines={4} />
+        ) : decisionsError ? (
+          <ErrorState reset={() => refetchDecisions()} />
         ) : sorted.length === 0 ? (
           <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-              <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Symbol</SortHeader>
-              <div>Reason</div>
+              <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("e2_colSymbol")}</SortHeader>
+              <div>{t("reason")}</div>
               <SortHeader active={search.sortBy === "updated"} dir={search.sortDir} onClick={() => patch({ sortBy: "updated", sortDir: search.sortBy === "updated" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("lastUpdated")}</SortHeader>
-              <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>Status</SortHeader>
+              <SortHeader active={search.sortBy === "status"} dir={search.sortDir} onClick={() => patch({ sortBy: "status", sortDir: search.sortBy === "status" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("filterStatus")}</SortHeader>
               <div>{t("auditTrail")}</div>
             </div>
             {paged.map((d) => (
@@ -266,7 +309,7 @@ function ReviewPage() {
               <textarea aria-label={t("reason")} value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
               <textarea aria-label={t("changeReason")} value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />
               <div className="mt-2 flex justify-end gap-2">
-                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancelled")}</button>
+                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancel")}</button>
                 <button
                   disabled={editMut.isPending || !editing.changeReason.trim()}
                   onClick={() => editMut.mutate({ id: editing.id, status: editing.status, reason: editing.reason || undefined, changeReason: editing.changeReason })}

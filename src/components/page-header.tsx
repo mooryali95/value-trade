@@ -18,7 +18,7 @@ export function PageHeader({
   actions?: ReactNode;
   eyebrow?: string;
 }) {
-  const { dir } = useI18n();
+  const { dir, t } = useI18n();
   const Sep = () => (
     <CaretRight
       size={12}
@@ -37,7 +37,7 @@ export function PageHeader({
     <header className="mb-6 border-b border-border/60 pb-5">
       {trail.length > 0 && (
         <nav
-          aria-label="breadcrumb"
+          aria-label={t("e2_breadcrumb")}
           className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink-soft"
         >
           {trail.map((c, i) => {

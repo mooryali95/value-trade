@@ -35,7 +35,8 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
         status: data.status,
         reason: data.reason ?? null,
       })
-      .select("*")
+      // Not "*": reviewer_id / updated_by are not readable by API users.
+      .select("id, symbol, status, reason, created_at, updated_at, effective_at")
       .single();
     if (error) {
       console.error("[shariah] insert failed", error.code ?? "", error.message);
@@ -59,21 +60,37 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
     return row;
   });
 
-export const listShariahDecisions = createServerFn({ method: "GET" }).handler(async () => {
-  const { createClient } = await import("@supabase/supabase-js");
-  const client = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-  const { data } = await client
-    .from("shariah_decisions")
-    .select("id, symbol, status, reason, created_at, updated_at, effective_at")
-    // Most recent change first: the first row per symbol is the ruling in force.
-    .order("effective_at", { ascending: false })
-    .limit(100);
-  return data ?? [];
-});
+/**
+ * Every recorded ruling, newest change first (at most 100), for the Shariah
+ * review console: Shariah board members and platform admins only (the
+ * database shows other users the rulings of listed instruments only; the
+ * public pages use getPublicShariahRulings).
+ */
+export const listShariahDecisions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const [board, admin] = await Promise.all([
+      supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" }),
+      supabase.rpc("has_role", { _user_id: userId, _role: "platform_admin" }),
+    ]);
+    if (board.error || admin.error) {
+      console.error("[shariah] has_role failed", board.error?.code ?? admin.error?.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!board.data && !admin.data) throw new Error("FORBIDDEN");
+    const { data, error } = await supabase
+      .from("shariah_decisions")
+      .select("id, symbol, status, reason, created_at, updated_at, effective_at")
+      // Most recent change first: the first row per symbol is the ruling in force.
+      .order("effective_at", { ascending: false })
+      .limit(100);
+    if (error) {
+      console.error("[shariah] list failed", error.code || "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    return data ?? [];
+  });
 
 const UpdateInput = z.object({
   id: z.string().uuid(),

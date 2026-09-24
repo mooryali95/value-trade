@@ -46,6 +46,7 @@ const CODE_TO_KEY: Record<string, Key> = {
   INVITATION_EMAIL_MISMATCH: "errInvitationEmailMismatch",
   LAST_OWNER_PROTECTED: "lastOwnerProtected",
   BRAND_CAP_REACHED: "brandCapReached",
+  SHARIAH_RULING_REQUIRED: "fx_publishNeedsRuling",
   // Legacy codes still emitted by older server builds during rollout.
   ORDER_NOT_FOUND: "errOrderNotOpen",
   ORDER_NOT_PENDING: "errOrderNotOpen",

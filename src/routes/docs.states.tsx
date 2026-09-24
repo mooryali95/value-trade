@@ -98,7 +98,7 @@ function StatesDocsPage() {
         <Case id="empty-basic" title="EmptyState — no data yet">
           <EmptyState
             title="No positions yet"
-            description="Place your first order from the market and your positions will appear here with live valuation."
+            description="Place your first order from the market and your positions will appear here."
             action={
               <a
                 href="/market"

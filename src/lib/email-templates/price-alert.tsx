@@ -17,20 +17,21 @@ const PriceAlertEmail = ({
   direction = 'above',
   targetPrice = '0.00',
   currentPrice = '0.00',
-  currency = 'SAR',
+  currency = '',
   viewUrl = '#',
 }: Props) => {
   const dirAr = direction === 'above' ? 'أعلى من' : 'أدنى من'
   const dirEn = direction === 'above' ? 'crossed above' : 'crossed below'
   const color = direction === 'above' ? '#2E7D5B' : brand.burgundy
+  const unit = currency ? ` ${currency}` : ''
   return (
-    <BrandLayout preview={`تنبيه سعر · ${symbol} ${dirAr} ${targetPrice} ${currency}`} lang="ar">
+    <BrandLayout preview={`تنبيه سعر · ${symbol} ${dirAr} ${targetPrice}${unit}`} lang="ar">
       <Text style={styles.h1En}>Price alert</Text>
       <Text style={styles.h1}>تنبيه سعر · {symbol}</Text>
       <Text style={styles.text}>
-        وصل سعر <strong>{symbol}</strong> إلى مستوى تنبيهك: {dirAr}{' '}
+        بلغ آخر سعر تداول لـ<strong>{symbol}</strong> مستوى تنبيهك: {dirAr}{' '}
         <strong>
-          {targetPrice} {currency}
+          {targetPrice}{unit}
         </strong>
         .
       </Text>
@@ -43,14 +44,14 @@ const PriceAlertEmail = ({
           letterSpacing: '0.12em',
         }}
       >
-        {currentPrice} {currency}
+        {currentPrice}{unit}
       </Text>
       <Text style={styles.textEn}>
-        <strong>{symbol}</strong> {dirEn} your alert at{' '}
+        The last traded price of <strong>{symbol}</strong> {dirEn} your alert at{' '}
         <strong>
-          {targetPrice} {currency}
+          {targetPrice}{unit}
         </strong>
-        . Current price shown above.
+        . Last traded price shown above.
       </Text>
       <div style={styles.buttonWrap}>
         <Button style={styles.button} href={viewUrl}>
@@ -76,7 +77,7 @@ export const template = {
     direction: 'above',
     targetPrice: '32.50',
     currentPrice: '32.68',
-    currency: 'SAR',
+    currency: '',
     viewUrl: 'https://hub.sunkvalue.com/portfolio',
   },
 } satisfies TemplateEntry

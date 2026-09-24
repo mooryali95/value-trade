@@ -3,18 +3,14 @@ import { useState } from "react";
 import { NotFoundBlock } from "@/components/not-found-block";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
-import { CandlestickChart } from "@/components/candlestick-chart";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, getBrand, generateCandles, generateOrderBook, type AssetClass, type Brand, type Sector } from "@/lib/mock-data";
-import { formatCurrency, formatPct, formatInt } from "@/lib/format";
-import { ShieldCheck, Search } from "lucide-react";
-import { ErrorState } from "@/components/error-state";
-import { EmptyState } from "@/components/empty-state";
+import { formatCurrency, formatInt } from "@/lib/format";
+import { Search } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { placeOrder } from "@/lib/trading/place-order.functions";
 import { createPriceAlert } from "@/lib/trading/alerts.functions";
-import { getBook, getMyOpenOrders } from "@/lib/trading/book.functions";
+import { getMyOpenOrders } from "@/lib/trading/book.functions";
 import { cancelOrder } from "@/lib/trading/order-mutations.functions";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -23,102 +19,75 @@ import { useErrorMessage } from "@/hooks/use-error-message";
 import { describeOrderOutcome, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
 import { useConfirm } from "@/components/confirm-dialog";
 import { PermissionHint } from "@/components/permission-hint";
-import { getTradeInstrument, type TradeInstrument } from "@/lib/instruments/instrument.functions";
+import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { getPublicInstrument, type PublicInstrumentDetail } from "@/lib/market/public-market.functions";
+import {
+  ChangeText,
+  InstrumentLoadError,
+  MarketDataError,
+  Monogram,
+  ShariahPill,
+  formatPrice,
+  instrumentName,
+  markOf,
+  useMarketOverview,
+} from "@/components/market-data";
+import { ChartPanel, OrderBookPanel, RecentTradesPanel, useLiveInstrument } from "@/components/market-panels";
 import { toast } from "sonner";
 
 /**
- * The listed instrument (public.brands) is the source of truth for what can
- * be traded; mock data only supplies display extras (chart seed, colours,
- * sample statistics) when the same symbol exists there.
+ * Trade desk for one published instrument. Everything shown comes from the
+ * database: the instrument (public_instrument), candles and the trade tape
+ * from executed trades, and the aggregated book. An unknown or unpublished
+ * symbol is a 404; a database failure is an error state.
  */
-function displayBrand(listed: TradeInstrument, mock: Brand | undefined): Brand {
-  const price = listed.lastPrice ?? listed.referencePrice;
-  const shariah: Brand["shariah"] =
-    listed.shariah === "halal" ? "halal" : listed.shariah === "non_halal" ? "restricted" : "reviewing";
-  const base: Brand = mock ?? {
-    id: listed.slug,
-    slug: listed.slug,
-    symbol: listed.symbol,
-    nameAr: listed.nameAr,
-    nameEn: listed.nameEn,
-    sector: (listed.sector ?? "retail") as Sector,
-    companyId: "",
-    companyNameAr: "",
-    companyNameEn: "",
-    price,
-    change24h: 0,
-    volume24h: 0,
-    marketCap: 0,
-    shariah,
-    instrument: "equity",
-    established: 0,
-    color: "#8a6d3b",
-  };
-  return {
-    ...base,
-    slug: listed.slug,
-    symbol: listed.symbol,
-    nameAr: listed.nameAr,
-    nameEn: listed.nameEn,
-    price,
-    shariah,
-    assetClass: listed.assetClass as AssetClass,
-  };
-}
-
 export const Route = createFileRoute("/trade/$symbol")({
   loader: async ({ params }) => {
-    const mock = getBrand(params.symbol);
-    let listed: TradeInstrument | null = null;
-    try {
-      listed = await getTradeInstrument({ data: { symbol: params.symbol } });
-    } catch {
-      // Market data unavailable: fall back to the display catalogue below.
-    }
-    const brand = listed ? displayBrand(listed, mock) : mock;
-    if (!brand) throw notFound();
-    return { brand, bandReference: listed?.bandReference ?? null };
+    const instrument = await getPublicInstrument({ data: { slug: params.symbol } });
+    if (!instrument) throw notFound();
+    return { instrument };
   },
   head: ({ loaderData }) => ({
     meta: [
-      { title: loaderData ? `${loaderData.brand.symbol} · تداول — وحدة القيمة` : "تداول — وحدة القيمة" },
+      { title: loaderData ? `${loaderData.instrument.symbol} · تداول — وحدة القيمة` : "تداول — وحدة القيمة" },
       {
         name: "description",
         content: loaderData
-          ? `منصة تداول ${loaderData.brand.nameAr} مع دفتر أوامر لحظي وحوكمة شرعية. · Professional trading desk for ${loaderData.brand.nameEn}.`
-          : "منصة تداول احترافية بحوكمة شرعية. · Professional Shariah-governed trading desk.",
+          ? `تداول ${loaderData.instrument.nameAr} على وحدة القيمة. · Trade ${loaderData.instrument.nameEn} on Value Unit.`
+          : "التداول على وحدة القيمة. · Trading on Value Unit.",
       },
       {
         property: "og:title",
-        content: loaderData ? `Trade ${loaderData.brand.symbol} — Value Unit` : "Trade — Value Unit",
+        content: loaderData ? `Trade ${loaderData.instrument.symbol} — Value Unit` : "Trade — Value Unit",
       },
-      {
-        property: "og:description",
-        content: "Professional trading desk with live order book and Shariah governance.",
-      },
+      { property: "og:description", content: "Order book, executed trades and order entry on Value Unit." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  errorComponent: ({ reset }) => (
-    <AppShell><div className="py-16"><ErrorState reset={reset} /></div></AppShell>
+  errorComponent: ({ error, reset }) => (
+    <AppShell><div className="py-16"><InstrumentLoadError error={error} reset={reset} /></div></AppShell>
   ),
   notFoundComponent: () => <NotFoundBlock kind="symbol" />,
-  component: TradePage,
+  component: TradeRoute,
 });
 
-function TradePage() {
-  const { brand, bandReference } = Route.useLoaderData();
+function TradeRoute() {
+  const { instrument } = Route.useLoaderData();
+  // Keyed by symbol so switching instruments resets the order form.
+  return <TradePage key={instrument.symbol} initial={instrument} />;
+}
+
+function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
+  const brand = useLiveInstrument(initial);
   const { t, lang } = useI18n();
   const confirm = useConfirm();
-  const candles = generateCandles(brand.slug, 200, brand.price);
-  const { bids, asks } = generateOrderBook(brand.price, brand.slug);
+  const mark = markOf(brand);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
-  const [price, setPrice] = useState(brand.price.toFixed(2));
+  const [price, setPrice] = useState(mark.price.toFixed(2));
   const [qty, setQty] = useState("100");
   const [q, setQ] = useState("");
-  const up = brand.change24h >= 0;
 
   const qc = useQueryClient();
   const { isTrader, isLoading: rolesLoading } = useMyRoles();
@@ -128,11 +97,8 @@ function TradePage() {
   const qtyError = validateQty(qty);
   const priceError = orderType === "limit" ? validatePrice(price) : null;
   const orderInvalid = !!qtyError || !!priceError;
-  // Today's allowed limit-price range (±20% of the previous close), on the tick.
-  const refCents = bandReference ? Math.round(bandReference * 100) : 0;
-  const band = refCents > 0
-    ? { low: Math.ceil((refCents * 80) / 100) / 100, high: Math.floor((refCents * 120) / 100) / 100 }
-    : null;
+  // Today's allowed limit-price range, as the engine enforces it (on the tick).
+  const band = { low: brand.bandLow, high: brand.bandHigh };
 
   // Real buying power: the signed-in investor's cash. A missing portfolio
   // row means the account has not been funded yet, i.e. 0.
@@ -145,16 +111,9 @@ function TradePage() {
   });
   const cashBalance = Number(portfolioQuery.data?.portfolio?.cash_balance ?? 0);
 
-  // Live venue state: the aggregated book and the trader's resting orders come
-  // from the matching engine; mock depth is only a fallback for empty books.
-  const bookFn = useServerFn(getBook);
+  // The trader's own resting orders on this instrument.
   const openOrdersFn = useServerFn(getMyOpenOrders);
   const cancelOrderFn = useServerFn(cancelOrder);
-  const bookQuery = useQuery({
-    queryKey: ["book", brand.symbol],
-    queryFn: () => bookFn({ data: { symbol: brand.symbol } }),
-    refetchInterval: 10_000,
-  });
   const openOrdersQuery = useQuery({
     queryKey: ["open-orders"],
     queryFn: () => openOrdersFn({ data: undefined as never }),
@@ -162,21 +121,22 @@ function TradePage() {
     refetchInterval: 15_000,
   });
   const myOpenOrders = (openOrdersQuery.data ?? []).filter((o) => o.symbol === brand.symbol);
+  const refreshMarket = () => {
+    qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
+    qc.invalidateQueries({ queryKey: ["recent-trades", brand.symbol] });
+    qc.invalidateQueries({ queryKey: ["candles", brand.symbol] });
+    qc.invalidateQueries({ queryKey: ["public-instrument", brand.symbol] });
+  };
   const cancelMutation = useMutation({
     mutationFn: (orderId: string) => cancelOrderFn({ data: { orderId } }),
     onSuccess: () => {
       toast.success(t("orderCancelled"));
       qc.invalidateQueries({ queryKey: ["open-orders"] });
-      qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
       qc.invalidateQueries({ queryKey: ["portfolio"] });
+      refreshMarket();
     },
     onError: (e: unknown) => toast.error(errorMessage(e, undefined, "orderFailed")),
   });
-  const liveBids = bookQuery.data?.bids ?? [];
-  const liveAsks = bookQuery.data?.asks ?? [];
-  const bookBids = liveBids.length > 0 || liveAsks.length > 0 ? liveBids : bids;
-  const bookAsks = liveBids.length > 0 || liveAsks.length > 0 ? liveAsks : asks;
-  const lastPrice = bookQuery.data?.lastPrice ?? brand.price;
   const placeOrderFn = useServerFn(placeOrder);
   const createAlertFn = useServerFn(createPriceAlert);
   const orderMutation = useMutation({
@@ -193,7 +153,7 @@ function TradePage() {
       else toast.success(o.message);
       qc.invalidateQueries({ queryKey: ["portfolio"] });
       qc.invalidateQueries({ queryKey: ["open-orders"] });
-      qc.invalidateQueries({ queryKey: ["book", brand.symbol] });
+      refreshMarket();
     },
     onError: (e: unknown) => {
       const msg = errorMessage(e, undefined, "orderFailed");
@@ -203,116 +163,99 @@ function TradePage() {
   });
   const alertMutation = useMutation({
     mutationFn: (direction: "above" | "below") => createAlertFn({ data: {
-      symbol: brand.symbol, direction, targetPrice: Number(price) || brand.price,
+      symbol: brand.symbol, direction, targetPrice: Number(price) || mark.price,
     } }),
     onSuccess: () => toast.success(t("createAlert")),
     onError: (e: unknown) => toast.error(errorMessage(e, undefined, "orderFailed")),
   });
 
-  const filteredWL = BRANDS.filter((b) => !q || b.symbol.toLowerCase().includes(q.toLowerCase())).slice(0, 20);
+  // Watchlist: the published instruments from the database.
+  const market = useMarketOverview();
+  const needle = q.trim().toLowerCase();
+  const filteredWL = (market.data?.instruments ?? [])
+    .filter((b) => !needle || b.symbol.toLowerCase().includes(needle) || b.nameEn.toLowerCase().includes(needle) || b.nameAr.includes(q.trim()))
+    .slice(0, 50);
+  const name = instrumentName(brand, lang);
 
   return (
     <AppShell>
       <PageHeader
         eyebrow={brand.symbol}
-        title={`${lang === "ar" ? brand.nameAr : brand.nameEn} · Trade`}
+        title={`${name} · ${t("nav_trade")}`}
         crumbs={[
           { label: t("marketOverview"), to: "/market" },
-          { label: lang === "ar" ? brand.nameAr : brand.nameEn },
-          { label: "Trade" },
+          { label: name, to: `/market/${brand.slug}` },
+          { label: t("nav_trade") },
         ]}
       />
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
         {/* Watchlist */}
         <aside className="rounded-xl border border-border/60 bg-card/60 p-3 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("watchlist")}</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("e2_listedInstruments")}</h3>
           </div>
           <div className="relative mb-2">
             <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground start-2" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} className="w-full rounded-md border border-border bg-background px-8 py-1.5 text-xs focus:border-primary/50 focus:outline-none" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("e2_searchInstruments")} aria-label={t("e2_searchInstruments")} className="w-full rounded-md border border-border bg-background px-8 py-1.5 text-xs focus:border-primary/50 focus:outline-none" />
           </div>
           <div className="max-h-[calc(100dvh-14rem)] space-y-0.5 overflow-y-auto pe-1">
-            {filteredWL.map((b) => (
-              <Link
-                key={b.id}
-                to="/trade/$symbol"
-                params={{ symbol: b.slug }}
-                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-2 py-1.5 text-xs transition ${b.id === brand.id ? "bg-primary/10 text-primary" : "text-foreground/80 hover:bg-secondary/40"}`}
-              >
-                <div className="min-w-0">
-                  <div className="font-mono font-semibold">{b.symbol}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">{lang === "ar" ? b.nameAr : b.nameEn}</div>
-                </div>
-                <div className={`font-mono ${b.change24h >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct(b.change24h)}</div>
-              </Link>
-            ))}
+            {market.isLoading ? (
+              <LuxurySkeleton lines={6} className="px-2 py-2" />
+            ) : !market.data ? (
+              <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+            ) : filteredWL.length === 0 ? (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">{t("emptyTitle")}</p>
+            ) : (
+              filteredWL.map((b) => (
+                <Link
+                  key={b.symbol}
+                  to="/trade/$symbol"
+                  params={{ symbol: b.slug }}
+                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded px-2 py-1.5 text-xs transition ${b.symbol === brand.symbol ? "bg-primary/10 text-primary" : "text-foreground/80 hover:bg-secondary/40"}`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-mono font-semibold">{b.symbol}</div>
+                    <div className="truncate text-[10px] text-muted-foreground">{instrumentName(b, lang)}</div>
+                  </div>
+                  <ChangeText pct={b.change24hPct} />
+                </Link>
+              ))
+            )}
           </div>
         </aside>
 
         {/* Chart center */}
-        <section className="rounded-xl border border-border/60 bg-card/60 p-4">
-          <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-xs font-bold text-ivory" style={{ background: brand.color }}>{brand.symbol.slice(0,3)}</div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-semibold text-foreground">{lang === "ar" ? brand.nameAr : brand.nameEn}</span>
-                  {brand.shariah === "halal" && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--bull)]" />}
+        <div className="min-w-0 space-y-4">
+          <section className="rounded-xl border border-border/60 bg-card/60 p-4">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <Monogram symbol={brand.symbol} className="h-11 w-11 text-xs" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-semibold text-foreground">{name}</span>
+                    <ShariahPill status={brand.shariahStatus} compact />
+                  </div>
+                  <div className="text-[10px] uppercase text-muted-foreground">{brand.symbol}</div>
                 </div>
-                <div className="text-[10px] uppercase text-muted-foreground">{brand.symbol}</div>
+              </div>
+              <div className="text-end">
+                <div className="font-mono text-xl font-bold text-foreground">{formatPrice(mark.price)}</div>
+                <div className="text-[10px] text-muted-foreground">{mark.isReference ? t("e2_referencePriceNoTrades") : t("lastPrice")}</div>
+                <ChangeText pct={brand.change24hPct} className="text-xs" />
               </div>
             </div>
-            <div className="text-end">
-              <div className="font-mono text-xl font-bold text-foreground">{brand.price.toFixed(2)}</div>
-              <div className={`font-mono text-xs ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct(brand.change24h)}</div>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-border/40 pt-3 text-xs">
+              <MiniStat label={t("e2_dayOpen")} v={brand.dayOpen != null ? formatPrice(brand.dayOpen) : "—"} />
+              <MiniStat label={t("e2_dayHigh")} v={brand.dayHigh != null ? formatPrice(brand.dayHigh) : "—"} />
+              <MiniStat label={t("e2_dayLow")} v={brand.dayLow != null ? formatPrice(brand.dayLow) : "—"} />
+              <MiniStat label={t("e2_volumeUnits24h")} v={formatInt(brand.volume24hUnits)} />
+              <MiniStat label={t("e2_value24h")} v={formatCurrency(brand.volume24hValue, true, lang)} />
+              <MiniStat label={t("referencePrice")} v={formatPrice(brand.referencePrice)} />
             </div>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-3 border-b border-border/40 pb-3 text-xs">
-            {brand.assetClass === "sukuk" ? (
-              <>
-                <MiniStat label={t("coupon")} v={`${brand.couponPct?.toFixed(2)}%`} />
-                <MiniStat label={t("ytm")} v={`${brand.ytmPct?.toFixed(2)}%`} />
-                <MiniStat label={t("maturity")} v={brand.maturity ?? "—"} />
-                <MiniStat label={t("tenor")} v={`${brand.tenorYears} ${t("years")}`} />
-                <MiniStat label={t("issuer")} v={brand.issuer ?? "—"} />
-              </>
-            ) : (
-              <>
-                <MiniStat label={t("open")} v={(brand.price * 0.995).toFixed(2)} />
-                <MiniStat label={t("high")} v={(brand.price * 1.03).toFixed(2)} />
-                <MiniStat label={t("low")} v={(brand.price * 0.96).toFixed(2)} />
-                <MiniStat label={t("volume24h")} v={formatInt(brand.volume24h, true)} />
-                <MiniStat label={t("marketCap")} v={formatCurrency(brand.marketCap, true, lang)} />
-                {brand.assetClass === "stock" && (
-                  <>
-                    <MiniStat label={t("pe")} v={brand.pe?.toFixed(1) ?? "—"} />
-                    <MiniStat label={t("divYield")} v={brand.divYield ? `${brand.divYield}%` : "—"} />
-                    <MiniStat label={t("exchange")} v={brand.exchange ?? "—"} />
-                  </>
-                )}
-              </>
-            )}
-          </div>
-          <CandlestickChart candles={candles} height={460} />
-
-          {/* Recent trades */}
-          <div className="mt-4 rounded-lg border border-border/40">
-            <div className="border-b border-border/40 px-3 py-2 text-xs font-semibold text-foreground">{t("recentTrades")}</div>
-            <div className="grid grid-cols-3 gap-2 px-3 py-1.5 text-[10px] uppercase text-muted-foreground">
-              <div>{t("price")}</div><div className="text-end">{t("qty")}</div><div className="text-end">Time</div>
-            </div>
-            <div className="max-h-40 overflow-y-auto">
-              {candles.slice(-14).reverse().map((c, i) => (
-                <div key={i} className="grid grid-cols-3 gap-2 px-3 py-1 font-mono text-xs">
-                  <div className={c.close >= c.open ? "text-[var(--bull)]" : "text-[var(--bear)]"}>{c.close.toFixed(2)}</div>
-                  <div className="text-end text-foreground/80">{formatInt(c.volume)}</div>
-                  <div className="text-end text-muted-foreground">{new Date(c.time * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+          <ChartPanel symbol={brand.symbol} height={460} />
+          <RecentTradesPanel symbol={brand.symbol} />
+        </div>
 
         {/* Order panel */}
         <aside className="space-y-4">
@@ -390,7 +333,7 @@ function TradePage() {
                 <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-1">
                   <dt className="text-ink-soft">{t("total")}</dt>
                   <dd className="num font-semibold text-ink">
-                    {((orderType === "limit" ? Number(price) : brand.price) * Number(qty) || 0).toFixed(2)}
+                    {((orderType === "limit" ? Number(price) : mark.price) * Number(qty) || 0).toFixed(2)}
                   </dd>
                 </div>
               </dl>
@@ -401,7 +344,7 @@ function TradePage() {
                 title={!isTrader ? (signedIn === false ? t("signInToTrade") : t("traderRequired")) : undefined}
                 onClick={async () => {
                   if (orderInvalid) return;
-                  const unit = orderType === "limit" ? Number(price) : brand.price;
+                  const unit = orderType === "limit" ? Number(price) : mark.price;
                   const ok = await confirm({
                     title: t("confirmOrderTitle"),
                     description: `${side === "buy" ? t("buy") : t("sell")} ${qty} ${brand.symbol} @ ${
@@ -443,54 +386,8 @@ function TradePage() {
             </div>
           </div>
 
-          {/* Compact order book */}
-          {brand.assetClass === "sukuk" ? (
-            <div className="rounded-xl border border-border/60 bg-card/60 p-3">
-              <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                {t("bid")} / {t("ask")} · {t("ytm")}
-              </h3>
-              <div className="grid grid-cols-3 gap-2 border-b border-border/40 pb-1.5 text-[10px] uppercase text-muted-foreground">
-                <div>{t("bid")}</div>
-                <div className="text-center">{t("ask")}</div>
-                <div className="text-end">{t("ytm")}</div>
-              </div>
-              <div className="mt-1 space-y-0.5 font-mono text-[11px]">
-                {Array.from({ length: 6 }).map((_, i) => {
-                  const b = brand.price - (i + 1) * 0.05;
-                  const a = brand.price + (i + 1) * 0.05;
-                  const y = (brand.ytmPct ?? 5) + i * 0.02;
-                  return (
-                    <div key={i} className="grid grid-cols-3 gap-2 rounded px-1 py-0.5">
-                      <div className="text-[var(--bull)]">{b.toFixed(2)}</div>
-                      <div className="text-center text-[var(--bear)]">{a.toFixed(2)}</div>
-                      <div className="text-end text-foreground/80">{y.toFixed(2)}%</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-          <div className="rounded-xl border border-border/60 bg-card/60 p-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("orderBook")}</h3>
-            <div className="space-y-0.5 font-mono text-[11px]">
-              {bookAsks.slice(0, 6).reverse().map((r, i) => (
-                <div key={"a" + i} className="relative grid grid-cols-2 gap-2 rounded px-1 py-0.5">
-                  <div className="absolute inset-y-0 end-0 bg-[var(--bear)]/10" style={{ width: `${Math.min(100, r.qty / 10)}%` }} />
-                  <div className="relative text-[var(--bear)]">{r.price.toFixed(2)}</div>
-                  <div className="relative text-end text-foreground/80">{r.qty}</div>
-                </div>
-              ))}
-              <div className="my-1 rounded bg-secondary/40 px-1 py-1 text-center text-sm font-bold text-primary">{lastPrice.toFixed(2)}</div>
-              {bookBids.slice(0, 6).map((r, i) => (
-                <div key={"b" + i} className="relative grid grid-cols-2 gap-2 rounded px-1 py-0.5">
-                  <div className="absolute inset-y-0 end-0 bg-[var(--bull)]/10" style={{ width: `${Math.min(100, r.qty / 10)}%` }} />
-                  <div className="relative text-[var(--bull)]">{r.price.toFixed(2)}</div>
-                  <div className="relative text-end text-foreground/80">{r.qty}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
+          {/* Aggregated book: price levels only */}
+          <OrderBookPanel symbol={brand.symbol} levels={6} showTotal={false} />
 
           {/* Resting orders in the book */}
           <div className="rounded-xl border border-border/60 bg-card/60 p-3">

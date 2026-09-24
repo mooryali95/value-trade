@@ -164,6 +164,7 @@ function arSections(): LegalSection[] {
     },
     {
       id: "contact",
+      contactKinds: ["contact", "privacy", "complaints", "security"],
       heading: "التواصل",
       body: <LegalContacts />,
     },
@@ -285,6 +286,7 @@ function enSections(): LegalSection[] {
     },
     {
       id: "contact",
+      contactKinds: ["contact", "privacy", "complaints", "security"],
       heading: "Contact",
       body: <LegalContacts />,
     },

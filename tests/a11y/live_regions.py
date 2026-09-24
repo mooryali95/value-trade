@@ -16,7 +16,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL  # noqa: E402
+from pages import BASE_URL, launch_options  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -33,6 +33,9 @@ async def open_docs(page, base):
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector("[data-testid=table-filter]")
     for _ in range(40):
+        # Clear first: a value typed before hydration stays in the DOM, and
+        # re-filling the same value fires no change once React is attached.
+        await page.locator("#demo-qty").fill("")
         await page.locator("#demo-qty").fill("11")
         await page.wait_for_timeout(250)
         if "312" in (await page.get_by_test_id("order-summary").inner_text()):
@@ -127,7 +130,7 @@ async def test_table_filter_and_sort_announced(page, base):
 async def main():
     base = os.environ.get("A11Y_BASE_URL", BASE_URL)
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         context = await browser.new_context(viewport={"width": 1280, "height": 1800})
         page = await context.new_page()
         for test in (

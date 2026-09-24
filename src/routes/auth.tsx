@@ -17,7 +17,7 @@ export const Route = createFileRoute("/auth")({
       { title: "دخول — وحدة القيمة | Sign in — Value Unit" },
       {
         name: "description",
-        content: "دخول أو إنشاء حساب في منصة وحدة القيمة. · Sign in to the Value Unit exchange.",
+        content: "دخول أو إنشاء حساب في منصة وحدة القيمة. · Sign in to Value Unit.",
       },
       { property: "og:title", content: "Sign in — Value Unit" },
       { property: "og:description", content: "Access your Value Unit trading account." },

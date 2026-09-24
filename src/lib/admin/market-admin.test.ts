@@ -9,25 +9,37 @@ const state = {
   adminRpc: { data: null as unknown, error: null as null | { message: string; code?: string } },
   userRows: {} as Record<string, unknown[]>,
   adminRows: {} as Record<string, unknown[]>,
+  userErrors: {} as Record<string, { code: string; message: string }>,
 };
-const adminCalls: { rpc: { name: string; args: Record<string, unknown> }[]; tables: string[]; writes: string[] } = {
+type Write = { op: string; table: string; payload: unknown };
+const adminCalls: { rpc: { name: string; args: Record<string, unknown> }[]; tables: string[]; writes: string[]; payloads: Write[] } = {
   rpc: [],
   tables: [],
   writes: [],
+  payloads: [],
 };
+const userCalls: { writes: string[]; payloads: Write[] } = { writes: [], payloads: [] };
 
-function query(rows: unknown[], writes?: string[], table?: string) {
+function query(
+  rows: unknown[],
+  writes?: string[],
+  table?: string,
+  payloads?: Write[],
+  error: { code: string; message: string } | null = null,
+) {
   const q: Record<string, unknown> = {};
   for (const m of ["select", "eq", "in", "is", "order", "limit", "range", "or"]) q[m] = () => q;
   for (const m of ["insert", "update", "upsert", "delete"]) {
-    q[m] = () => {
+    q[m] = (payload?: unknown) => {
       writes?.push(`${m}:${table}`);
+      payloads?.push({ op: m, table: table ?? "", payload });
       return q;
     };
   }
-  q.maybeSingle = async () => ({ data: rows[0] ?? null, error: null });
-  q.single = async () => ({ data: rows[0] ?? null, error: null });
-  q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) => Promise.resolve(resolve({ data: rows, error: null }));
+  q.maybeSingle = async () => ({ data: rows[0] ?? null, error });
+  q.single = async () => ({ data: rows[0] ?? null, error });
+  q.then = (resolve: (v: { data: unknown[] | null; error: unknown }) => unknown) =>
+    Promise.resolve(resolve({ data: error ? null : rows, error }));
   return q;
 }
 
@@ -36,7 +48,8 @@ const supabaseMock = {
     if (name === "has_role") return { data: args._role === "platform_admin" ? state.isAdmin : state.isReviewer, error: null };
     throw new Error(`unexpected user rpc ${name}`);
   }),
-  from: (table: string) => query(state.userRows[table] ?? []),
+  from: (table: string) =>
+    query(state.userRows[table] ?? [], userCalls.writes, table, userCalls.payloads, state.userErrors[table] ?? null),
 };
 
 const supabaseAdmin = {
@@ -46,7 +59,7 @@ const supabaseAdmin = {
   }),
   from: (table: string) => {
     adminCalls.tables.push(table);
-    return query(state.adminRows[table] ?? [], adminCalls.writes, table);
+    return query(state.adminRows[table] ?? [], adminCalls.writes, table, adminCalls.payloads);
   },
   auth: { admin: { getUserById: async (id: string) => ({ data: { user: { id } }, error: null }) } },
 };
@@ -76,8 +89,16 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 import { setTraderRole } from "./investors.functions";
-import { issueUnits, parseIssueUnitsInput, parseReferencePriceInput, setReferencePrice } from "./listing.functions";
-import { listPendingSubmissions, parseSubmitInput } from "@/lib/submissions/submissions.functions";
+import {
+  issueUnits,
+  parseIssueUnitsInput,
+  parseReferencePriceInput,
+  setInstrumentPublished,
+  setReferencePrice,
+} from "./listing.functions";
+import { listPendingSubmissions, parseSubmitInput, reviewSubmission } from "@/lib/submissions/submissions.functions";
+import { listShariahDecisions } from "@/lib/trading/shariah.functions";
+import { writeAudit } from "@/lib/audit/audit.server";
 import { listMyInvitations } from "@/lib/tenants/invitations.functions";
 
 const USER = "3f1d6a5e-2b1c-4c8e-9a47-0c2f5d8e1b7a";
@@ -89,9 +110,14 @@ beforeEach(() => {
   state.adminRpc = { data: null, error: null };
   state.userRows = {};
   state.adminRows = {};
+  state.userErrors = {};
   adminCalls.rpc.length = 0;
   adminCalls.tables.length = 0;
   adminCalls.writes.length = 0;
+  adminCalls.payloads.length = 0;
+  userCalls.writes.length = 0;
+  userCalls.payloads.length = 0;
+  vi.mocked(writeAudit).mockClear();
 });
 
 describe("setTraderRole", () => {
@@ -184,5 +210,73 @@ describe("queues that cross company boundaries", () => {
     expect(parseSubmitInput(base).symbol).toBe("ACM");
     expect(() => parseSubmitInput({ ...base, symbol: "AC M" })).toThrow(/^INVALID_SYMBOL$/);
     expect(() => parseSubmitInput({ ...base, name_en: "" })).toThrow(/^INVALID_INPUT$/);
+  });
+});
+
+describe("listing truth: approval, publishing, rulings", () => {
+  const SUB_ID = "7a1d6a5e-2b1c-4c8e-9a47-0c2f5d8e1b7a";
+  const pendingSubmission = {
+    id: SUB_ID,
+    company_id: "co-1",
+    asset_class: "brand",
+    symbol: "acm",
+    name_ar: "أكمي",
+    name_en: "Acme",
+    sector: "retail",
+    status: "pending",
+  };
+
+  it("approval creates the instrument off the market with no reference price and records the reviewer's ruling", async () => {
+    state.userRows.product_submissions = [pendingSubmission];
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).resolves.toEqual({ ok: true });
+    const brandInsert = adminCalls.payloads.find((w) => w.op === "insert" && w.table === "brands");
+    expect(brandInsert?.payload).toMatchObject({ symbol: "ACM", published: false, reference_price: 0, source_submission_id: SUB_ID });
+    // The ruling is written with the reviewer's own session (stamped reviewer).
+    expect(userCalls.payloads).toContainEqual({ op: "insert", table: "shariah_decisions", payload: { symbol: "ACM", status: "halal", reason: null } });
+    expect(adminCalls.writes).not.toContain("insert:shariah_decisions");
+  });
+
+  it("approval of an existing company instrument never changes its listing state or price", async () => {
+    state.userRows.product_submissions = [pendingSubmission];
+    state.adminRows.brands = [{ id: "b-1", company_id: "co-1" }];
+    await call(reviewSubmission, { submissionId: SUB_ID, status: "approved" });
+    const update = adminCalls.payloads.find((w) => w.op === "update" && w.table === "brands");
+    expect(update?.payload).toBeDefined();
+    expect(update?.payload).not.toHaveProperty("published");
+    expect(update?.payload).not.toHaveProperty("reference_price");
+  });
+
+  it("a rejection writes no instrument and no ruling", async () => {
+    state.userRows.product_submissions = [pendingSubmission];
+    await call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "Documents are incomplete." });
+    expect(adminCalls.writes.filter((w) => w.endsWith(":brands"))).toEqual([]);
+    expect(userCalls.writes).not.toContain("insert:shariah_decisions");
+  });
+
+  it("publishing is audited by the database function, not by a second best-effort write", async () => {
+    state.adminRpc = {
+      data: [{ brand_id: "b-1", company_id: null, symbol: "ACM", published: true, changed: true, cancelled_orders: 0 }],
+      error: null,
+    };
+    await expect(call(setInstrumentPublished, { symbol: "acm", published: true })).resolves.toEqual({
+      symbol: "ACM",
+      published: true,
+      changed: true,
+      cancelledOrders: 0,
+    });
+    expect(writeAudit).not.toHaveBeenCalled();
+    state.adminRpc = { data: null, error: { message: "SHARIAH_RULING_REQUIRED" } };
+    await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^SHARIAH_RULING_REQUIRED$/);
+  });
+
+  it("the rulings console is for Shariah reviewers and platform admins, and reports database errors", async () => {
+    state.isReviewer = false;
+    state.isAdmin = false;
+    await expect(call(listShariahDecisions)).rejects.toThrow(/^FORBIDDEN$/);
+    state.isAdmin = true;
+    state.userRows.shariah_decisions = [{ id: "d-1", symbol: "ACM", status: "halal" }];
+    await expect(call(listShariahDecisions)).resolves.toHaveLength(1);
+    state.userErrors.shariah_decisions = { code: "57014", message: "canceling statement due to statement timeout" };
+    await expect(call(listShariahDecisions)).rejects.toThrow(/^INTERNAL_ERROR$/);
   });
 });

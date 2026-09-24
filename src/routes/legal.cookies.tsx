@@ -28,14 +28,27 @@ const linkCls = "font-medium text-[var(--gold-deep)] underline underline-offset-
 type Item = { key: string; ar: [string, string, string]; en: [string, string, string] };
 const ITEMS: Item[] = [
   {
+    key: "vu_lang",
+    ar: [
+      "ملف ارتباط من الطرف الأول يتذكّر لغة الواجهة التي اخترتها، كي يعرض الخادم الصفحات بها مباشرة. لا يُستخدم للتتبع.",
+      "وظيفي",
+      "سنة واحدة",
+    ],
+    en: [
+      "First-party cookie that remembers the interface language you chose, so the server renders pages in it. Not used for tracking.",
+      "Functional",
+      "1 year",
+    ],
+  },
+  {
     key: "sb-…-auth-token",
     ar: ["يُبقيك مسجّلًا للدخول (جلسة المصادقة). يُحفظ فقط بعد تسجيل الدخول.", "ضروري", "حتى تسجيل الخروج أو انتهاء الجلسة"],
     en: ["Keeps you signed in (authentication session). Stored only after you sign in.", "Strictly necessary", "Until you sign out or the session expires"],
   },
   {
     key: "qeema:lang",
-    ar: ["يتذكّر لغة الواجهة التي اخترتها.", "وظيفي", "حتى تمسحه من المتصفح"],
-    en: ["Remembers the interface language you chose.", "Functional", "Until you clear it"],
+    ar: ["نسخة قديمة من اختيار اللغة في التخزين المحلي، لا تُقرأ إلا عند غياب ملف الارتباط vu_lang.", "وظيفي", "حتى تمسحه من المتصفح"],
+    en: ["Older copy of the language choice in local storage, read only when the vu_lang cookie is missing.", "Functional", "Until you clear it"],
   },
   {
     key: "cookie-notice:v1",
@@ -129,8 +142,8 @@ function arSections(): LegalSection[] {
       body: (
         <>
           <p>
-            تحفظ المنصة العناصر التالية في التخزين المحلي للمتصفح (Local Storage)، ولا تُرسَل إلى أي طرف ثالث لأغراض إعلانية أو
-            تحليلية:
+            تحفظ المنصة العناصر التالية في متصفحك: ملف ارتباط واحد من الطرف الأول (vu_lang) وعناصر في التخزين المحلي (Local
+            Storage)، ولا يُرسَل أيٌّ منها إلى أي طرف ثالث لأغراض إعلانية أو تحليلية:
           </p>
           <StorageTable lang="ar" />
         </>
@@ -141,7 +154,8 @@ function arSections(): LegalSection[] {
       heading: "ملفات الارتباط",
       body: (
         <p>
-          لا يضع تطبيق المنصة نفسه أي ملف ارتباط. قد تضع البنية التحتية للاستضافة والحماية ملفات ارتباط ضرورية لحماية الخدمة من
+          ملف الارتباط الوحيد الذي يضعه تطبيق المنصة نفسه هو vu_lang، وهو ملف وظيفي من الطرف الأول يتذكّر لغة الواجهة (انظر
+          الجدول أعلاه) ولا يُستخدم للتتبع. قد تضع البنية التحتية للاستضافة والحماية ملفات ارتباط ضرورية لحماية الخدمة من
           الاستخدام الآلي المسيء، ولا تُستخدم هذه الملفات للإعلان أو لبناء ملفات تعريفية عنك.
         </p>
       ),
@@ -189,8 +203,8 @@ function enSections(): LegalSection[] {
       body: (
         <>
           <p>
-            The Platform keeps the following items in your browser's local storage. None of them is sent to a third party for
-            advertising or analytics:
+            The Platform keeps the following items in your browser: one first-party cookie (vu_lang) and a few local storage
+            entries. None of them is sent to a third party for advertising or analytics:
           </p>
           <StorageTable lang="en" />
         </>
@@ -201,8 +215,10 @@ function enSections(): LegalSection[] {
       heading: "Cookies",
       body: (
         <p>
-          The Platform application itself sets no cookies. Our hosting and security infrastructure may set strictly necessary
-          cookies to protect the service against automated abuse; they are not used for advertising or to build a profile of you.
+          The only cookie the Platform application itself sets is vu_lang, a first-party functional cookie that remembers your
+          interface language (see the table above); it is not used for tracking. Our hosting and security infrastructure may set
+          strictly necessary cookies to protect the service against automated abuse; they are not used for advertising or to
+          build a profile of you.
         </p>
       ),
     },

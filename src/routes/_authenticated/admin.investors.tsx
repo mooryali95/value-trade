@@ -24,7 +24,13 @@ import {
   type InvestorSummary,
 } from "@/lib/admin/investors.functions";
 import { adjustCash } from "@/lib/trading/cash.functions";
-import { issueUnits, setReferencePrice } from "@/lib/admin/listing.functions";
+import {
+  issueUnits,
+  listAdminInstruments,
+  setInstrumentPublished,
+  setReferencePrice,
+  type AdminInstrument,
+} from "@/lib/admin/listing.functions";
 import { validatePrice, validateQty } from "@/components/order-outcome";
 
 export const Route = createFileRoute("/_authenticated/admin/investors")({
@@ -104,10 +110,10 @@ function AdminInvestorsPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
+        eyebrow={t("navGroupAdmin")}
         title={t("nav_investors")}
         description={t("investorsDesc")}
-        crumbs={[{ label: "Admin", to: "/admin/companies" }, { label: t("nav_investors") }]}
+        crumbs={[{ label: t("navGroupAdmin"), to: "/admin/companies" }, { label: t("nav_investors") }]}
       />
 
       <form
@@ -174,6 +180,7 @@ function AdminInvestorsPage() {
       )}
 
       {!rolesLoading && isAdmin && <ReferencePriceCard />}
+      {!rolesLoading && isAdmin && <InstrumentListingCard />}
     </AppShell>
   );
 }
@@ -191,9 +198,12 @@ function ReferencePriceCard() {
   const symbolValid = SYMBOL_RE.test(symbol.trim());
   const priceError = validatePrice(price);
 
+  const qc = useQueryClient();
   const mut = useMutation({
     mutationFn: (v: { symbol: string; price: number }) => setRefFn({ data: v }),
     onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["admin-instruments"] });
+      qc.invalidateQueries({ queryKey: ["market-overview"] });
       const msg = t("referencePriceSet")
         .replace("{symbol}", res.symbol)
         .replace("{price}", formatCurrency(res.referencePrice, false, lang));
@@ -271,6 +281,174 @@ function ReferencePriceCard() {
       </form>
       {touched && (!symbolValid || priceError) && (
         <p className="mt-2 text-xs text-[var(--bear)]">{!symbolValid ? t("symbolInvalid") : t(priceError!)}</p>
+      )}
+    </section>
+  );
+}
+
+type ListingFilter = "all" | "published" | "unpublished";
+
+/**
+ * Publish / unpublish instruments. Only published instruments appear on the
+ * public market and accept orders; unpublishing closes the instrument's
+ * resting orders (holders keep their units). Publishing needs a positive
+ * reference price.
+ */
+function InstrumentListingCard() {
+  const { t, lang } = useI18n();
+  const confirm = useConfirm();
+  const errorMessage = useErrorMessage();
+  const qc = useQueryClient();
+  const listFn = useServerFn(listAdminInstruments);
+  const publishFn = useServerFn(setInstrumentPublished);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<ListingFilter>("all");
+  const [announcement, setAnnouncement] = useState("");
+  const list = useQuery({ queryKey: ["admin-instruments"], queryFn: () => listFn() });
+
+  const mut = useMutation({
+    mutationFn: (v: { symbol: string; published: boolean }) => publishFn({ data: v }),
+    onSuccess: (res) => {
+      const msg = (res.published ? t("e2_publishedToast") : t("e2_unpublishedToast"))
+        .replace("{symbol}", res.symbol)
+        .replace("{n}", String(res.cancelledOrders));
+      toast.success(msg);
+      setAnnouncement(msg);
+      qc.invalidateQueries({ queryKey: ["admin-instruments"] });
+      qc.invalidateQueries({ queryKey: ["market-overview"] });
+      qc.invalidateQueries({ queryKey: ["book"] });
+    },
+    onError: (e: unknown) => {
+      const msg = errorMessage(e, { INVALID_PRICE: "e2_publishNeedsPrice", SHARIAH_RULING_REQUIRED: "fx_publishNeedsRuling" });
+      toast.error(msg);
+      setAnnouncement(msg);
+    },
+  });
+
+  const toggle = async (i: AdminInstrument) => {
+    const publish = !i.published;
+    // No reference price yet (0 = not set): nothing to confirm.
+    if (publish && !(i.referencePrice > 0)) {
+      const msg = t("e2_publishNeedsPrice");
+      toast.error(msg);
+      setAnnouncement(msg);
+      return;
+    }
+    const ok = await confirm({
+      title: publish ? t("e2_publishConfirmTitle") : t("e2_unpublishConfirmTitle"),
+      description: `${i.symbol} — ${lang === "ar" ? i.nameAr : i.nameEn}. ${
+        publish
+          ? t("e2_publishConfirmDesc").replace("{price}", formatCurrency(i.referencePrice, false, lang)) +
+            (i.origin === "demo_seed" ? ` ${t("fx_publishDemoWarning")}` : "")
+          : t("e2_unpublishConfirmDesc")
+      }`,
+      confirmLabel: publish ? t("e2_publish") : t("e2_unpublish"),
+      cancelLabel: t("cancel"),
+      tone: publish ? "default" : "danger",
+    });
+    if (ok) mut.mutate({ symbol: i.symbol, published: publish });
+  };
+
+  const rows = list.data ?? [];
+  const needle = q.trim().toLowerCase();
+  const filtered = rows.filter((i) => {
+    if (filter === "published" && !i.published) return false;
+    if (filter === "unpublished" && i.published) return false;
+    if (!needle) return true;
+    return i.symbol.toLowerCase().includes(needle) || i.nameEn.toLowerCase().includes(needle) || i.nameAr.includes(q.trim());
+  });
+  const shown = filtered.slice(0, 100);
+  const publishedCount = rows.filter((i) => i.published).length;
+  const originLabel = (o: AdminInstrument["origin"]) =>
+    o === "submission" ? t("e2_originSubmission") : o === "company" ? t("e2_originCompany") : t("e2_originDemo");
+
+  return (
+    <section className="mt-6 rounded-xl border border-border/60 bg-card p-4">
+      <LiveRegion message={announcement} />
+      <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t("e2_publishTitle")}</h2>
+      <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{t("e2_publishDesc")}</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("e2_searchInstruments")}
+          aria-label={t("e2_searchInstruments")}
+          className="min-w-[200px] flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs outline-none focus:border-[var(--gold-deep)]"
+        />
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as ListingFilter)}
+          aria-label={t("filterStatus")}
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+        >
+          <option value="all">{t("filterAll")}</option>
+          <option value="published">{t("e2_published")}</option>
+          <option value="unpublished">{t("e2_unpublished")}</option>
+        </select>
+        {list.data && (
+          <span className="text-[11px] text-muted-foreground">
+            {t("e2_publishedCount").replace("{n}", String(publishedCount)).replace("{total}", String(rows.length))}
+          </span>
+        )}
+      </div>
+      {list.isLoading ? (
+        <LuxurySkeleton lines={5} />
+      ) : list.isError ? (
+        <ErrorState description={errorMessage(list.error)} reset={() => list.refetch()} />
+      ) : rows.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{t("e2_noInstrumentsAdmin")}</p>
+      ) : filtered.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{t("emptyTitle")}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 text-start font-semibold">{t("e2_colInstrument")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("e2_origin")}</th>
+                <th className="px-3 py-2 text-end font-semibold">{t("referencePrice")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("filterStatus")}</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((i) => (
+                <tr key={i.symbol} className="border-b border-border/40 last:border-0">
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs font-semibold text-ink">{i.symbol}</div>
+                    <div className="max-w-[260px] truncate text-[11px] text-muted-foreground">{lang === "ar" ? i.nameAr : i.nameEn}</div>
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-ink-soft">{originLabel(i.origin)}</td>
+                  <td className="px-3 py-2 text-end font-mono text-xs" dir="ltr">
+                    {i.referencePrice > 0 ? formatCurrency(i.referencePrice, false, lang) : "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge variant={i.published ? "bull" : "neutral"}>{i.published ? t("e2_published") : t("e2_unpublished")}</Badge>
+                  </td>
+                  <td className="px-3 py-2 text-end">
+                    <button
+                      type="button"
+                      onClick={() => void toggle(i)}
+                      disabled={mut.isPending}
+                      className={`rounded border px-3 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+                        i.published
+                          ? "border-[var(--bear)]/40 text-[var(--bear)] hover:bg-[var(--bear)]/5"
+                          : "border-[var(--gold-deep)]/40 text-[var(--gold-deep)] hover:bg-[var(--gold-soft)]"
+                      }`}
+                    >
+                      {i.published ? t("e2_unpublish") : t("e2_publish")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length > shown.length && (
+            <p className="px-3 py-2 text-[11px] text-muted-foreground">
+              {t("e2_reviewPoolMore").replace("{n}", String(filtered.length - shown.length))}
+            </p>
+          )}
+        </div>
       )}
     </section>
   );

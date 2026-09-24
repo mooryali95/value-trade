@@ -5,11 +5,28 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { useI18n } from "@/lib/i18n";
-import { BRANDS, MARKET_STATS, getBrand } from "@/lib/mock-data";
-import { formatCurrency, formatPct } from "@/lib/format";
+import { ar } from "@/lib/i18n/ar";
+import { canonicalUrl } from "@/lib/config/site";
+import { formatCurrency, formatInt } from "@/lib/format";
 import { ArrowRight, TrendingUp, ShieldCheck, Building2, LineChart } from "lucide-react";
 import { DotDivider } from "@/components/dot-divider";
 import { DotPattern } from "@/components/dot-pattern";
+import { EmptyState } from "@/components/empty-state";
+import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import {
+  ChangeText,
+  MarketDataError,
+  Monogram,
+  NoListingsState,
+  PriceText,
+  formatDateTime,
+  indexBySymbol,
+  instrumentName,
+  loadOverviewOrNull,
+  markOf,
+  useMarketOverview,
+} from "@/components/market-data";
+import type { PublicInstrument } from "@/lib/market/public-market.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { positionValue, unrealizedPnl } from "@/lib/trading/calc";
@@ -19,47 +36,39 @@ import { BrandDashboard } from "@/components/brand-dashboard";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 
 export const Route = createFileRoute("/")({
+  // The public board is read from the database; a failed read renders the
+  // page with an explicit "market data unavailable" state, never numbers.
+  loader: async () => ({ overview: await loadOverviewOrNull() }),
   head: () => ({
     meta: [
-      { title: "وحدة القيمة — Value Unit | سوق العلامات والصكوك" },
+      { title: "وحدة القيمة — Value Unit | سوق خاص لوحدات العلامات التجارية" },
       {
         name: "description",
         content:
-          "منصة وحدة القيمة لتداول العلامات التجارية والأسهم والصكوك وفق حوكمة شرعية مستقلة. · Shariah-governed exchange for brands, equities and sukuk.",
+          "وحدة القيمة سوق خاص بالدعوة تُدرج فيه الشركات المعتمدة وحدات علاماتها التجارية بعد المراجعة الشرعية. · Value Unit is a private, invitation-only market for brand units.",
       },
       { property: "og:title", content: "وحدة القيمة — Value Unit" },
       {
         property: "og:description",
-        content: "Shariah-governed exchange for brand units, equities and sukuk.",
+        content: "A private, invitation-only market where approved companies list brand units after Shariah review.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://hub.sunkvalue.com/" },
+      { property: "og:url", content: canonicalUrl("/") },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [{ rel: "canonical", href: "https://hub.sunkvalue.com/" }],
+    links: [{ rel: "canonical", href: canonicalUrl("/") }],
     scripts: [
       {
         type: "application/ld+json",
+        // Same questions and answers as the FAQ section (Arabic, the default language).
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "FAQPage",
           mainEntity: [
-            {
-              q: "هل التداول على المنصة متوافق مع الشريعة؟",
-              a: "كل رمز يمرّ بقرار هيئة شرعية مستقلة، وأوامر الشراء على الرموز غير المتوافقة محجوبة على مستوى الخادم.",
-            },
-            {
-              q: "كيف تُحدَّد الأسعار؟",
-              a: "السعر هو آخر تنفيذ فعلي على دفتر الأوامر؛ وقبل أول تنفيذ يُستخدم السعر المرجعي للطرح، مع نطاق سعري ±٢٠٪.",
-            },
-            {
-              q: "كم براندًا تستطيع الشركة إدارته؟",
-              a: "حتى ٣٠ براندًا لكل شركة، ويُطبَّق الحد داخل قاعدة البيانات لا في الواجهة فقط.",
-            },
-            {
-              q: "هل أموالي مفصولة ومسجّلة؟",
-              a: "كل حركة نقدية تُسجَّل في سجل نقد غير قابل للتعديل مع الرصيد بعد الحركة ومرجع الأمر.",
-            },
+            { q: ar.faqQ1, a: ar.faqA1 },
+            { q: ar.faqQ2, a: ar.faqA2 },
+            { q: ar.faqQ3, a: ar.faqA3 },
+            { q: ar.faqQ4, a: ar.faqA4 },
           ].map((item) => ({
             "@type": "Question",
             name: item.q,
@@ -74,10 +83,10 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { t, lang, dir } = useI18n();
+  const { t, dir } = useI18n();
   const { mode } = useAppMode();
-  const gainers = [...BRANDS].sort((a, b) => b.change24h - a.change24h).slice(0, 6);
-  const losers = [...BRANDS].sort((a, b) => a.change24h - b.change24h).slice(0, 6);
+  const { overview: initialOverview } = Route.useLoaderData();
+  const market = useMarketOverview(initialOverview);
 
   if (mode === "brand") {
     return (
@@ -93,6 +102,9 @@ function Index() {
       </AppShell>
     );
   }
+
+  const instruments = market.data?.instruments ?? [];
+  const hasListings = (market.data?.summary.listedCount ?? 0) > 0;
 
   return (
     <AppShell>
@@ -134,7 +146,7 @@ function Index() {
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
               {t("heroSub")}
             </p>
-            <div className={`mt-8 flex flex-wrap gap-3 ${dir === "rtl" ? "" : ""}`}>
+            <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/market"
                 className="group inline-flex items-center gap-2 rounded-md gold-gradient px-5 py-3 text-sm font-semibold text-ink shadow-[0_8px_24px_oklch(0.72_0.11_82/0.28)] transition hover:brightness-105"
@@ -145,28 +157,23 @@ function Index() {
                 />
               </Link>
               <Link
-                to="/workspace"
+                to="/request-access"
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-5 py-3 text-sm font-semibold text-foreground/90 transition hover:border-primary/60 hover:text-[var(--gold-deep)]"
               >
                 {t("ctaSecondary")}
               </Link>
             </div>
 
-            <div className="mt-10 grid grid-cols-3 gap-4 border-t border-border pt-6 text-start">
-              <Stat label={t("activeInstruments")} value={String(MARKET_STATS.activeInstruments)} />
-              <Stat
-                label={t("totalCap")}
-                value={formatCurrency(MARKET_STATS.totalMarketCap, true, lang)}
-              />
-              <Stat
-                label={t("dayVolume")}
-                value={formatCurrency(MARKET_STATS.dayVolume, true, lang)}
-              />
-            </div>
-            <DataAsOf lang={lang} t={t} />
+            <MarketSummaryStrip loading={market.isLoading} summary={market.data?.summary ?? null} />
           </div>
 
-          <HeroTicker />
+          <MarketBoard
+            loading={market.isLoading}
+            failed={!market.data && !market.isLoading}
+            error={market.error}
+            onRetry={() => market.refetch()}
+            instruments={instruments}
+          />
         </div>
       </section>
 
@@ -179,11 +186,8 @@ function Index() {
         <Feature icon={TrendingUp} title={t("featTitle4")} desc={t("featDesc4")} />
       </section>
 
-      {/* MARKET MOVERS */}
-      <section className="mt-14 grid gap-4 lg:grid-cols-2">
-        <MoverCard title={t("topGainers")} rows={gainers} tone="bull" />
-        <MoverCard title={t("topLosers")} rows={losers} tone="bear" />
-      </section>
+      {/* MARKET MOVERS: only instruments with a real 24h change */}
+      {hasListings && <Movers instruments={instruments} />}
 
       {/* HOW IT WORKS */}
       <DotDivider className="mt-16" />
@@ -294,32 +298,48 @@ function Index() {
 }
 
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 font-mono text-lg font-semibold text-foreground md:text-xl">{value}</div>
+      {hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>}
     </div>
   );
 }
 
-function DataAsOf({ lang, t }: { lang: string; t: ReturnType<typeof useI18n>["t"] }) {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-  const time = now
-    ? now.toLocaleTimeString(lang === "ar" ? "ar" : "en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "—";
+/** Real market totals from the database, or an honest state when there are none. */
+function MarketSummaryStrip({
+  loading,
+  summary,
+}: {
+  loading: boolean;
+  summary: { listedCount: number; trades24h: number; volume24hValue: number; lastTradeAt: string | null } | null;
+}) {
+  const { t, lang } = useI18n();
+  if (loading) {
+    return (
+      <div className="mt-10 border-t border-border pt-6">
+        <LuxurySkeleton lines={2} className="max-w-sm" />
+      </div>
+    );
+  }
+  // A failed read is reported once, by the board beside it.
+  if (!summary) return null;
+  // No listing yet: the board beside it shows the "first listings" state.
+  if (summary.listedCount === 0) return null;
   return (
-    <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-      <span className="h-1.5 w-1.5 rounded-full bg-[var(--bull)]" />
-      {t("dataAsOf")} {time}
+    <div className="mt-10 border-t border-border pt-6">
+      <div className="grid grid-cols-3 gap-4 text-start">
+        <Stat label={t("e2_listedInstruments")} value={formatInt(summary.listedCount)} />
+        <Stat label={t("e2_trades24h")} value={formatInt(summary.trades24h)} />
+        <Stat label={t("e2_value24h")} value={formatCurrency(summary.volume24hValue, true, lang)} />
+      </div>
+      <div className="mt-3 text-[11px] text-muted-foreground">
+        {summary.lastTradeAt
+          ? `${t("e2_lastTradeAt")} ${formatDateTime(summary.lastTradeAt, lang)} (${t("e2_riyadhTime")})`
+          : t("e2_noTradesYetMarket")}
+      </div>
     </div>
   );
 }
@@ -347,23 +367,34 @@ function AuthedSummary() {
     enabled: authed === true,
     staleTime: 30_000,
   });
-  if (!authed || !q.data) return null;
+  const market = useMarketOverview(undefined, { enabled: authed === true });
+  if (!authed || !q.data || market.isLoading) return null;
+  const bySymbol = indexBySymbol(market.data?.instruments);
   const cash = Number(q.data.portfolio?.cash_balance ?? 0);
-  let positionsValue = 0;
-  let pnl = 0;
-  for (const p of q.data.positions) {
-    const b = getBrand(p.symbol.toLowerCase());
-    const last = b?.price ?? Number(p.avg_price);
-    positionsValue += positionValue(Number(p.qty), last);
-    pnl += unrealizedPnl(Number(p.qty), Number(p.avg_price), last);
-  }
+  // A position is valued at the last trade (or the listing reference
+  // price); one with no market price (e.g. delisted) is carried at cost
+  // and has no unrealized P/L.
+  const valued = q.data.positions.map((p) => {
+    const inst = bySymbol.get(p.symbol.toUpperCase());
+    const qty = Number(p.qty);
+    const avg = Number(p.avg_price);
+    const m = inst ? markOf(inst) : null;
+    const mark = m ? m.price : avg;
+    return {
+      value: positionValue(qty, mark),
+      pnl: inst ? unrealizedPnl(qty, avg, mark) : 0,
+      source: !m ? ("cost" as const) : m.isReference ? ("reference" as const) : ("trade" as const),
+    };
+  });
+  const positionsValue = valued.reduce((s, v) => s + v.value, 0);
+  const pnl = valued.reduce((s, v) => s + v.pnl, 0);
   const total = cash + positionsValue;
   const openOrders = q.data.orders.filter((o) => isWorkingOrder(o.status)).length;
-  const losingPositions = q.data.positions.filter((p) => {
-    const b = getBrand(p.symbol.toLowerCase());
-    const last = b?.price ?? Number(p.avg_price);
-    return unrealizedPnl(Number(p.qty), Number(p.avg_price), last) < 0;
-  }).length;
+  // Market data could not be read: holdings have no market price, so the
+  // total and the P/L are not shown as numbers (never valued at cost as if
+  // it were a market price).
+  const marketDown = market.isError && !market.data && q.data.positions.length > 0;
+  const losingPositions = marketDown ? 0 : valued.filter((v) => v.pnl < 0).length;
   const attention = [
     openOrders > 0
       ? {
@@ -409,15 +440,31 @@ function AuthedSummary() {
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MiniKPI label={t("totalValue")} value={formatCurrency(total, false, lang)} />
+        <MiniKPI label={t("totalValue")} value={marketDown ? "—" : formatCurrency(total, false, lang)} />
         <MiniKPI label={t("cashAvailable")} value={formatCurrency(cash, false, lang)} />
         <MiniKPI label={t("myPositions")} value={String(q.data.positions.length)} />
         <MiniKPI
           label={t("pnl")}
-          value={formatCurrency(pnl, false, lang)}
-          tone={pnl >= 0 ? "bull" : "bear"}
+          value={marketDown ? "—" : formatCurrency(pnl, false, lang)}
+          tone={marketDown ? undefined : pnl >= 0 ? "bull" : "bear"}
         />
       </div>
+      {marketDown ? (
+        <div className="mt-3">
+          <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+        </div>
+      ) : (
+        (valued.some((v) => v.source === "reference") || valued.some((v) => v.source === "cost")) && (
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            {[
+              valued.some((v) => v.source === "reference") ? t("e2_valuationReferenceNote") : "",
+              valued.some((v) => v.source === "cost") ? t("e2_valuationCostNote") : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          </p>
+        )
+      )}
       {/* Decision-oriented: what needs the user to act, not just numbers. */}
       <div className="mt-4 rounded-xl border border-border/60 bg-background/60 p-3">
         <div className="mb-2 text-label text-muted-foreground">{t("needsAttention")}</div>
@@ -475,7 +522,7 @@ function MiniKPI({ label, value, tone }: { label: string; value: string; tone?: 
   );
 }
 
-function Feature({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) {
+function Feature({ icon: Icon, title, desc }: { icon: React.ComponentType<{ className?: string }>; title: string; desc: string }) {
   return (
     <div className="group rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-primary/50 hover:shadow-luxury">
       <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-md bg-[var(--gold)]/10 text-[var(--gold-deep)]">
@@ -487,57 +534,101 @@ function Feature({ icon: Icon, title, desc }: { icon: any; title: string; desc: 
   );
 }
 
-function HeroTicker() {
-  const items = BRANDS.slice(0, 8);
-  const { lang } = useI18n();
+/** The public board: published instruments from the database, most traded first. */
+function MarketBoard({
+  loading,
+  failed,
+  error,
+  onRetry,
+  instruments,
+}: {
+  loading: boolean;
+  failed: boolean;
+  error: unknown;
+  onRetry: () => void;
+  instruments: PublicInstrument[];
+}) {
+  const { t, lang } = useI18n();
+  const items = [...instruments]
+    .sort((a, b) => b.volume24hValue - a.volume24hValue || b.trades24h - a.trades24h || a.symbol.localeCompare(b.symbol))
+    .slice(0, 8);
   return (
     <div className="relative rounded-xl border border-border bg-card p-4 shadow-luxury">
       <div className="mb-3 flex items-center justify-between px-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-        <span>Value Unit · Live board</span>
-        <span className="text-[var(--bull)]">● LIVE</span>
-      </div>
-      <div className="divide-y divide-border">
-        {items.map((b) => (
-          <Link
-            to="/market/$slug"
-            params={{ slug: b.slug }}
-            key={b.id}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-2 py-2.5 text-sm transition hover:bg-secondary/60"
-          >
-            <div
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory"
-              style={{ background: b.color }}
-            >
-              {b.symbol.slice(0, 3)}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-ink">
-                {lang === "ar" ? b.nameAr : b.nameEn}
-              </div>
-              <div className="text-[10px] uppercase text-muted-foreground">{b.symbol}</div>
-            </div>
-            <div className="font-mono text-xs text-foreground">{b.price.toFixed(2)}</div>
-            <div
-              className={`font-mono text-xs ${b.change24h >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}
-            >
-              {formatPct(b.change24h)}
-            </div>
+        <span>{t("e2_boardTitle")}</span>
+        {items.length > 0 && (
+          <Link to="/market" className="normal-case tracking-normal text-[var(--gold-deep)] hover:underline">
+            {t("exploreMarket")} →
           </Link>
-        ))}
+        )}
       </div>
+      {loading ? (
+        <LuxurySkeleton lines={8} className="px-1 py-2" />
+      ) : failed ? (
+        <MarketDataError error={error} onRetry={onRetry} />
+      ) : items.length === 0 ? (
+        <NoListingsState compact />
+      ) : (
+        <div className="divide-y divide-border">
+          {items.map((b) => (
+            <Link
+              to="/market/$slug"
+              params={{ slug: b.slug }}
+              key={b.symbol}
+              className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-2 py-2.5 text-sm transition hover:bg-secondary/60"
+            >
+              <Monogram symbol={b.symbol} className="h-8 w-8 text-[10px]" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-ink">{instrumentName(b, lang)}</div>
+                <div className="text-[10px] uppercase text-muted-foreground">{b.symbol}</div>
+              </div>
+              <PriceText mark={markOf(b)} className="text-xs text-foreground" />
+              <ChangeText pct={b.change24hPct} className="text-xs" />
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function MoverCard({
-  title,
-  rows,
-  tone,
-}: {
-  title: string;
-  rows: typeof BRANDS;
-  tone: "bull" | "bear";
-}) {
+/** Top gainers / losers over 24h: only instruments that actually traded. */
+function Movers({ instruments }: { instruments: PublicInstrument[] }) {
+  const { t } = useI18n();
+  const moved = instruments.filter((i) => i.change24hPct != null);
+  const gainers = moved
+    .filter((i) => (i.change24hPct ?? 0) > 0)
+    .sort((a, b) => (b.change24hPct ?? 0) - (a.change24hPct ?? 0))
+    .slice(0, 6);
+  const losers = moved
+    .filter((i) => (i.change24hPct ?? 0) < 0)
+    .sort((a, b) => (a.change24hPct ?? 0) - (b.change24hPct ?? 0))
+    .slice(0, 6);
+  if (gainers.length === 0 && losers.length === 0) {
+    return (
+      <section className="mt-14">
+        <EmptyState
+          icon={<TrendingUp className="h-5 w-5" />}
+          title={t("e2_noMoversTitle")}
+          description={t("e2_noMoversDesc")}
+          action={
+            <Link to="/market" className="rounded-md border border-border bg-background px-4 py-2 text-xs font-semibold text-ink hover:border-[var(--gold-deep)]">
+              {t("exploreMarket")}
+            </Link>
+          }
+        />
+      </section>
+    );
+  }
+  return (
+    <section className="mt-14 grid gap-4 lg:grid-cols-2">
+      <MoverCard title={t("topGainers")} rows={gainers} />
+      <MoverCard title={t("topLosers")} rows={losers} />
+    </section>
+  );
+}
+
+function MoverCard({ title, rows }: { title: string; rows: PublicInstrument[] }) {
   const { lang, t } = useI18n();
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -547,35 +638,28 @@ function MoverCard({
           {t("exploreMarket")} →
         </Link>
       </div>
-      <div className="divide-y divide-border">
-        {rows.map((b) => (
-          <Link
-            key={b.id}
-            to="/market/$slug"
-            params={{ slug: b.slug }}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 py-2.5 text-sm transition hover:opacity-80"
-          >
-            <div
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory"
-              style={{ background: b.color }}
+      {rows.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{t("e2_noMoversSide")}</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((b) => (
+            <Link
+              key={b.symbol}
+              to="/market/$slug"
+              params={{ slug: b.slug }}
+              className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 py-2.5 text-sm transition hover:opacity-80"
             >
-              {b.symbol.slice(0, 3)}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-foreground">
-                {lang === "ar" ? b.nameAr : b.nameEn}
+              <Monogram symbol={b.symbol} className="h-8 w-8 text-[10px]" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-foreground">{instrumentName(b, lang)}</div>
+                <div className="text-[10px] text-muted-foreground">{b.symbol}</div>
               </div>
-              <div className="text-[10px] text-muted-foreground">{b.symbol}</div>
-            </div>
-            <div className="font-mono text-xs text-foreground">{b.price.toFixed(2)}</div>
-            <div
-              className={`font-mono text-xs ${tone === "bull" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}
-            >
-              {formatPct(b.change24h)}
-            </div>
-          </Link>
-        ))}
-      </div>
+              <PriceText mark={markOf(b)} className="text-xs text-foreground" />
+              <ChangeText pct={b.change24hPct} className="text-xs" />
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

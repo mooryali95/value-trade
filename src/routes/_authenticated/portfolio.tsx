@@ -13,8 +13,15 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n } from "@/lib/i18n";
 import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
 import { cancelOrder, modifyOrder, restoreOrder } from "@/lib/trading/order-mutations.functions";
-import { getBrand } from "@/lib/mock-data";
 import { formatCurrency, formatPct } from "@/lib/format";
+import {
+  MarketDataError,
+  indexBySymbol,
+  instrumentName,
+  markOf,
+  monogramColor,
+  useMarketOverview,
+} from "@/components/market-data";
 import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -75,6 +82,10 @@ function PortfolioPage() {
     queryFn: () => fetchPortfolio(),
     staleTime: 15_000,
   });
+  // Prices for valuation: the public board (last trade, else the listing
+  // reference price). A held symbol that is not on the board (e.g. delisted)
+  // has no market price and is carried at cost.
+  const market = useMarketOverview();
   const [editing, setEditing] = useState<null | { id: string; qty: string; price: string }>(null);
   const errorMessage = useErrorMessage();
   // Cancel, modify and restore all change the working order set: every
@@ -147,7 +158,7 @@ function PortfolioPage() {
   const editQtyError = editing ? validateQty(editing.qty) : null;
   const editPriceError = editing ? validatePrice(editing.price) : null;
 
-  if (isLoading) {
+  if (isLoading || market.isLoading) {
     return (
       <AppShell>
         <div className="space-y-4">
@@ -162,21 +173,37 @@ function PortfolioPage() {
   }
 
   const cash = Number(data.portfolio?.cash_balance ?? 0);
+  const bySymbol = indexBySymbol(market.data?.instruments);
   const enriched = data.positions.map((p) => {
-    const b = getBrand(p.symbol.toLowerCase());
-    const last = b?.price ?? Number(p.avg_price);
+    const inst = bySymbol.get(p.symbol.toUpperCase()) ?? null;
     const qty = Number(p.qty);
     const avg = Number(p.avg_price);
+    const mark = inst ? markOf(inst) : null;
+    const last = mark ? mark.price : avg;
+    const priceSource: "last" | "reference" | "cost" = !mark ? "cost" : mark.isReference ? "reference" : "last";
     return {
-      ...p, qty, avg, last,
+      ...p, qty, avg, last, priceSource,
       value: positionValue(qty, last),
-      pnl: unrealizedPnl(qty, avg, last),
-      brand: b,
+      pnl: mark ? unrealizedPnl(qty, avg, last) : null,
+      instrument: inst,
     };
   });
   const positionsValue = enriched.reduce((s, p) => s + p.value, 0);
   const totalValue = cash + positionsValue;
-  const totalPnl = enriched.reduce((s, p) => s + p.pnl, 0);
+  const totalPnl = enriched.reduce((s, p) => s + (p.pnl ?? 0), 0);
+  const hasUnpriced = enriched.some((p) => p.priceSource === "cost");
+  const hasReference = enriched.some((p) => p.priceSource === "reference");
+  const priceTag = (src: "last" | "reference" | "cost") =>
+    src === "last" ? null : (
+      <span
+        className="ms-1 rounded border border-border px-1 text-[9px] font-medium text-muted-foreground"
+        title={src === "reference" ? t("e2_referencePriceHint") : t("e2_atCostHint")}
+      >
+        {src === "reference" ? t("e2_refShort") : t("e2_atCostShort")}
+      </span>
+    );
+  const pnlPct = (p: { pnl: number | null; last: number; avg: number }) =>
+    p.pnl == null || !p.avg ? null : ((p.last - p.avg) / p.avg) * 100;
 
   const dir = search.sortDir === "asc" ? 1 : -1;
   const cmp = (a: number | string, b: number | string) =>
@@ -190,7 +217,7 @@ function PortfolioPage() {
         case "qty": return cmp(a.qty, b.qty);
         case "avg": return cmp(a.avg, b.avg);
         case "last": return cmp(a.last, b.last);
-        case "pnl": return cmp(a.pnl, b.pnl);
+        case "pnl": return cmp(a.pnl ?? 0, b.pnl ?? 0);
         case "weight": return cmp(a.value, b.value);
         default: return cmp(a.symbol, b.symbol);
       }
@@ -230,9 +257,9 @@ function PortfolioPage() {
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows: string[] = [];
     if (tab === "positions") {
-      rows.push(["symbol", "qty", "avg_price", "last_price", "value", "unrealized_pnl"].join(","));
+      rows.push(["symbol", "qty", "avg_price", "mark_price", "price_source", "value", "unrealized_pnl"].join(","));
       for (const p of sortedPositions) {
-        rows.push([p.symbol, p.qty, p.avg, p.last, p.value.toFixed(2), p.pnl.toFixed(2)].map(esc).join(","));
+        rows.push([p.symbol, p.qty, p.avg, p.last, p.priceSource, p.value.toFixed(2), p.pnl == null ? "" : p.pnl.toFixed(2)].map(esc).join(","));
       }
     } else {
       rows.push(["created_at", "symbol", "side", "type", "qty", "price", "filled_price", "status"].join(","));
@@ -252,7 +279,7 @@ function PortfolioPage() {
   }
 
   const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
-    { key: "symbol", label: "Symbol" },
+    { key: "symbol", label: t("e2_colSymbol") },
     { key: "qty", label: t("qty"), align: "end" },
     { key: "avg", label: t("avgPrice"), align: "end" },
     { key: "last", label: t("lastPrice"), align: "end" },
@@ -260,12 +287,12 @@ function PortfolioPage() {
     { key: "weight", label: t("weight"), align: "end" },
   ];
   const orderCols: { key: string; label: string; align?: "start"|"end" }[] = [
-    { key: "symbol", label: "Symbol" },
+    { key: "symbol", label: t("e2_colSymbol") },
     { key: "side", label: t("orderType") },
     { key: "qty", label: t("qty"), align: "end" },
     { key: "price", label: t("price"), align: "end" },
-    { key: "status", label: "Status", align: "end" },
-    { key: "time", label: "Time", align: "end" },
+    { key: "status", label: t("filterStatus"), align: "end" },
+    { key: "time", label: t("e2_colTime"), align: "end" },
   ];
   const SortHeader = ({ k, label, align }: { k: string; label: string; align?: "start"|"end" }) => (
     <button
@@ -314,12 +341,23 @@ function PortfolioPage() {
         <KPI label={t("pnl")} value={formatCurrency(totalPnl, false, lang)} tone={totalPnl >= 0 ? "bull" : "bear"} />
       </div>
 
+      {market.isError && !market.data && enriched.length > 0 && (
+        <div className="mb-4">
+          <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+        </div>
+      )}
+      {(hasUnpriced || hasReference) && (
+        <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
+          {[hasReference ? t("e2_valuationReferenceNote") : "", hasUnpriced ? t("e2_valuationCostNote") : ""].filter(Boolean).join(" ")}
+        </p>
+      )}
+
       {enriched.length > 0 && (
         <AllocationBar
           positions={enriched.map((p) => ({
             symbol: p.symbol,
             value: p.value,
-            color: p.brand?.color ?? "var(--gold)",
+            color: monogramColor(p.symbol),
           }))}
           total={positionsValue}
           label={t("weight")}
@@ -397,17 +435,17 @@ function PortfolioPage() {
               <div key={p.id}>
                 <div className="hidden md:grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
                 <div className="min-w-0">
-                  <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
+                  <div className="truncate font-semibold text-ink">{p.instrument ? instrumentName(p.instrument, lang) : p.symbol}</div>
                   <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
                 </div>
                 <div className="text-end font-mono">{p.qty}</div>
                 <div className="text-end font-mono text-muted-foreground">{p.avg.toFixed(2)}</div>
-                <div className="text-end font-mono">{p.last.toFixed(2)}</div>
-                <div className={`text-end font-mono ${p.pnl >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct((p.last - p.avg) / (p.avg || 1))}</div>
+                <div className="text-end font-mono">{p.last.toFixed(2)}{priceTag(p.priceSource)}</div>
+                <PnlCell pct={pnlPct(p)} className="text-end font-mono" />
                 <div className="text-end font-mono text-muted-foreground">{weight(p.value, positionsValue)}%</div>
                 <div className="text-end">
-                  {p.brand && (
-                    <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
+                  {p.instrument && (
+                    <Link to="/trade/$symbol" params={{ symbol: p.instrument.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
                   )}
                 </div>
                 </div>
@@ -415,20 +453,20 @@ function PortfolioPage() {
                 <div className="md:hidden border-b border-border/40 px-4 py-3 last:border-b-0">
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
+                      <div className="truncate text-sm font-semibold text-ink">{p.instrument ? instrumentName(p.instrument, lang) : p.symbol}</div>
                       <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
                     </div>
-                    <div className={`shrink-0 font-mono text-xs ${p.pnl >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct((p.last - p.avg) / (p.avg || 1))}</div>
+                    <PnlCell pct={pnlPct(p)} className="shrink-0 font-mono text-xs" />
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div><span className="text-muted-foreground">{t("qty")}: </span>{p.qty}</div>
                     <div className="text-end"><span className="text-muted-foreground">{t("weight")}: </span>{weight(p.value, positionsValue)}%</div>
                     <div><span className="text-muted-foreground">{t("avgPrice")}: </span>{p.avg.toFixed(2)}</div>
-                    <div className="text-end"><span className="text-muted-foreground">{t("lastPrice")}: </span>{p.last.toFixed(2)}</div>
+                    <div className="text-end"><span className="text-muted-foreground">{t("lastPrice")}: </span>{p.last.toFixed(2)}{priceTag(p.priceSource)}</div>
                   </div>
-                  {p.brand && (
+                  {p.instrument && (
                     <div className="mt-2 flex justify-end">
-                      <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft">{t("nav_trade")}</Link>
+                      <Link to="/trade/$symbol" params={{ symbol: p.instrument.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft">{t("nav_trade")}</Link>
                     </div>
                   )}
                 </div>
@@ -456,7 +494,7 @@ function PortfolioPage() {
                 <div key={o.id}>
                 <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
-                  <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
+                  <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side === "buy" ? t("buy") : t("sell")} · {o.type === "market" ? t("market") : t("limit")}</div>
                   <div className="text-end font-mono">{Number(o.qty)}</div>
                   <div className="text-end font-mono text-muted-foreground">{o.filled_price ? Number(o.filled_price).toFixed(2) : o.price ? Number(o.price).toFixed(2) : "—"}</div>
                   <div className="text-end"><StatusBadge status={o.status} /></div>
@@ -479,7 +517,7 @@ function PortfolioPage() {
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-mono text-sm font-semibold text-ink">{o.symbol}</div>
-                      <div className={`text-[10px] font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
+                      <div className={`text-[10px] font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side === "buy" ? t("buy") : t("sell")} · {o.type === "market" ? t("market") : t("limit")}</div>
                     </div>
                     <StatusBadge status={o.status} />
                   </div>
@@ -546,6 +584,14 @@ function matchesStatusFilter(status: string, filter: string): boolean {
   if (filter === "open") return status === "open" || status === "pending";
   if (filter === "cancelled") return status === "cancelled" || status === "modified";
   return status === filter;
+}
+
+/** Unrealized return in percent; a dash when the position has no market price. */
+function PnlCell({ pct, className }: { pct: number | null; className?: string }) {
+  if (pct == null) return <div className={`${className ?? ""} text-muted-foreground`}>—</div>;
+  return (
+    <div className={`${className ?? ""} ${pct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct(pct)}</div>
+  );
 }
 
 function KPI({ label, value, tone }: { label: string; value: string; tone?: "bull" | "bear" }) {

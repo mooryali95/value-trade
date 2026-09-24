@@ -2,14 +2,18 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useI18n, type Key } from "@/lib/i18n";
-import { SITE, hasEntityDetails, isFilled, siteContacts, siteText } from "@/lib/config/site";
+import { SITE, hasEntityDetails, isFilled, siteContacts, siteText, type SiteContactKind } from "@/lib/config/site";
 
 /** Date shown as "last updated" on every legal document. */
 export const LEGAL_LAST_UPDATED = "2026-09-25";
 
 export type LegalDoc = "terms" | "privacy" | "cookies" | "shariah" | "risk";
 
-export type LegalSection = { id: string; heading: string; body: ReactNode };
+/**
+ * `contactKinds`: a section that only lists contact addresses; it is left out
+ * while none of those addresses is configured (no empty heading).
+ */
+export type LegalSection = { id: string; heading: string; body: ReactNode; contactKinds?: SiteContactKind[] };
 
 type LegalPath = "/legal/terms" | "/legal/risk" | "/legal/privacy" | "/legal/cookies" | "/legal/shariah-disclosures";
 
@@ -46,6 +50,7 @@ export function LegalPage({
   sections: LegalSection[];
 }) {
   const { t, lang } = useI18n();
+  const shown = sections.filter((s) => !s.contactKinds || siteContacts(s.contactKinds).length > 0);
   return (
     <AppShell>
       <article className="mx-auto max-w-3xl py-8 text-ink">
@@ -62,11 +67,11 @@ export function LegalPage({
           </div>
         )}
 
-        {sections.length > 3 && (
+        {shown.length > 3 && (
           <nav aria-label={t("legalOnThisPage")} className="mt-8 rounded-xl border border-border/60 bg-card/60 p-5">
             <div className="mb-2 text-label text-muted-foreground">{t("legalOnThisPage")}</div>
             <ol className="grid gap-1 text-sm sm:grid-cols-2">
-              {sections.map((s, i) => (
+              {shown.map((s, i) => (
                 <li key={s.id} className="min-w-0">
                   <a href={`#${s.id}`} className="text-ink-soft hover:text-[var(--gold-deep)]">
                     {i + 1}. {s.heading}
@@ -77,7 +82,7 @@ export function LegalPage({
           </nav>
         )}
 
-        {sections.map((s, i) => (
+        {shown.map((s, i) => (
           <section key={s.id} id={s.id} aria-labelledby={`${s.id}-h`} className="mt-8 scroll-mt-24">
             <h2 id={`${s.id}-h`} className="text-lg font-semibold text-ink">
               {i + 1}. {s.heading}

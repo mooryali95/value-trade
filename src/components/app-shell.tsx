@@ -3,7 +3,6 @@ import { useState, type ReactNode } from "react";
 import { List, X } from "@phosphor-icons/react";
 import {
   HouseLine,
-  ChartLine,
   Storefront,
   Buildings,
   ShieldCheck,
@@ -17,7 +16,6 @@ import {
   UsersThree,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
-import { MARKET_STATS, BRANDS } from "@/lib/mock-data";
 import { UserMenu } from "@/components/user-menu";
 import { BrandMark, ValueDots } from "@/components/brand-mark";
 import { CompanySwitcher } from "@/components/company-switcher";
@@ -61,21 +59,6 @@ function CommandTrigger() {
       {t("shell_search")}
       <kbd className="rounded border border-border bg-background px-1 text-[9px] font-mono">⌘K</kbd>
     </button>
-  );
-}
-
-function MarketPill() {
-  const { t } = useI18n();
-  return (
-    <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-1 md:flex">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--bull)] opacity-40" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--bull)]" />
-      </span>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
-        {MARKET_STATS.isOpen ? t("liveMarket") : t("closed")}
-      </span>
-    </div>
   );
 }
 
@@ -143,7 +126,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     homeItem,
     { to: "/market", label: t("nav_market"), icon: Storefront },
     { to: "/shariah", label: t("nav_shariah"), icon: ShieldCheck },
-    { to: `/trade/${BRANDS[0].slug}`, label: t("nav_trade"), icon: ChartLine },
     { to: "/portfolio", label: t("portfolio"), icon: Vault },
   ];
 
@@ -263,7 +245,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            {mode === "investor" && <MarketPill />}
             <CommandTrigger />
             {mode === "brand" && <CompanySwitcher />}
             <LangToggle />
@@ -320,6 +301,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
             <Link to="/legal/terms" className="hover:text-[var(--gold-deep)]">
               {t("legalTerms")}
+            </Link>
+            <Link to="/legal/risk" className="hover:text-[var(--gold-deep)]">
+              {t("legalRisk")}
             </Link>
             <Link to="/legal/privacy" className="hover:text-[var(--gold-deep)]">
               {t("legalPrivacy")}

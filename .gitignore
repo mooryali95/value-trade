@@ -33,3 +33,7 @@ dist-ssr
 
 # Accessibility report artifacts
 tests/a11y/reports/
+
+# Python bytecode (a11y tooling)
+__pycache__/
+*.py[cod]

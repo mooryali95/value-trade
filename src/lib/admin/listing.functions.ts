@@ -12,10 +12,11 @@ import { isValidLimitPrice, isValidOrderQty } from "@/lib/trading/calc";
  *   - issueUnits: primary allocation of a listed brand's units to an
  *     investor at the issue price (the holder's cost basis). Payment for a
  *     primary allocation is settled outside the order book;
- *   - setInstrumentPublished: lists or delists an instrument. Delisting
- *     closes its resting orders in the same transaction (holders keep their
- *     units, trades and cash are untouched); listing needs a positive
- *     reference price;
+ *   - setInstrumentPublished: lists or delists an instrument (the only
+ *     way: the database refuses any other change of `published`).
+ *     Delisting closes its resting orders in the same transaction (holders
+ *     keep their units, trades and cash are untouched); listing needs a
+ *     reference price set by an admin (> 0) and a Shariah ruling in force;
  *   - listAdminInstruments: every instrument with its listing state.
  * All run with the service role after the platform_admin check.
  */
@@ -28,6 +29,7 @@ const LISTING_ERROR_CODES = new Set([
   "INVALID_INPUT",
   "INSTRUMENT_NOT_FOUND",
   "USER_NOT_FOUND",
+  "SHARIAH_RULING_REQUIRED",
 ]);
 
 /** How an instrument got into public.brands, for the admin listing screen. */
@@ -171,8 +173,10 @@ export const issueUnits = createServerFn({ method: "POST" })
  * Lists (published = true) or delists (false) an instrument through
  * set_instrument_published, which re-checks platform_admin, takes the
  * engine's symbol lock and, when delisting, closes every resting order of
- * the instrument (orders_audit 'delisted') in the same transaction.
- * Listing requires a reference price > 0 (INVALID_PRICE otherwise).
+ * the instrument (orders_audit 'delisted') in the same transaction, together
+ * with the audit_log row (brand.publish / brand.unpublish).
+ * Listing requires a reference price > 0 (INVALID_PRICE otherwise) and a
+ * Shariah ruling in force (SHARIAH_RULING_REQUIRED otherwise).
  */
 export const setInstrumentPublished = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -200,21 +204,14 @@ export const setInstrumentPublished = createServerFn({ method: "POST" })
         console.error("[listing] set_instrument_published returned no row");
         throw new Error("INTERNAL_ERROR");
       }
-      const result = {
+      // The audit_log row was written by set_instrument_published in the
+      // same transaction.
+      return {
         symbol: row.symbol,
         published: row.published,
         changed: row.changed,
         cancelledOrders: Number(row.cancelled_orders) || 0,
       };
-      await writeAudit(context.supabase, {
-        actorId: context.userId,
-        companyId: row.company_id,
-        action: data.published ? "brand.publish" : "brand.unpublish",
-        entity: "brands",
-        entityId: row.brand_id,
-        metadata: { symbol: result.symbol, changed: result.changed, cancelledOrders: result.cancelledOrders },
-      });
-      return result;
     },
   );
 

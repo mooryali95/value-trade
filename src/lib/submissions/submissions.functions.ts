@@ -116,8 +116,12 @@ export const reviewSubmission = createServerFn({ method: "POST" })
     if (!sub) throw new Error("SUBMISSION_NOT_FOUND");
     if (sub.status !== "pending") throw new Error("SUBMISSION_NOT_PENDING");
 
-    // Approval closes the loop: the accepted product becomes a published,
-    // tradable instrument in `public.brands`. The brand is written FIRST, so a
+    // Approval creates the accepted product's instrument in `public.brands`,
+    // OFF the market and with no reference price (0 = not set): a platform
+    // admin sets a real price and lists it through setInstrumentPublished
+    // (the database refuses any other way to publish). The approving
+    // reviewer's ruling is recorded, so the instrument carries a ruling in
+    // force when it is listed. Brand and ruling are written FIRST, so a
     // failure (symbol owned by another company, DB error) leaves the
     // submission pending and the reviewer can retry; the status flip below is
     // conditional on `pending`, so a concurrent review cannot double-apply.
@@ -134,12 +138,13 @@ export const reviewSubmission = createServerFn({ method: "POST" })
       if (lookupErr) throw toStableError("submissions.review.brand_lookup", lookupErr);
       if (existing && existing.company_id !== sub.company_id) throw new Error("SYMBOL_TAKEN");
 
+      // Never `published` or `reference_price`: an existing instrument of the
+      // company keeps its listing state and price.
       const brand = {
         name_ar: sub.name_ar,
         name_en: sub.name_en,
         sector: sub.sector,
         asset_class: sub.asset_class,
-        published: true,
         company_id: sub.company_id,
         source_submission_id: sub.id,
       };
@@ -153,13 +158,20 @@ export const reviewSubmission = createServerFn({ method: "POST" })
       } else {
         const { error: insErr } = await supabaseAdmin
           .from("brands")
-          .insert({ ...brand, symbol, slug: symbol.toLowerCase() });
+          .insert({ ...brand, symbol, slug: symbol.toLowerCase(), published: false, reference_price: 0 });
         if (insErr) {
           // Lost a race on symbol/slug with another company's approval.
           if (insErr.code === "23505") throw new Error("SYMBOL_TAKEN");
           throw toStableError("submissions.review.brand_insert", insErr);
         }
       }
+
+      // The approval is the reviewer's Shariah ruling on the instrument
+      // (reviewer_id / updated_by are stamped from the session).
+      const { error: rulingErr } = await supabase
+        .from("shariah_decisions")
+        .insert({ symbol, status: "halal", reason: null });
+      if (rulingErr) throw toStableError("submissions.review.ruling", rulingErr);
     }
 
     const { data: updated, error } = await supabase

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useI18n } from "@/lib/i18n";
 import { LegalContacts, LegalList, LegalPage, type LegalSection } from "@/components/legal-page";
-import { SITE, canonicalUrl, isFilled } from "@/lib/config/site";
+import { SITE, canonicalUrl, isFilled, siteContacts } from "@/lib/config/site";
 
 export const Route = createFileRoute("/legal/privacy")({
   head: () => ({
@@ -79,6 +79,8 @@ function RetentionTable({ head, rows }: { head: Row; rows: Row[] }) {
 }
 
 const privacyEmail = isFilled(SITE.privacyEmail) ? SITE.privacyEmail.trim() : "";
+/** Other configured addresses listed in the Contact section. */
+const hasOtherContacts = siteContacts(["contact", "complaints"]).length > 0;
 
 function arSections(): LegalSection[] {
   return [
@@ -210,7 +212,8 @@ function arSections(): LegalSection[] {
             ]}
           />
           <p>
-            لممارسة حقوقك{privacyEmail ? " راسلنا على " : " تواصل معنا عبر العناوين الواردة أدناه"}
+            لممارسة حقوقك
+            {privacyEmail ? " راسلنا على " : hasOtherContacts ? " تواصل معنا عبر العناوين الواردة أدناه" : " تواصل مع مشغّل المنصة"}
             {privacyEmail && (
               <a href={`mailto:${privacyEmail}`} className={linkCls} dir="ltr">
                 {privacyEmail}
@@ -243,6 +246,7 @@ function arSections(): LegalSection[] {
     },
     {
       id: "contact",
+      contactKinds: ["privacy", "contact", "complaints"],
       heading: "التواصل",
       body: <LegalContacts kinds={["privacy", "contact", "complaints"]} />,
     },
@@ -380,7 +384,8 @@ function enSections(): LegalSection[] {
             ]}
           />
           <p>
-            To exercise your rights{privacyEmail ? ", email " : ", contact us at the addresses below"}
+            To exercise your rights
+            {privacyEmail ? ", email " : hasOtherContacts ? ", contact us at the addresses below" : ", contact the Platform operator"}
             {privacyEmail && (
               <a href={`mailto:${privacyEmail}`} className={linkCls} dir="ltr">
                 {privacyEmail}
@@ -414,6 +419,7 @@ function enSections(): LegalSection[] {
     },
     {
       id: "contact",
+      contactKinds: ["privacy", "contact", "complaints"],
       heading: "Contact",
       body: <LegalContacts kinds={["privacy", "contact", "complaints"]} />,
     },

@@ -19,7 +19,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL, VIEWPORTS  # noqa: E402
+from pages import BASE_URL, VIEWPORTS, launch_options  # noqa: E402
 
 REPORTS = Path(__file__).parent / "reports" / "theme-motion"
 FAILURES: list[str] = []
@@ -169,7 +169,7 @@ async def main():
     REPORTS.mkdir(parents=True, exist_ok=True)
     results: dict = {}
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         for device in DEVICES:
             for mode in MODES:
                 await run_mode(browser, device, mode, results)

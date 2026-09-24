@@ -88,7 +88,7 @@ describe("setInstrumentPublished", () => {
     expect(rpcCalls).toHaveLength(0);
   });
 
-  it("delists through one database call with the verified admin id, and audits it", async () => {
+  it("delists through one database call with the verified admin id; the database writes the audit row", async () => {
     state.rpc = {
       data: [{ brand_id: "b-1", company_id: null, symbol: "ACM", published: false, changed: true, cancelled_orders: 3 }],
       error: null,
@@ -102,13 +102,9 @@ describe("setInstrumentPublished", () => {
     expect(rpcCalls).toEqual([
       { name: "set_instrument_published", args: { _symbol: "ACM", _published: false, _actor_id: "admin-1" } },
     ]);
-    expect(audits[0]).toMatchObject({
-      actorId: "admin-1",
-      action: "brand.unpublish",
-      entity: "brands",
-      entityId: "b-1",
-      metadata: { symbol: "ACM", changed: true, cancelledOrders: 3 },
-    });
+    // set_instrument_published inserts the brand.unpublish audit_log row in
+    // the same transaction: no second, best-effort write from the server.
+    expect(audits).toHaveLength(0);
   });
 
   it("passes engine codes through and hides everything else", async () => {
@@ -116,6 +112,8 @@ describe("setInstrumentPublished", () => {
     await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^INVALID_PRICE$/);
     state.rpc = { data: null, error: { message: "INSTRUMENT_NOT_FOUND" } };
     await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^INSTRUMENT_NOT_FOUND$/);
+    state.rpc = { data: null, error: { message: "SHARIAH_RULING_REQUIRED" } };
+    await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^SHARIAH_RULING_REQUIRED$/);
     state.rpc = { data: null, error: { message: 'relation "brands" does not exist', code: "42P01" } };
     await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^INTERNAL_ERROR$/);
     state.rpc = { data: [], error: null };

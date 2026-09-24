@@ -11,7 +11,8 @@ import { createHmac } from "crypto";
  *
  * The database is stubbed so the test is deterministic and does not require
  * network or a real Supabase instance. The cron prices symbols from the latest
- * row in public.trades (falling back to brands.reference_price).
+ * row in public.trades, for listed (published) instruments only: a reference
+ * price or an unlisted instrument never fires an alert.
  */
 
 vi.mock("@/lib/security/rate-limit.server", () => ({
@@ -45,8 +46,29 @@ type Alert = {
 };
 
 type Trade = { symbol: string; price: number; created_at: string };
+type Brand = { symbol: string; published: boolean; reference_price: number };
 
-const state: { orders: Order[]; alerts: Alert[]; trades: Trade[] } = { orders: [], alerts: [], trades: [] };
+const state: { orders: Order[]; alerts: Alert[]; trades: Trade[]; brands: Brand[] } = {
+  orders: [],
+  alerts: [],
+  trades: [],
+  brands: [],
+};
+
+function brandsQuery() {
+  let published: unknown;
+  const q = {
+    select: () => q,
+    eq: (_c: string, v: unknown) => { published = v; return q; },
+    in: async (_c: string, symbols: string[]) => ({
+      data: state.brands
+        .filter((b) => b.published === published && symbols.includes(b.symbol))
+        .map((b) => ({ symbol: b.symbol })),
+      error: null,
+    }),
+  };
+  return q;
+}
 
 function tradesQuery() {
   let symbol = "";
@@ -68,9 +90,7 @@ function tradesQuery() {
 const supabaseAdmin = {
   from(table: "orders" | "price_alerts" | "trades" | "brands") {
     if (table === "trades") return tradesQuery();
-    if (table === "brands") {
-      return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
-    }
+    if (table === "brands") return brandsQuery();
     return {
       select() {
         return {
@@ -136,6 +156,7 @@ describe("integration: order -> price_alert -> cron", () => {
     state.orders = [];
     state.alerts = [];
     state.trades = [];
+    state.brands = [];
   });
 
   it("fires only the alerts whose price target was met after orders execute", async () => {
@@ -149,7 +170,10 @@ describe("integration: order -> price_alert -> cron", () => {
       qty: 5, price: 40, status: "filled", created_at: NOW(),
     });
 
-    // The executed orders' trades set the market price (NOOR=120, MADA=40).
+    // Both instruments are listed; the executed orders' trades set the
+    // market price (NOOR=120, MADA=40).
+    state.brands.push({ symbol: "NOOR001", published: true, reference_price: 100 });
+    state.brands.push({ symbol: "MADA002", published: true, reference_price: 45 });
     state.trades.push({ symbol: "NOOR001", price: 120, created_at: NOW() });
     state.trades.push({ symbol: "MADA002", price: 40, created_at: NOW() });
 
@@ -198,5 +222,37 @@ describe("integration: order -> price_alert -> cron", () => {
     }
     expect(noop.active).toBe(true);
     expect(noop.triggered_at).toBeNull();
+  });
+  it("never fires on a reference price or on an instrument that is not listed", async () => {
+    // Listed but never traded: its reference price (100) is not a market price.
+    state.brands.push({ symbol: "LIST001", published: true, reference_price: 100 });
+    // Traded, then taken off the market.
+    state.brands.push({ symbol: "DELI001", published: false, reference_price: 20 });
+    state.trades.push({ symbol: "DELI001", price: 150, created_at: NOW() });
+    seed("price_alerts", {
+      id: "al-ref", user_id: USER, symbol: "LIST001",
+      direction: "above", target_price: 50, active: true, triggered_at: null,
+    });
+    seed("price_alerts", {
+      id: "al-delisted", user_id: USER, symbol: "DELI001",
+      direction: "above", target_price: 100, active: true, triggered_at: null,
+    });
+
+    const handler = await getCronHandler();
+    const body = JSON.stringify({ ts: Date.now() });
+    const res = await handler({
+      request: new Request("http://x/api/public/cron-alerts", {
+        method: "POST",
+        body,
+        headers: { "x-signature": sign(body, SECRET) },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { scanned: number; triggered: number };
+    expect(json).toMatchObject({ scanned: 2, triggered: 0 });
+    for (const a of state.alerts) {
+      expect(a.active).toBe(true);
+      expect(a.triggered_at).toBeNull();
+    }
   });
 });

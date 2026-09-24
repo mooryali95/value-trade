@@ -115,7 +115,7 @@ function NotificationsSettings() {
           <input
             value={newSym}
             onChange={(e) => setNewSym(e.target.value)}
-            placeholder="ARAMCO"
+            placeholder="الرمز · SYMBOL"
             className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm font-mono uppercase text-foreground focus:border-[var(--gold-deep)] focus:outline-none"
           />
           <button

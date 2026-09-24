@@ -47,7 +47,7 @@ function RealizedPage() {
     navigate({ search: (prev: SearchState) => ({ ...prev, ...p }), replace: true });
 
   const fn = useServerFn(getRealizedPnl);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["realized", search.from, search.to, search.symbol],
     queryFn: () =>
       fn({
@@ -123,7 +123,7 @@ function RealizedPage() {
           <input
             value={search.symbol}
             onChange={(e) => patch({ symbol: e.target.value })}
-            placeholder="SYMBOL"
+            placeholder={t("e2_colSymbol")}
             className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono uppercase text-ink"
           />
         </label>
@@ -137,6 +137,10 @@ function RealizedPage() {
 
       {isLoading ? (
         <LuxurySkeleton lines={6} />
+      ) : isError ? (
+        <div className="py-10">
+          <ErrorState reset={() => refetch()} />
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="status" aria-live="polite" aria-atomic="false">
@@ -173,7 +177,7 @@ function RealizedPage() {
                 <h2 className="mb-2 text-label text-ink-soft">{t("closedTrades")}</h2>
                 <div className="hidden overflow-hidden rounded-xl border border-border/60 bg-card md:block">
                   <div className="grid grid-cols-[minmax(0,1fr)_1fr_1fr_1fr_1fr_1fr] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <span>Symbol</span>
+                    <span>{t("e2_colSymbol")}</span>
                     <span>{t("createdAt")}</span>
                     <span className="text-end">{t("qty")}</span>
                     <span className="text-end">{t("exitPrice")}</span>

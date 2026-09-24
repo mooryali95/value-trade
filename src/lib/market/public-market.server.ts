@@ -44,8 +44,10 @@ function db() {
   return client;
 }
 
-function fail(op: string, error: { code?: string } | null | undefined): never {
-  console.error(`[public-market] ${op} failed`, error?.code ?? "unknown");
+function fail(op: string, error: { code?: string; message?: string } | null | undefined): never {
+  // A network failure has no PostgREST code: log the start of the message
+  // (driver text, no user data) so the cause is visible.
+  console.error(`[public-market] ${op} failed`, error?.code || error?.message?.slice(0, 80) || "unknown");
   throw new Error("MARKET_DATA_UNAVAILABLE");
 }
 

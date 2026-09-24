@@ -1,4 +1,5 @@
 import { ValueDots } from "@/components/dot-pattern";
+import { SITE } from "@/lib/config/site";
 
 type Props = {
   size?: number;
@@ -8,7 +9,7 @@ type Props = {
 };
 
 // Value Unit brand mark rendered as pure SVG + text (no image, no box).
-// Matches the قيمة logo language: dot matrix on the left, Arabic name + "VALUE UNIT" caption.
+// Matches the logo language: dot matrix on the left, Arabic brand name "وحدة القيمة" + "VALUE UNIT" caption.
 export function BrandMark({ size = 36, showText = true, color, className }: Props) {
   const c = color ?? "var(--ink)";
   return (
@@ -17,10 +18,10 @@ export function BrandMark({ size = 36, showText = true, color, className }: Prop
       {showText && (
         <div className="flex flex-col leading-none">
           <span
-            className="font-black tracking-tight"
-            style={{ color: c, fontSize: size * 0.5, fontFamily: "Tajawal, system-ui, sans-serif" }}
+            className="whitespace-nowrap font-black tracking-tight"
+            style={{ color: c, fontSize: size * 0.42, fontFamily: "Tajawal, system-ui, sans-serif" }}
           >
-            قيمة
+            {SITE.brandAr}
           </span>
           <span
             className="mt-0.5 font-medium uppercase"
@@ -30,7 +31,7 @@ export function BrandMark({ size = 36, showText = true, color, className }: Prop
               letterSpacing: "0.28em",
             }}
           >
-            Value Unit
+            {SITE.brandEn}
           </span>
         </div>
       )}

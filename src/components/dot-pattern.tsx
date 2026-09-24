@@ -1,4 +1,4 @@
-// Value Unit — dot matrix pattern derived from the "قيمة" logo.
+// Value Unit — dot matrix pattern derived from the "وحدة القيمة" logo.
 // Use as a decorative background layer.
 
 type Props = {
@@ -35,7 +35,7 @@ export function DotPattern({
   );
 }
 
-// The literal 5-column dot mark from the قيمة logo. Use as the compact icon.
+// The literal 5-column dot mark from the "وحدة القيمة" logo. Use as the compact icon.
 export function ValueDots({ size = 28, color = "var(--ink)" }: { size?: number; color?: string }) {
   // 5 columns x 6 rows, tightly packed
   const cols = 5;

@@ -10,8 +10,17 @@ import { EmptyState } from "@/components/empty-state";
 import { PermissionHint } from "@/components/permission-hint";
 import { useI18n, pick } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
-import { getBrand } from "@/lib/mock-data";
-import { formatCurrency, formatPct, formatInt } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import {
+  ChangeText,
+  MarketDataError,
+  Monogram,
+  PriceText,
+  ShariahPill,
+  indexBySymbol,
+  markOf,
+  useMarketOverview,
+} from "@/components/market-data";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -22,7 +31,7 @@ import {
 } from "@/lib/tenants/company.functions";
 import { createInvitation } from "@/lib/tenants/invitations.functions";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
-import { Building2, Users, TrendingUp, Plus, Send, FileText } from "lucide-react";
+import { Building2, Users, Store, Plus, Send, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
@@ -54,6 +63,7 @@ function WorkspacePage() {
   const removeBrandFn = useServerFn(removeCompanyBrand);
   const inviteFn = useServerFn(createInvitation);
 
+  const market = useMarketOverview();
   const details = useQuery({
     queryKey: ["company-details", activeId],
     queryFn: () => detailsFn({ data: { companyId: activeId! } }),
@@ -115,26 +125,31 @@ function WorkspacePage() {
     );
   }
 
-  const brandRows = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => {
-    const b = getBrand(row.brand_symbol.toLowerCase());
-    return { id: row.id, symbol: row.brand_symbol, brand: b ?? null };
-  });
-  const totalCap = brandRows.reduce((s, r) => s + (r.brand?.marketCap ?? 0), 0);
-  const totalVol = brandRows.reduce((s, r) => s + (r.brand?.volume24h ?? 0), 0);
+  // Company brands (roster) joined with the public board: a brand is
+  // "listed" only when it is published; its price is the last trade or the
+  // listing reference price, both from the database.
+  const listed = indexBySymbol(market.data?.instruments);
+  const brandRows = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => ({
+    id: row.id,
+    symbol: row.brand_symbol,
+    instrument: listed.get(row.brand_symbol.toUpperCase()) ?? null,
+  }));
+  const listedCount = brandRows.filter((r) => r.instrument).length;
+  const totalValue24h = brandRows.reduce((s, r) => s + (r.instrument?.volume24hValue ?? 0), 0);
   const membersCount = details.data?.members?.length ?? 0;
   const pendingSubs = (subs.data ?? []).filter((s: { status: string }) => s.status === "pending").length;
 
   return (
     <AppShell>
       <PageHeader
-        eyebrow={`${active.plan ?? "—"} · Tenant`}
+        eyebrow={active.plan ? `${t("plan")}: ${active.plan}` : t("ws_workspace")}
         title={pick(lang, active.name_ar, active.name_en)}
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("ws_workspace") }]}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         <KPI label={t("brandsCount")} value={`${brandRows.length}/30`} icon={Building2} />
-        <KPI label={t("marketCap")} value={formatCurrency(totalCap, true, lang)} icon={TrendingUp} />
+        <KPI label={t("e2_listedOnMarket")} value={`${listedCount}/${brandRows.length}`} icon={Store} />
         <KPI label={t("wsPendingSubmissions")} value={String(pendingSubs)} icon={FileText} />
         <KPI label={t("members")} value={String(membersCount)} icon={Users} />
       </div>
@@ -143,13 +158,16 @@ function WorkspacePage() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">{t("companyBrands")}</h2>
-            <span className="num text-xs text-muted-foreground">{formatInt(totalVol, true)} · {t("volume24h")}</span>
+            {listedCount > 0 && (
+              <span className="num text-xs text-muted-foreground">{t("e2_value24h")}: {formatCurrency(totalValue24h, true, lang)}</span>
+            )}
           </div>
           <div className="mb-3 flex gap-2">
             <input
               value={newBrand}
               onChange={(e) => setNewBrand(e.target.value.toUpperCase())}
-              placeholder="AAPL"
+              placeholder={t("brandSymbol")}
+              aria-label={t("brandSymbol")}
               disabled={!canManageBrands}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-primary/50 focus:outline-none disabled:opacity-50"
             />
@@ -161,6 +179,11 @@ function WorkspacePage() {
               <Plus className="h-3.5 w-3.5" /> {t("ws_addBrand")}
             </button>
           </div>
+          {market.isError && !market.data && (
+            <div className="mb-3">
+              <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+            </div>
+          )}
           {brandRows.length === 0 ? (
             <div className="rounded-xl border border-border/60 bg-card/60 p-6 text-center text-xs text-muted-foreground">
               {t("wsNoBrands")}
@@ -170,21 +193,30 @@ function WorkspacePage() {
               {brandRows.map((r) => (
                 <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: r.brand?.color ?? "var(--gold-deep)" }}>{r.symbol.slice(0, 3)}</div>
+                    <Monogram symbol={r.symbol} />
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-foreground">
-                        {r.brand ? pick(lang, r.brand.nameAr, r.brand.nameEn) : r.symbol}
+                        {r.instrument ? pick(lang, r.instrument.nameAr, r.instrument.nameEn) : r.symbol}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{r.symbol}{r.brand ? ` · ${r.brand.sector}` : ""}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span>{r.symbol}{r.instrument?.sector ? ` · ${r.instrument.sector}` : ""}</span>
+                        {r.instrument ? (
+                          <ShariahPill status={r.instrument.shariahStatus} />
+                        ) : (
+                          <span className="rounded-full border border-border px-2 py-0.5">{t("e2_notListed")}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="num text-xs text-foreground">{r.brand ? r.brand.price.toFixed(2) : "—"}</div>
-                  <div className={`hidden num text-xs sm:block ${(r.brand?.change24h ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                    {r.brand ? formatPct(r.brand.change24h) : "—"}
+                  <div className="num text-xs text-foreground">
+                    {r.instrument ? <PriceText mark={markOf(r.instrument)} /> : "—"}
+                  </div>
+                  <div className="hidden text-xs sm:block">
+                    <ChangeText pct={r.instrument?.change24hPct ?? null} />
                   </div>
                   <div className="flex items-center gap-2">
-                    {r.brand && (
-                      <Link to="/market/$slug" params={{ slug: r.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary">
+                    {r.instrument && (
+                      <Link to="/market/$slug" params={{ slug: r.instrument.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary">
                         {t("overview")}
                       </Link>
                     )}
@@ -192,8 +224,8 @@ function WorkspacePage() {
                       disabled={!canManageBrands}
                       onClick={async () => {
                         const ok = await confirm({
-                          title: t("brandRemoved"),
-                          description: r.symbol,
+                          title: t("confirmRemoveBrandTitle"),
+                          description: `${r.symbol} — ${t("confirmRemoveBrandDesc")}`,
                           confirmLabel: t("wsRemove"),
                           cancelLabel: t("cancel"),
                           tone: "danger",
@@ -251,12 +283,12 @@ function WorkspacePage() {
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
               <div className="rounded border border-border/50 bg-secondary/30 py-2">
-                <div className="text-lg font-bold text-foreground">{brandRows.filter((r) => r.brand?.shariah === "halal").length}</div>
-                <div className="text-[10px] text-muted-foreground">{t("halal")}</div>
+                <div className="text-lg font-bold text-foreground">{market.data ? listedCount : "—"}</div>
+                <div className="text-[10px] text-muted-foreground">{t("e2_listed")}</div>
               </div>
               <div className="rounded border border-border/50 bg-secondary/30 py-2">
-                <div className="text-lg font-bold text-foreground">{brandRows.filter((r) => r.brand?.shariah !== "halal").length}</div>
-                <div className="text-[10px] text-muted-foreground">{t("reviewing")}</div>
+                <div className="text-lg font-bold text-foreground">{market.data ? brandRows.length - listedCount : "—"}</div>
+                <div className="text-[10px] text-muted-foreground">{t("e2_notListed")}</div>
               </div>
             </div>
           </div>
@@ -266,7 +298,7 @@ function WorkspacePage() {
   );
 }
 
-function KPI({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+function KPI({ label, value, icon: Icon }: { label: string; value: string; icon: React.ComponentType<{ className?: string }> }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/60 p-4">
       <div className="mb-2 flex items-center justify-between">
