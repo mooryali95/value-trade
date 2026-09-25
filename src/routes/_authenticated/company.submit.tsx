@@ -15,6 +15,7 @@ import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
 import { submitProduct } from "@/lib/submissions/submissions.functions";
+import { LifecycleSteps } from "@/lib/submissions/lifecycle";
 import { toast } from "sonner";
 
 const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
@@ -100,6 +101,8 @@ function SubmitPage() {
         title={t("submitProductForm")}
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submitProductForm") }]}
       />
+
+      <LifecycleSteps compact />
 
       {list.isLoading ? (
         <LuxurySkeleton lines={4} />

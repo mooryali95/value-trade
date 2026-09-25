@@ -67,6 +67,9 @@ function ReviewPage() {
   const [reason, setReason] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<null | { id: string; status: "halal" | "non_halal" | "reviewing"; reason: string; changeReason: string; symbol: string }>(null);
   const [openAudit, setOpenAudit] = useState<string | null>(null);
+  // A ruling takes effect at once (a non-compliant one cancels resting buys):
+  // the reviewer confirms it first.
+  const [confirm, setConfirm] = useState<null | { symbol: string; status: "halal" | "non_halal" | "reviewing"; reason?: string }>(null);
   const audit = useQuery({
     queryKey: ["shariah-audit", openAudit],
     queryFn: () => auditFn({ data: { decisionId: openAudit! } }),
@@ -76,6 +79,7 @@ function ReviewPage() {
   const mutation = useMutation({
     mutationFn: (v: { symbol: string; status: "halal" | "non_halal" | "reviewing"; reason?: string }) => recordFn({ data: v }),
     onSuccess: (_res, v) => {
+      setConfirm(null);
       toast.success(t("d_rulingSaved").replace("{symbol}", v.symbol));
       setReason((r) => ({ ...r, [v.symbol]: "" }));
       qc.invalidateQueries({ queryKey: ["shariah-decisions"] });
@@ -215,9 +219,9 @@ function ReviewPage() {
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
               />
               <div className="flex gap-2">
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] || undefined })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] || undefined })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
               </div>
             </div>
           ))}
@@ -316,6 +320,33 @@ function ReviewPage() {
           </div>
         )}
       </section>
+
+      <Dialog open={!!confirm} onOpenChange={(o) => !o && !mutation.isPending && setConfirm(null)}>
+        {confirm && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("d_confirmRuling").replace("{symbol}", confirm.symbol)}</DialogTitle>
+              <DialogDescription>{t("d_confirmRulingDesc")}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{t("shariahStatus")}:</span>
+                <ShariahPill status={confirm.status} />
+              </div>
+              {confirm.reason && <p className="text-ink-soft"><span className="text-muted-foreground">{t("reason")}:</span> {confirm.reason}</p>}
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirm(null)} disabled={mutation.isPending} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancel")}</button>
+                <button
+                  type="button"
+                  disabled={mutation.isPending}
+                  onClick={() => mutation.mutate(confirm)}
+                  className="rounded-md gold-gradient px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
+                >{mutation.isPending ? t("loading") : t("submitDecision")}</button>
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         {editing && (

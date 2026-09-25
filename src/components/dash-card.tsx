@@ -1,10 +1,8 @@
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 
 /**
  * Shared "quick link" card used on mode dashboards (brand/platform).
- * Previously duplicated byte-for-byte in brand-dashboard.tsx and
- * platform-dashboard.tsx -- first extraction from the UX audit's
- * "unify repeated components" finding.
  */
 export function DashCard({
   to,
@@ -12,28 +10,31 @@ export function DashCard({
   title,
   value,
   hint,
+  highlight,
 }: {
   to: string;
   icon: React.ComponentType<{ size?: number; weight?: "duotone" | "regular" }>;
   title: string;
-  value?: string;
-  hint: string;
+  value?: ReactNode;
+  hint: ReactNode;
+  /** Something is waiting here. */
+  highlight?: boolean;
 }) {
   return (
     <Link
       to={to}
-      className="group rounded-xl border border-border bg-card p-5 shadow-sm transition hover:border-[var(--gold)]/50 hover:shadow-luxury"
+      className={`group flex min-w-0 flex-col rounded-xl border bg-card p-5 shadow-card transition hover:border-[var(--gold)]/60 hover:shadow-luxury ${
+        highlight ? "border-[var(--gold)]/60" : "border-border/70"
+      }`}
     >
-      <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-md bg-[var(--gold)]/10 text-[var(--gold-deep)]">
-        <Icon size={18} weight="duotone" />
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[var(--gold)]/10 text-[var(--gold-deep)]" aria-hidden>
+          <Icon size={20} weight="duotone" />
+        </div>
+        {value != null && <span className="text-2xl font-bold leading-none text-ink">{value}</span>}
       </div>
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-sm font-semibold text-ink">{title}</h3>
-        {value && (
-          <span className="font-mono text-lg font-bold text-[var(--gold-deep)]">{value}</span>
-        )}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+      <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{hint}</p>
     </Link>
   );
 }

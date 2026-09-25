@@ -164,6 +164,24 @@ export function sectorLabel(sector: string | null | undefined, t: ReturnType<typ
   return key ? t(key) : sector;
 }
 
+/**
+ * "5 listed instruments" with the correct plural form (Arabic has six:
+ * zero, one, two, few, many, other).
+ */
+export function listedCountText(n: number, t: ReturnType<typeof useI18n>["t"], lang: Lang): string {
+  const cat = n === 0 ? "zero" : new Intl.PluralRules(lang === "ar" ? "ar" : "en").select(n);
+  const key = (
+    {
+      zero: "u_listedN_zero",
+      one: "u_listedN_one",
+      two: "u_listedN_two",
+      few: "u_listedN_few",
+      many: "u_listedN_many",
+    } as Record<string, Key>
+  )[cat] ?? "u_listedN_other";
+  return t(key).replace("{n}", new Intl.NumberFormat("en-US").format(n));
+}
+
 /** Deterministic decorative colour for an instrument's monogram (not data). */
 const MONOGRAM_PALETTE = [
   "oklch(0.24 0.05 260)",
@@ -209,7 +227,7 @@ export function PriceText({ mark, className }: { mark: Mark; className?: string 
       <Num value={mark.price} className="font-mono" />
       {mark.isReference && (
         <span
-          className="rounded border border-border px-1 text-[9px] font-medium not-italic text-muted-foreground"
+          className="rounded border border-border px-1 text-[10px] font-medium not-italic leading-4 text-muted-foreground"
           title={t("e2_referencePriceHint")}
         >
           {t("e2_refShort")}
@@ -246,7 +264,7 @@ export function ShariahPill({ status, compact }: { status: ShariahStatus | null;
     );
   }
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.cls}`}>
       <cfg.Icon size={12} weight="duotone" />
       {cfg.label}
     </span>
@@ -264,7 +282,8 @@ export function NoListingsState({ compact }: { compact?: boolean }) {
       action={
         <Link
           to="/request-access"
-          className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
+          search={{ kind: "new" }}
+          className="inline-flex min-h-11 items-center rounded-md gold-gradient px-5 text-sm font-semibold text-ink"
         >
           {t("e2_requestAccessCompanies")}
         </Link>
@@ -284,7 +303,7 @@ export function MarketDataError({ error, onRetry }: { error: unknown; onRetry?: 
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 rounded border border-border bg-background px-3 py-1 text-[11px] font-semibold text-ink hover:border-[var(--gold-deep)]"
+          className="mt-2 inline-flex min-h-9 items-center rounded border border-border bg-background px-3 text-xs font-semibold text-ink hover:border-[var(--gold-deep)]"
         >
           {t("tryAgain")}
         </button>

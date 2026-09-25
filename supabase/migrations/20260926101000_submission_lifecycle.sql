@@ -93,6 +93,11 @@ DECLARE
   _control boolean := COALESCE(current_setting('app.submission_control', true), '') = 'on';
 BEGIN
   IF TG_OP = 'INSERT' THEN
+    -- Symbols are stored as the market shows them (upper case, trimmed).
+    NEW.symbol := upper(btrim(COALESCE(NEW.symbol, '')));
+    IF NEW.symbol !~ '^[A-Z0-9._-]{1,32}$' THEN
+      RAISE EXCEPTION 'INVALID_SYMBOL';
+    END IF;
     NEW.status := 'pending';
     NEW.reviewer_id := NULL;
     NEW.review_reason := NULL;

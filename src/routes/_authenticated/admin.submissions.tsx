@@ -41,6 +41,7 @@ const SearchSchema = z.object({
 type SearchState = z.infer<typeof SearchSchema>;
 
 const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
+const HOLDER_ROLE: Record<string, Key> = { owner: "r_roleOwner", finance: "r_roleFinance" };
 
 /** Lifecycle error codes -> messages (the rest go through CODE_TO_KEY). */
 const LIFECYCLE_ERRORS: Partial<Record<string, Key>> = {
@@ -383,7 +384,7 @@ function ListingDialog({ submission, onClose }: { submission: QueueSubmission; o
                 <option value="">{t("d_noHolder")}</option>
                 {(holders.data ?? []).map((h) => (
                   <option key={h.userId} value={h.userId}>
-                    {h.email || h.userId} · {h.role}{h.isTrader ? "" : ` · ${t("d_notTrader")}`}
+                    {h.email || h.userId} · {HOLDER_ROLE[h.role] ? t(HOLDER_ROLE[h.role]) : h.role}{h.isTrader ? "" : ` · ${t("d_notTrader")}`}
                   </option>
                 ))}
               </select>

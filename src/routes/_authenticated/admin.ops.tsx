@@ -8,6 +8,8 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
+import { formatDateTime } from "@/components/market-data";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import {
   getOpsRuns,
@@ -151,8 +153,11 @@ function OpsPage() {
     download(`ops-run-log-${Date.now()}.csv`, "text/csv", `\uFEFF${csv}`);
   };
 
-  const fmt = (iso: string | null | undefined) =>
-    iso ? new Date(iso).toLocaleString(lang === "ar" ? "ar" : "en-US") : t("never");
+  const errorMessage = useErrorMessage();
+  const fmt = (iso: string | null | undefined) => (iso ? formatDateTime(iso, lang) : t("never"));
+  const stLabel = (s: string | null | undefined) =>
+    s === "ok" ? t("healthOk") : s === "warn" ? t("healthWarn") : s === "fail" ? t("healthFail") : (s ?? "");
+  const ms = (n: number) => `${new Intl.NumberFormat("en-US").format(n)} ${t("u_ms")}`;
 
   if (!rolesLoading && !isAdmin) {
     return (
@@ -169,23 +174,25 @@ function OpsPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
+        eyebrow={t("modePlatform")}
         title={t("opsSmoke")}
         description={t("opsSmokeDesc")}
-        crumbs={[{ label: "Admin", to: "/admin/companies" }, { label: t("opsSmoke") }]}
+        crumbs={[{ label: t("modePlatform"), to: "/" }, { label: t("opsSmoke") }]}
         actions={
           <div className="flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={() => smoke.mutate()}
               disabled={smoke.isPending}
-              className="min-h-11 rounded-md bg-[var(--gold-deep)] px-4 text-sm font-semibold text-ink-invert disabled:opacity-50"
+              className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"
             >
               {smoke.isPending ? t("running") : t("runSmoke")}
             </button>
             <button
+              type="button"
               onClick={() => refetch()}
               disabled={isFetching}
-              className="min-h-11 rounded-md border border-border px-4 text-sm font-semibold text-ink hover:border-[var(--gold-deep)] disabled:opacity-50"
+              className="min-h-11 rounded-md border border-border bg-card px-4 text-sm font-semibold text-ink hover:border-[var(--gold-deep)] disabled:opacity-50"
             >
               {isFetching ? t("loading") : t("refresh")}
             </button>
@@ -193,7 +200,7 @@ function OpsPage() {
         }
       />
 
-      <label className="mb-4 flex items-center gap-2 text-sm text-ink-soft">
+      <label className="mb-4 flex min-h-11 items-center gap-2 text-sm text-ink-soft">
         <input
           type="checkbox"
           checked={sendEmail}
@@ -211,12 +218,14 @@ function OpsPage() {
             label={t("lastCronRun")}
             value={fmt(data.lastCron?.created_at ?? null)}
             badge={data.lastCron?.status}
+            badgeLabel={stLabel(data.lastCron?.status)}
             detail={data.lastCron?.detail ?? "—"}
           />
           <Card
             label={t("lastSmokeRun")}
             value={fmt(data.lastSmoke?.created_at ?? null)}
             badge={data.lastSmoke?.status}
+            badgeLabel={stLabel(data.lastSmoke?.status)}
             detail={data.lastSmoke?.detail ?? "—"}
           />
           <Card label={t("activeAlerts")} value={String(data.activeAlerts)} detail={fmt(data.checkedAt)} />
@@ -226,32 +235,32 @@ function OpsPage() {
       <div className="mt-6" role="status" aria-live="polite" aria-atomic="true">
         {smoke.isError && (
           <p className="text-sm text-[var(--bear)]">
-            {(smoke.error as Error).message}
+            {errorMessage(smoke.error)}
           </p>
         )}
         {report && (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
               <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${tone(report.status)}`}>
-                {report.status.toUpperCase()}
+                {stLabel(report.status)}
               </span>
               <span className="text-ink-soft">
                 {t("smokePassed")}: {report.passed} · {t("smokeWarned")}: {report.warned} ·{" "}
-                {t("smokeFailed")}: {report.failed} · {report.durationMs} ms
+                {t("smokeFailed")}: {report.failed} · <span dir="ltr">{ms(report.durationMs)}</span>
               </span>
             </div>
-            <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
               {report.checks.map((c) => (
                 <div
                   key={c.key}
-                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border/50 px-4 py-3 text-xs last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto]"
                 >
-                  <span className="truncate font-mono text-ink">{c.key}</span>
-                  <span className="truncate text-ink-soft">{c.detail}</span>
-                  <span className="font-mono text-ink-soft">{c.durationMs} ms</span>
-                  <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${tone(c.status)}`}>
-                    {c.status}
+                  <code className="truncate text-ink" dir="ltr" style={{ textAlign: "start" }}>{c.key}</code>
+                  <span className={`justify-self-end whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-semibold sm:order-4 ${tone(c.status)}`}>
+                    {stLabel(c.status)}
                   </span>
+                  <span className="truncate text-ink-soft sm:order-2" dir="auto">{c.detail}</span>
+                  <span className="whitespace-nowrap text-end text-ink-soft sm:order-3" dir="ltr">{ms(c.durationMs)}</span>
                 </div>
               ))}
             </div>
@@ -262,19 +271,19 @@ function OpsPage() {
       {data && data.runs.length > 0 && (
         <>
           <section className="mt-8">
-            <h2 className="mb-2 text-label text-ink-soft">{t("opsKpis")}</h2>
+            <h2 className="mb-2 text-[15px] font-bold text-ink">{t("opsKpis")}</h2>
             {log.data ? (
               <>
                 <div className="grid gap-3 md:grid-cols-4">
                   <Card
                     label={t("avgLatency")}
-                    value={`${log.data.kpis.avgMs} ms`}
-                    detail={`p95 ${log.data.kpis.p95Ms} ms · max ${log.data.kpis.maxMs} ms`}
+                    value={ms(log.data.kpis.avgMs)}
+                    detail={`p95 ${ms(log.data.kpis.p95Ms)} · ${t("u_opsMax")} ${ms(log.data.kpis.maxMs)}`}
                   />
                   <Card
                     label={t("successRate")}
                     value={`${log.data.kpis.successRate}%`}
-                    detail={`${log.data.kpis.ok} ok · ${log.data.kpis.warn} warn · ${log.data.kpis.fail} fail`}
+                    detail={`${t("healthOk")}: ${log.data.kpis.ok} · ${t("healthWarn")}: ${log.data.kpis.warn} · ${t("healthFail")}: ${log.data.kpis.fail}`}
                   />
                   <Card label={t("alertsAffected")} value={String(log.data.kpis.alertsAffected)} />
                   <Card label={t("runsCount")} value={String(log.data.kpis.total)} />
@@ -294,7 +303,7 @@ function OpsPage() {
                             className={`w-full rounded-t ${
                               d.fail > 0 ? "bg-[var(--bear)]/70" : "bg-[var(--gold-deep)]/70"
                             }`}
-                            title={`${d.day}: ${d.total} runs · ${d.fail} fail · avg ${d.avgMs} ms`}
+                            title={`${d.day}: ${t("runsCount")} ${d.total} · ${t("healthFail")} ${d.fail} · ${t("avgLatency")} ${ms(d.avgMs)}`}
                           />
                           <span className="text-[10px] text-muted-foreground">{d.day.slice(5)}</span>
                         </div>
@@ -351,9 +360,9 @@ function OpsPage() {
                   className="ms-2 min-h-9 rounded border border-border bg-background px-2 text-sm text-ink"
                 >
                   <option value="all">{t("all")}</option>
-                  <option value="ok">ok</option>
-                  <option value="warn">warn</option>
-                  <option value="fail">fail</option>
+                  <option value="ok">{t("healthOk")}</option>
+                  <option value="warn">{t("healthWarn")}</option>
+                  <option value="fail">{t("healthFail")}</option>
                 </select>
               </label>
               <div className="ms-auto flex gap-2">
@@ -379,29 +388,29 @@ function OpsPage() {
 
       {data && data.runs.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-2 text-label text-ink-soft">{t("recentRuns")}</h2>
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <h2 className="mb-2 text-[15px] font-bold text-ink">{t("recentRuns")}</h2>
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
+            <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] gap-3 border-b border-border/70 bg-secondary/40 px-4 py-2.5 text-xs font-medium text-muted-foreground sm:grid">
               <span>{t("job")}</span>
               <span>{t("result")}</span>
               <span>{t("when")}</span>
-              <span className="text-end">Status</span>
+              <span className="text-end">{t("u_status")}</span>
             </div>
             {(log.data?.items ?? data.runs).map((r) => (
               <div
                 key={r.id}
-                className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border/50 px-4 py-3 text-xs last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto]"
               >
-                <span className="truncate font-mono text-ink">{r.job}</span>
-                <span className="truncate text-ink-soft">{r.detail ?? "—"}</span>
-                <span className="whitespace-nowrap text-ink-soft">{fmt(r.created_at)}</span>
+                <code className="truncate text-ink" dir="ltr" style={{ textAlign: "start" }}>{r.job}</code>
+                <span className="truncate text-ink-soft sm:order-2" dir="auto">{r.detail ?? "—"}</span>
+                <span className="whitespace-nowrap text-ink-soft sm:order-3">{fmt(r.created_at)}</span>
                 <Link
                   to="/admin/ops/$id"
                   params={{ id: r.id }}
                   aria-label={`${t("viewDetails")} ${r.job}`}
-                  className={`justify-self-end rounded border px-2 py-0.5 text-[10px] font-semibold hover:opacity-80 ${tone(r.status)}`}
+                  className={`inline-flex min-h-8 items-center justify-self-end whitespace-nowrap rounded border px-2 text-[11px] font-semibold hover:opacity-80 sm:order-4 ${tone(r.status)}`}
                 >
-                  {r.status} ›
+                  {stLabel(r.status)}
                 </Link>
               </div>
             ))}
@@ -409,7 +418,7 @@ function OpsPage() {
         </section>
       )}
       <section className="mt-8">
-        <h2 className="mb-1 text-label text-ink-soft">{t("opsThresholds")}</h2>
+        <h2 className="mb-1 text-[15px] font-bold text-ink">{t("opsThresholds")}</h2>
         <p className="mb-3 text-caption text-ink-soft">{t("opsThresholdsDesc")}</p>
         {!current ? (
           <LuxurySkeleton lines={3} />
@@ -442,15 +451,16 @@ function OpsPage() {
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
+                type="button"
                 onClick={() => saveThresholds.mutate(current)}
                 disabled={saveThresholds.isPending}
-                className="min-h-11 rounded-md bg-[var(--gold-deep)] px-4 text-sm font-semibold text-ink-invert disabled:opacity-50"
+                className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"
               >
                 {saveThresholds.isPending ? t("loading") : t("saveThresholds")}
               </button>
               <span className="text-caption text-ink-soft" role="status" aria-live="polite" aria-atomic="true">
                 {saveThresholds.isError
-                  ? (saveThresholds.error as Error).message
+                  ? errorMessage(saveThresholds.error)
                   : saveThresholds.isSuccess
                     ? t("thresholdsSaved")
                     : ""}
@@ -469,20 +479,22 @@ function Card({
   value,
   detail,
   badge,
+  badgeLabel,
 }: {
   label: string;
   value: string;
   detail?: string;
   badge?: string | null;
+  badgeLabel?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4">
-      <div className="text-label text-ink-soft">{label}</div>
-      <div className="mt-1 font-mono text-sm font-semibold text-ink">{value}</div>
-      {detail && <div className="mt-1 truncate text-caption text-ink-soft">{detail}</div>}
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card p-4 shadow-card">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1.5 text-sm font-semibold text-ink">{value}</div>
+      {detail && <div className="mt-1 truncate text-caption text-ink-soft" dir="auto">{detail}</div>}
       {badge && (
-        <span className={`mt-2 inline-block rounded border px-2 py-0.5 text-[10px] font-semibold ${tone(badge)}`}>
-          {badge}
+        <span className={`mt-2 inline-block rounded border px-2 py-0.5 text-[11px] font-semibold ${tone(badge)}`}>
+          {badgeLabel ?? badge}
         </span>
       )}
     </div>

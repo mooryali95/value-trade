@@ -350,7 +350,7 @@ function A11yDocsPage() {
             ? "أمثلة حيّة للمكونات الأساسية مع سيناريوهات لوحة المفاتيح ومناطق aria-live. تُستخدم أيضاً كهدف لاختبارات CI."
             : "Live examples of the core components with keyboard scenarios and aria-live regions. Also the target of the CI a11y suites."
         }
-        crumbs={[{ label: lang === "ar" ? "الرئيسية" : "Home", to: "/" }, { label: "A11y" }]}
+        crumbs={[{ label: lang === "ar" ? "الرئيسية" : "Home", to: "/" }, { label: lang === "ar" ? "إتاحة الوصول" : "Accessibility" }]}
       />
       <div className="grid gap-4 pb-10">
         <Section id="dialog" title="Dialog / AlertDialog" keyboard={["Tab", "Shift+Tab", "Enter", "Escape"]}>

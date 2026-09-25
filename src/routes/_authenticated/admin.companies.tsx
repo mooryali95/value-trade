@@ -10,7 +10,9 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type Key } from "@/lib/i18n";
+import { Num } from "@/components/num";
+import { formatDate, sectorLabel } from "@/components/market-data";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { listAllCompaniesAdmin } from "@/lib/admin/companies-directory.functions";
 import { Badge } from "@/components/badge";
@@ -61,25 +63,28 @@ function AdminCompaniesDirectory() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
+        eyebrow={t("modePlatform")}
         title={t("companiesDirectory")}
         description={t("companiesDirectoryDesc")}
-        crumbs={[{ label: t("companiesDirectory") }]}
+        crumbs={[{ label: t("modePlatform"), to: "/" }, { label: t("companiesDirectory") }]}
       />
 
       <div className="mb-5">
         <div className="relative max-w-sm">
           <MagnifyingGlass
             size={15}
-            className="pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground rtl:right-3 ltr:left-3"
+            aria-hidden
+            className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <input
+            type="search"
+            aria-label={t("searchCompanyPlaceholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && navigate({ search: { q } })}
             onBlur={() => navigate({ search: { q } })}
             placeholder={t("searchCompanyPlaceholder")}
-            className="w-full rounded-md border border-input bg-card py-2 text-sm outline-none focus:border-[var(--gold-deep)] rtl:pr-9 rtl:pl-3 ltr:pl-9 ltr:pr-3"
+            className="min-h-11 w-full rounded-md border border-input bg-card pe-3 ps-9 text-sm outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
           />
         </div>
       </div>
@@ -91,13 +96,13 @@ function AdminCompaniesDirectory() {
           <ErrorState reset={() => refetch()} />
         </div>
       ) : rows.length === 0 ? (
-        <EmptyState title={t("noCompaniesFound")} description="" />
+        <EmptyState icon={<Buildings size={22} weight="duotone" />} title={t("noCompaniesFound")} />
       ) : (
-        <div dir={dir} className="overflow-hidden rounded-xl border border-border/60 bg-card">
+        <div dir={dir} className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr className="border-b border-border/70 bg-secondary/40 text-xs text-muted-foreground">
                   <th className="px-4 py-3 text-start font-semibold">{t("company")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("classifySector")}</th>
                   <th className="px-4 py-3 text-start font-semibold">{t("plan")}</th>
@@ -127,27 +132,21 @@ function AdminCompaniesDirectory() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-ink-soft">{c.sector ?? "—"}</td>
+                    <td className="px-4 py-3 text-ink-soft">{c.sector ? sectorLabel(c.sector, t) : "—"}</td>
                     <td className="px-4 py-3">
-                      <Badge variant="neutral">{c.plan}</Badge>
+                      <Badge variant="neutral">{planLabel(c.plan, t)}</Badge>
                     </td>
-                    <td className="px-4 py-3 font-mono text-ink">{c.memberCount}</td>
+                    <td className="px-4 py-3 text-ink"><Num value={c.memberCount} kind="qty" /></td>
                     <td className="px-4 py-3">
                       {c.pendingAccessRequests > 0 ? (
                         <Badge variant="gold" to="/access-requests">
-                          {c.pendingAccessRequests} {t("pendingReview")}
+                          <Num value={c.pendingAccessRequests} kind="qty" /> {t("pendingReview")}
                         </Badge>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {new Date(c.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(c.created_at, lang)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -157,4 +156,18 @@ function AdminCompaniesDirectory() {
       )}
     </AppShell>
   );
+}
+
+/** Company plan: the known tiers are translated; anything else is shown as stored. */
+const PLAN_KEYS: Record<string, Key> = {
+  basic: "u_planBasic",
+  starter: "planStarterName",
+  founding: "planStarterName",
+  growth: "planGrowthName",
+  enterprise: "planEnterpriseName",
+};
+function planLabel(plan: string | null | undefined, t: (k: Key) => string): string {
+  if (!plan) return "—";
+  const k = PLAN_KEYS[plan.toLowerCase()];
+  return k ? t(k) : plan;
 }

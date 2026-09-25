@@ -86,7 +86,7 @@ grep -q GO_LIVE_RESET_DONE <<<"$OUT" && check "reset reports completion" "t" "t"
 ARCH=""; for t in $TABLES; do ARCH+="$t=$(su "SELECT count(*) FROM go_live_archive.archive_20260925_$t;") "; done
 check "archives hold exactly the pre-reset rows" "$ARCH" "$BEFORE"
 check "trading tables cleared, portfolios and alerts kept" "$(counts)" \
-  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=1 "
+  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=$(sed -E 's/.*price_alerts=([0-9]+).*/\1/' <<<"$BEFORE") "
 check "every cash balance is 0" "$(su "SELECT count(*) FROM public.portfolios WHERE cash_balance <> 0;")" "0"
 check "invariants hold after the reset" "$(invariants)" "0|0|0|0"
 check "users, roles and brands kept" "$(su "SELECT (SELECT count(*) FROM auth.users WHERE email LIKE 'golive-%') || '|' || (SELECT count(*) FROM public.user_roles WHERE user_id IN ('$ADMIN','$A','$B','$C')) || '|' || (SELECT count(*) FROM public.brands WHERE symbol LIKE 'GLV_');")" "4|4|2"

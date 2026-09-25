@@ -141,11 +141,16 @@ export function CandlestickChart({
       wickUpColor: "#3f9d6c",
       wickDownColor: "#a63b2c",
     });
+    // Candles use the upper part of the pane; volume bars the bottom band,
+    // so the two never overlap.
+    candleSeries.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.24 } });
     candleSeries.setData(points.map((c) => ({ time: c.ts, open: c.open, high: c.high, low: c.low, close: c.close })));
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
       priceScaleId: "",
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volumeSeries.setData(

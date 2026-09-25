@@ -3,6 +3,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
 
+/** Validation failures reach the browser as a stable code, not a zod dump. */
+function parseOr<T>(schema: z.ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) throw new Error("INVALID_INPUT");
+  return parsed.data;
+}
+
 const Input = z.object({
   symbol: z.string().min(1).max(32),
   status: z.enum(["halal", "non_halal", "reviewing"]),
@@ -11,7 +18,7 @@ const Input = z.object({
 
 export const recordShariahDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Input.parse(input))
+  .inputValidator((input: unknown) => parseOr(Input, input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: isReviewer } = await supabase.rpc("has_role", {
@@ -115,7 +122,7 @@ const UpdateInput = z.object({
 });
 export const updateShariahDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => UpdateInput.parse(input))
+  .inputValidator((input: unknown) => parseOr(UpdateInput, input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: isReviewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" });
@@ -170,7 +177,7 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
 
 export const listDecisionAudit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ decisionId: z.string().uuid() }).parse(input))
+  .inputValidator((input: unknown) => parseOr(z.object({ decisionId: z.string().uuid() }), input))
   .handler(async ({ data, context }) => {
     const { data: rows } = await context.supabase
       .from("shariah_decision_audit")

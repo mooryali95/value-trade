@@ -2,10 +2,16 @@ import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useI18n } from "@/lib/i18n";
-import { formatInt } from "@/lib/format";
 import { CandlestickChart } from "@/components/candlestick-chart";
 import { LuxurySkeleton, LuxurySkeletonBlock } from "@/components/luxury-skeleton";
-import { MarketDataError, formatDateTime, formatPrice, formatTime } from "@/components/market-data";
+import { Num } from "@/components/num";
+import {
+  MarketDataError,
+  formatDateTime,
+  MARKET_TIME_ZONE,
+  formatTime,
+  isSameMarketDay,
+} from "@/components/market-data";
 import {
   getCandles,
   getPublicInstrument,
@@ -38,9 +44,9 @@ export function useLiveInstrument(initial: PublicInstrumentDetail) {
 
 export function Panel({ title, actions, children, className }: { title: string; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-xl border border-border/60 bg-card/60 p-4 ${className ?? ""}`}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <section className={`min-w-0 rounded-xl border border-border/70 bg-card p-4 shadow-card sm:p-5 ${className ?? ""}`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-bold text-ink">{title}</h2>
         {actions}
       </div>
       {children}
@@ -51,14 +57,14 @@ export function Panel({ title, actions, children, className }: { title: string; 
 function IntervalToggle({ value, onChange }: { value: CandleInterval; onChange: (v: CandleInterval) => void }) {
   const { t } = useI18n();
   return (
-    <div role="group" aria-label={t("e2_chartInterval")} className="inline-flex rounded-md border border-border bg-background p-0.5 text-[11px]">
+    <div role="group" aria-label={t("e2_chartInterval")} className="inline-flex rounded-md border border-border bg-background p-0.5 text-xs">
       {(["1h", "1d"] as const).map((iv) => (
         <button
           key={iv}
           type="button"
           aria-pressed={value === iv}
           onClick={() => onChange(iv)}
-          className={`rounded px-2.5 py-1 font-semibold transition ${value === iv ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]" : "text-ink-soft hover:text-ink"}`}
+          className={`inline-flex min-h-10 min-w-12 items-center justify-center rounded px-3 font-semibold transition sm:min-h-8 ${value === iv ? "bg-[var(--gold-soft)] text-[var(--gold-ink)]" : "text-ink-soft hover:text-ink"}`}
         >
           {iv === "1h" ? t("e2_interval1h") : t("e2_interval1d")}
         </button>
@@ -89,7 +95,9 @@ export function ChartPanel({ symbol, height = 440, actions }: { symbol: string; 
       }
     >
       {q.isLoading ? (
-        <LuxurySkeletonBlock className="h-72 w-full" />
+        <div style={{ height: Math.min(height, 360) }}>
+          <LuxurySkeletonBlock className="h-full w-full" />
+        </div>
       ) : q.isError ? (
         <MarketDataError error={q.error} onRetry={() => q.refetch()} />
       ) : (
@@ -97,6 +105,22 @@ export function ChartPanel({ symbol, height = 440, actions }: { symbol: string; 
       )}
     </Panel>
   );
+}
+
+/** Compact day and 24h time for older tape rows ("18/09 09:30"), Latin digits in both languages. */
+function formatTapeDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: MARKET_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")} ${get("hour")}:${get("minute")}`;
 }
 
 /** The public trade tape, newest first. */
@@ -110,6 +134,7 @@ export function RecentTradesPanel({ symbol, limit = 20, className }: { symbol: s
     refetchInterval: 15_000,
   });
   const rows = q.data ?? [];
+  const now = new Date();
   return (
     <Panel title={t("recentTrades")} className={className}>
       {q.isLoading ? (
@@ -120,25 +145,27 @@ export function RecentTradesPanel({ symbol, limit = 20, className }: { symbol: s
         <p className="py-4 text-center text-xs text-muted-foreground">{t("e2_noTradesYet")}</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.3fr)] gap-2 border-b border-border/60 pb-1.5 text-[11px] font-medium text-muted-foreground">
             <div>{t("price")}</div>
             <div className="text-end">{t("qty")}</div>
             <div className="text-end">{t("e2_colTime")}</div>
           </div>
-          <ul className="max-h-56 space-y-0.5 overflow-y-auto">
+          <ul className="max-h-64 overflow-y-auto">
             {rows.map((r, i) => {
               const prev = rows[i + 1];
               const tone = !prev || r.price === prev.price ? "text-foreground" : r.price > prev.price ? "text-[var(--bull)]" : "text-[var(--bear)]";
+              // Today's trades show the time; older ones the day as well.
+              const when = isSameMarketDay(r.tradedAt, now) ? formatTime(r.tradedAt, lang) : formatTapeDateTime(r.tradedAt);
               return (
-                <li key={`${r.tradedAt}-${i}`} className="grid grid-cols-3 gap-2 py-0.5 font-mono text-xs">
-                  <span className={tone}>{formatPrice(r.price)}</span>
-                  <span className="text-end text-foreground/80">{formatInt(r.qty)}</span>
-                  <span className="text-end text-muted-foreground" title={formatDateTime(r.tradedAt, lang)}>{formatTime(r.tradedAt, lang)}</span>
+                <li key={`${r.tradedAt}-${i}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.3fr)] gap-2 py-1 text-xs">
+                  <Num value={r.price} className={`font-medium ${tone}`} />
+                  <span className="text-end text-foreground/80"><Num value={r.qty} kind="qty" /></span>
+                  <span className="truncate text-end text-muted-foreground" title={formatDateTime(r.tradedAt, lang)}><span dir="ltr" className="tabular-nums">{when}</span></span>
                 </li>
               );
             })}
           </ul>
-          <p className="mt-2 text-[10px] text-muted-foreground">{t("e2_riyadhTime")}</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">{t("e2_riyadhTime")}</p>
         </>
       )}
     </Panel>
@@ -169,14 +196,17 @@ export function OrderBookPanel({
   const maxQty = Math.max(1, ...bids.map((r) => r.qty), ...asks.map((r) => r.qty));
   const cols = showTotal ? "grid-cols-3" : "grid-cols-2";
   const Row = ({ price, qty, side }: { price: number; qty: number; side: "bid" | "ask" }) => (
-    <div className={`relative grid ${cols} gap-2 rounded px-1 py-0.5`}>
+    <div className={`relative grid ${cols} gap-2 rounded px-1.5 py-1`}>
       <div
-        className={`absolute inset-y-0 end-0 ${side === "ask" ? "bg-[var(--bear)]/10" : "bg-[var(--bull)]/10"}`}
+        aria-hidden
+        className={`absolute inset-y-0 end-0 rounded ${side === "ask" ? "bg-[var(--bear)]/10" : "bg-[var(--bull)]/10"}`}
         style={{ width: `${Math.round((qty / maxQty) * 100)}%` }}
       />
-      <div className={`relative ${side === "ask" ? "text-[var(--bear)]" : "text-[var(--bull)]"}`}>{formatPrice(price)}</div>
-      <div className="relative text-end text-foreground/80">{formatInt(qty)}</div>
-      {showTotal && <div className="relative text-end text-muted-foreground">{formatInt(Math.round(price * qty), true)}</div>}
+      <Num value={price} className={`relative font-medium ${side === "ask" ? "text-[var(--bear)]" : "text-[var(--bull)]"}`} />
+      <span className="relative text-end text-foreground/80"><Num value={qty} kind="qty" /></span>
+      {showTotal && (
+        <span className="relative text-end text-muted-foreground"><Num value={price * qty} kind="currency" decimals={0} /></span>
+      )}
     </div>
   );
   return (
@@ -189,22 +219,27 @@ export function OrderBookPanel({
         <p className="py-4 text-center text-xs text-muted-foreground">{t("e2_bookEmpty")}</p>
       ) : (
         <>
-          <div className={`grid ${cols} gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground`}>
+          <div className={`grid ${cols} gap-2 border-b border-border/60 px-1.5 pb-1.5 text-[11px] font-medium text-muted-foreground`}>
             <div>{t("price")}</div>
             <div className="text-end">{t("qty")}</div>
             {showTotal && <div className="text-end">{t("total")}</div>}
           </div>
-          <div className="space-y-0.5 font-mono text-xs">
+          <div className="mt-1 space-y-0.5 text-xs">
             {asks.slice().reverse().map((r) => <Row key={`a${r.price}`} price={r.price} qty={r.qty} side="ask" />)}
-            <div className="my-2 rounded bg-secondary/40 px-1 py-1 text-center text-[11px] font-semibold text-ink-soft">
-              {q.data?.lastPrice != null
-                ? `${t("lastPrice")} ${formatPrice(q.data.lastPrice)}`
-                : t("e2_noTradesYet")}
+            <div className="my-2 flex items-center justify-center gap-1.5 rounded bg-secondary/50 px-1.5 py-1.5 text-[12px] font-semibold text-ink-soft">
+              {q.data?.lastPrice != null ? (
+                <>
+                  <span>{t("lastPrice")}</span>
+                  <Num value={q.data.lastPrice} className="text-ink" />
+                </>
+              ) : (
+                t("e2_noTradesYet")
+              )}
             </div>
             {bids.map((r) => <Row key={`b${r.price}`} price={r.price} qty={r.qty} side="bid" />)}
           </div>
           {(asks.length === 0 || bids.length === 0) && (
-            <p className="mt-2 text-[10px] text-muted-foreground">{asks.length === 0 ? t("e2_noAsks") : t("e2_noBids")}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">{asks.length === 0 ? t("e2_noAsks") : t("e2_noBids")}</p>
           )}
         </>
       )}

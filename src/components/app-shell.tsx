@@ -157,6 +157,7 @@ function MoreMenu({ items, isActive }: { items: NavItem[]; isActive: (p: string)
 
 /** Max links shown inline in the desktop header; the rest go under "More". */
 const INLINE_MAX = 5;
+const INLINE_MAX_LG = 3;
 
 export function AppShell({
   children,
@@ -214,6 +215,10 @@ export function AppShell({
     ? [{ to: "/settings/notifications", label: t("nav_notifications"), icon: Bell }]
     : [];
 
+  // Desktop nav: fewer inline links on narrower desktops (lg), more on wide
+  // screens (xl); the rest go under "More", so the header never overflows.
+  const inlineLg = primary.slice(0, INLINE_MAX_LG);
+  const overflowLg = [...primary.slice(INLINE_MAX_LG), ...accountGroup];
   const inline = primary.slice(0, INLINE_MAX);
   const overflow = [...primary.slice(INLINE_MAX), ...accountGroup];
 
@@ -262,10 +267,21 @@ export function AppShell({
             <Link to="/" className="flex min-h-11 items-center" aria-label={t("brand")}>
               <BrandMark size={34} />
             </Link>
-            {signedIn && <ModeSwitcher />}
+            {/* On phones the switchers move into the menu panel, so the header fits 360px. */}
+            {signedIn && (
+              <div className="hidden sm:block">
+                <ModeSwitcher />
+              </div>
+            )}
           </div>
 
-          <nav aria-label={t("nav_primary")} className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex">
+          <nav aria-label={t("nav_primary")} className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex xl:hidden">
+            {inlineLg.map((n) => (
+              <NavLinkItem key={n.to} item={n} active={isActive(n.to)} />
+            ))}
+            <MoreMenu items={overflowLg} isActive={isActive} />
+          </nav>
+          <nav aria-label={t("nav_primary")} className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 xl:flex">
             {inline.map((n) => (
               <NavLinkItem key={n.to} item={n} active={isActive(n.to)} />
             ))}
@@ -274,7 +290,11 @@ export function AppShell({
 
           <div className="ms-auto flex shrink-0 items-center gap-2 lg:ms-0">
             <CommandTrigger />
-            {signedIn && mode === "brand" && <CompanySwitcher />}
+            {signedIn && mode === "brand" && (
+              <div className="hidden sm:block">
+                <CompanySwitcher />
+              </div>
+            )}
             {signedIn === false && (
               <Link
                 to="/request-access"
@@ -292,6 +312,12 @@ export function AppShell({
         {open && (
           <div id="mobile-nav" className="max-h-[calc(100dvh-64px)] overflow-y-auto border-t border-border/60 bg-card lg:hidden">
             <div className="flex flex-col gap-1 p-2">
+              {signedIn && (
+                <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-1 pb-3 pt-1 sm:hidden">
+                  <ModeSwitcher />
+                  {mode === "brand" && <CompanySwitcher />}
+                </div>
+              )}
               {mobileSections.map((section) => (
                 <div key={section.heading} className="flex flex-col">
                   <div className="px-3 pb-1 pt-2 text-label text-ink-soft/70">{section.heading}</div>
@@ -352,7 +378,7 @@ function FooterLink({ to, search, children }: { to: string; search?: Record<stri
       <Link
         to={to as never}
         search={search as never}
-        className="inline-flex min-h-8 items-center text-[13px] text-ink-soft transition hover:text-[var(--gold-deep)]"
+        className="inline-flex min-h-11 items-center text-[13px] text-ink-soft transition hover:text-[var(--gold-ink)] sm:min-h-8"
       >
         {children}
       </Link>
@@ -364,29 +390,29 @@ function SiteFooter() {
   const { t } = useI18n();
   return (
     <footer className="mt-16 border-t border-border/60 bg-stone">
-      <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:grid-cols-2 md:px-6 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div className="max-w-sm">
+      <div className="mx-auto grid max-w-[1600px] grid-cols-2 gap-x-6 gap-y-8 px-4 py-10 md:px-6 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="col-span-2 max-w-sm lg:col-span-1">
           <BrandMark size={34} />
           <p className="mt-4 text-[13px] leading-relaxed text-ink-soft">{t("u_footerAbout")}</p>
         </div>
         <nav aria-label={t("u_footerMarket")}>
           <h2 className="mb-2 text-[13px] font-bold text-ink">{t("u_footerMarket")}</h2>
-          <ul className="space-y-0.5">
+          <ul className="sm:space-y-0.5">
             <FooterLink to="/market">{t("nav_market")}</FooterLink>
             <FooterLink to="/shariah">{t("nav_shariah")}</FooterLink>
           </ul>
         </nav>
         <nav aria-label={t("u_footerGetStarted")}>
           <h2 className="mb-2 text-[13px] font-bold text-ink">{t("u_footerGetStarted")}</h2>
-          <ul className="space-y-0.5">
+          <ul className="sm:space-y-0.5">
             <FooterLink to="/request-access" search={{ kind: "invest" }}>{t("u_ctaInvestor")}</FooterLink>
             <FooterLink to="/request-access" search={{ kind: "new" }}>{t("u_ctaCompany")}</FooterLink>
             <FooterLink to="/auth">{t("u_footerMemberSignIn")}</FooterLink>
           </ul>
         </nav>
-        <nav aria-label={t("u_footerLegal")}>
+        <nav aria-label={t("u_footerLegal")} className="col-span-2 sm:col-span-1">
           <h2 className="mb-2 text-[13px] font-bold text-ink">{t("u_footerLegal")}</h2>
-          <ul className="space-y-0.5">
+          <ul className="sm:space-y-0.5">
             <FooterLink to="/legal/terms">{t("legalTerms")}</FooterLink>
             <FooterLink to="/legal/risk">{t("legalRisk")}</FooterLink>
             <FooterLink to="/legal/privacy">{t("legalPrivacy")}</FooterLink>

@@ -29,9 +29,16 @@
 --   6. Verifies the ledger invariants the database security suite checks
 --      (cash balance = sum of the ledger for every portfolio, positions =
 --      issued + bought - sold for every holder, no negative cash or units)
---      and aborts, changing nothing, if any of them fails.
+--      and aborts, changing nothing, if any of them fails. When the launch
+--      bundle is applied, public.integrity_report() must also pass (every
+--      check except published_ready, which is only reported as a notice
+--      GO_LIVE_RESET_NOTE: a listed instrument without a ruling or price is
+--      an admin task, not a reason to keep the old trading state).
 --   7. Writes one audit_log row (action 'go_live_reset', entity
 --      'trading_state') with the archived row counts and what was reset.
+--
+-- Columns added at launch (positions.cost_basis, orders.filled_notional)
+-- are archived with their tables like every other column.
 --
 -- WHAT IT KEEPS: users (auth.users, profiles), roles (user_roles),
 -- companies and memberships, brands (including reference prices and the
@@ -99,6 +106,7 @@ DECLARE
   v_cash_before numeric;
   v_units_before numeric;
   v_bad bigint;
+  v_failed_checks text;
 BEGIN
   -- 1. Run once only.
   IF EXISTS (
@@ -184,6 +192,23 @@ BEGIN
    WHERE coalesce(e.qty, 0) <> coalesce(p.qty, 0) OR coalesce(p.qty, 0) < 0;
   IF v_bad <> 0 THEN
     RAISE EXCEPTION 'GO_LIVE_RESET_UNITS_INVARIANT' USING DETAIL = format('%s positions do not match issuances and trades. Nothing was changed.', v_bad);
+  END IF;
+
+  -- 6b. The integrity report (20260926101200), when present, must agree:
+  --     every ledger, unit and order check passes on the cleared state.
+  --     Listing checks (published_ready) are reported, not enforced here.
+  IF to_regprocedure('public.integrity_report()') IS NOT NULL THEN
+    SELECT count(*), string_agg(r.check_key, ', ')
+      INTO v_bad, v_failed_checks
+      FROM public.integrity_report() r
+     WHERE NOT r.ok AND r.check_key <> 'published_ready';
+    IF v_bad <> 0 THEN
+      RAISE EXCEPTION 'GO_LIVE_RESET_INTEGRITY' USING DETAIL = format('integrity_report() fails after the reset: %s. Nothing was changed.', v_failed_checks);
+    END IF;
+    SELECT string_agg(r.check_key, ', ') INTO v_failed_checks FROM public.integrity_report() r WHERE NOT r.ok;
+    IF v_failed_checks IS NOT NULL THEN
+      RAISE NOTICE 'GO_LIVE_RESET_NOTE integrity checks to review after the reset: %', v_failed_checks;
+    END IF;
   END IF;
 
   -- 7. Audit trail.

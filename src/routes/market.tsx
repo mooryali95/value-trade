@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { CaretLeft, CaretRight, SortAscending, SortDescending } from "@phosphor-icons/react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { useI18n, type Key } from "@/lib/i18n";
 import { canonicalUrl } from "@/lib/config/site";
-import { formatCurrency, formatInt } from "@/lib/format";
+import { Num } from "@/components/num";
 import { Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -19,8 +20,10 @@ import {
   assetClassLabel,
   formatDateTime,
   instrumentName,
+  listedCountText,
   loadOverviewOrNull,
   markOf,
+  sectorLabel,
   useMarketOverview,
 } from "@/components/market-data";
 import type { PublicInstrument } from "@/lib/market/public-market.functions";
@@ -119,8 +122,15 @@ function MarketPage() {
   const description = !summary
     ? undefined
     : summary.listedCount > 0
-      ? t("e2_marketDescListed").replace("{n}", formatInt(summary.listedCount))
+      ? `${listedCountText(summary.listedCount, t, lang)} · ${t("u_pricesFromTrades")}`
       : t("e2_marketDescEmpty");
+
+  const chip = (active: boolean) =>
+    `inline-flex min-h-11 items-center rounded-full border px-4 text-[13px] font-medium transition sm:min-h-9 ${
+      active
+        ? "border-[var(--gold)] bg-[var(--gold-soft)] text-[var(--gold-ink)]"
+        : "border-border bg-card text-ink-soft hover:border-[var(--gold)]/50 hover:text-ink"
+    }`;
 
   return (
     <AppShell>
@@ -146,46 +156,37 @@ function MarketPage() {
         </div>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <MetricCard label={t("e2_listedInstruments")} value={formatInt(summary?.listedCount ?? 0)} />
-            <MetricCard label={t("e2_trades24h")} value={formatInt(summary?.trades24h ?? 0)} />
-            <MetricCard label={t("e2_value24h")} value={formatCurrency(summary?.volume24hValue ?? 0, true, lang)} />
+          <dl className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <MetricCard label={t("e2_listedInstruments")} value={<Num value={summary?.listedCount ?? 0} kind="qty" />} />
+            <MetricCard label={t("e2_trades24h")} value={<Num value={summary?.trades24h ?? 0} kind="qty" />} />
+            <MetricCard label={t("e2_value24h")} value={<Num value={summary?.volume24hValue ?? 0} kind="currency" />} />
             <MetricCard
               label={t("e2_lastTrade")}
               value={summary?.lastTradeAt ? formatDateTime(summary.lastTradeAt, lang) : t("e2_noTradesYet")}
               small
             />
-          </div>
+          </dl>
 
           {classes.length > 1 && (
-            <div role="group" aria-label={t("a11yAssetClass")} className="mb-4 inline-flex rounded-lg border border-border bg-card p-1 text-sm">
+            <div role="group" aria-label={t("a11yAssetClass")} className="mb-4 flex flex-wrap gap-2">
               {["all", ...classes].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  aria-pressed={assetClass === c}
-                  onClick={() => setAssetClass(c)}
-                  className={`rounded-md px-4 py-1.5 text-xs font-semibold transition ${
-                    assetClass === c
-                      ? "bg-[var(--gold-soft)] text-[var(--gold-deep)]"
-                      : "text-ink-soft hover:text-ink"
-                  }`}
-                >
+                <button key={c} type="button" aria-pressed={assetClass === c} onClick={() => setAssetClass(c)} className={chip(assetClass === c)}>
                   {c === "all" ? t("all") : assetClassLabel(c, t)}
                 </button>
               ))}
             </div>
           )}
 
-          <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-            <div className="relative min-w-0">
-              <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground start-3" />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
+                type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={t("e2_searchInstruments")}
                 aria-label={t("e2_searchInstruments")}
-                className="w-full rounded-md border border-border bg-card px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+                className="min-h-11 w-full rounded-md border border-border bg-card ps-10 pe-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[var(--gold-deep)] focus:outline-none"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -194,7 +195,7 @@ function MarketPage() {
                 id="market-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortKey)}
-                className="rounded-md border border-border bg-card px-2 py-2 text-xs"
+                className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-card px-3 text-sm sm:flex-none"
               >
                 {SORT_KEYS.map((k) => (
                   <option key={k.id} value={k.id}>{t("sortBy")}: {t(k.label)}</option>
@@ -203,77 +204,69 @@ function MarketPage() {
               <button
                 type="button"
                 onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-                className="rounded-md border border-border bg-card px-2 py-2 text-xs text-ink-soft hover:border-[var(--gold-deep)]"
+                className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border bg-card text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-ink"
                 aria-label={sortDir === "asc" ? t("sortAsc") : t("sortDesc")}
+                title={sortDir === "asc" ? t("sortAsc") : t("sortDesc")}
               >
-                {sortDir === "asc" ? "▲" : "▼"}
+                {sortDir === "asc" ? <SortAscending size={18} aria-hidden /> : <SortDescending size={18} aria-hidden />}
               </button>
             </div>
           </div>
 
           {sectors.length > 1 && (
-            <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label={t("sector")}>
+            <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label={t("sector")}>
               {["all", ...sectors].map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  aria-pressed={sector === s}
-                  onClick={() => setSector(s)}
-                  className={`rounded-full border px-3 py-1 text-xs transition ${
-                    sector === s
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                  }`}
-                >
-                  {s === "all" ? t("all") : s}
+                <button key={s} type="button" aria-pressed={sector === s} onClick={() => setSector(s)} className={chip(sector === s)}>
+                  {s === "all" ? t("all") : sectorLabel(s, t)}
                 </button>
               ))}
             </div>
           )}
 
           <div className="mb-2 text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
-            {filtered.length} / {instruments.length} {t("a11yResults")}
+            <Num value={filtered.length} kind="qty" /> / <Num value={instruments.length} kind="qty" /> {t("a11yResults")}
           </div>
 
-          {/* Table */}
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
-            <div className="hidden md:grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          {/* Table (desktop) / cards (mobile) */}
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
+            <div className="hidden grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))_auto] items-center gap-4 border-b border-border/70 bg-secondary/40 px-4 py-2.5 text-xs font-medium text-muted-foreground md:grid lg:grid-cols-[minmax(0,2.2fr)_repeat(4,minmax(0,1fr))_auto]">
               <div>{t("e2_colInstrument")}</div>
               <div className="text-end">{t("price")}</div>
               <div className="text-end">{t("change24h")}</div>
               <div className="text-end">{t("e2_value24h")}</div>
               <div className="hidden text-end lg:block">{t("e2_lastTrade")}</div>
-              <div className="w-6" />
+              <div className="w-4" />
             </div>
-            <div className="max-h-[70vh] divide-y divide-border/40 overflow-y-auto">
+            <div className="divide-y divide-border/60">
               {filtered.map((b) => (
                 <Link
                   key={b.symbol}
                   to="/market/$slug"
                   params={{ slug: b.slug }}
-                  className="hidden md:grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] items-center gap-4 px-4 py-3 text-sm transition hover:bg-secondary/40"
+                  className="hidden grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))_auto] items-center gap-4 px-4 py-3 text-sm transition hover:bg-secondary/40 md:grid lg:grid-cols-[minmax(0,2.2fr)_repeat(4,minmax(0,1fr))_auto]"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <Monogram symbol={b.symbol} />
+                    <Monogram symbol={b.symbol} className="h-10 w-10" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-semibold text-foreground">{instrumentName(b, lang)}</span>
+                        <span className="truncate font-semibold text-ink">{instrumentName(b, lang)}</span>
                         <ShariahPill status={b.shariahStatus} compact />
                       </div>
-                      <div className="text-[10px] uppercase text-muted-foreground">
-                        {[b.symbol, b.sector, assetClassLabel(b.assetClass, t)].filter(Boolean).join(" · ")}
+                      <div className="truncate text-xs text-muted-foreground">
+                        <span dir="ltr">{b.symbol}</span>
+                        {b.sector ? ` · ${sectorLabel(b.sector, t)}` : ""}
                       </div>
                     </div>
                   </div>
-                  <div className="text-end text-foreground"><PriceText mark={markOf(b)} /></div>
+                  <div className="text-end font-semibold text-ink"><PriceText mark={markOf(b)} /></div>
                   <div className="text-end"><ChangeText pct={b.change24hPct} /></div>
-                  <div className="text-end font-mono text-muted-foreground">
-                    {b.trades24h > 0 ? formatCurrency(b.volume24hValue, true, lang) : "—"}
+                  <div className="text-end text-ink-soft">
+                    {b.trades24h > 0 ? <Num value={b.volume24hValue} kind="currency" /> : <Num value={null} />}
                   </div>
                   <div className="hidden text-end text-xs text-muted-foreground lg:block">
                     {b.lastTradeAt ? formatDateTime(b.lastTradeAt, lang) : t("e2_noTradesYet")}
                   </div>
-                  <div className="w-6 text-end text-muted-foreground rtl:rotate-180">›</div>
+                  <Chevron />
                 </Link>
               ))}
               {/* mobile cards */}
@@ -282,19 +275,22 @@ function MarketPage() {
                   key={`m-${b.symbol}`}
                   to="/market/$slug"
                   params={{ slug: b.slug }}
-                  className="md:hidden grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-secondary/40"
+                  className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-secondary/40 md:hidden"
                 >
-                  <Monogram symbol={b.symbol} className="h-10 w-10 text-[10px]" />
+                  <Monogram symbol={b.symbol} className="h-10 w-10" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold text-foreground">{instrumentName(b, lang)}</span>
+                      <span className="truncate text-sm font-semibold text-ink">{instrumentName(b, lang)}</span>
                       <ShariahPill status={b.shariahStatus} compact />
                     </div>
-                    <div className="text-[10px] uppercase text-muted-foreground">{[b.symbol, b.sector].filter(Boolean).join(" · ")}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      <span dir="ltr">{b.symbol}</span>
+                      {b.sector ? ` · ${sectorLabel(b.sector, t)}` : ""}
+                    </div>
                   </div>
                   <div className="text-end">
-                    <PriceText mark={markOf(b)} className="text-sm text-foreground" />
-                    <div className="text-[10px]"><ChangeText pct={b.change24hPct} /></div>
+                    <PriceText mark={markOf(b)} className="text-sm font-semibold text-ink" />
+                    <div className="text-xs"><ChangeText pct={b.change24hPct} /></div>
                   </div>
                 </Link>
               ))}
@@ -305,18 +301,24 @@ function MarketPage() {
               )}
             </div>
           </div>
-          <p className="mt-3 text-[11px] text-muted-foreground">{t("e2_priceNote")}</p>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("e2_priceNote")}</p>
         </>
       )}
     </AppShell>
   );
 }
 
-function MetricCard({ label, value, small }: { label: string; value: string; small?: boolean }) {
+function Chevron() {
+  const { dir } = useI18n();
+  const Icon = dir === "rtl" ? CaretLeft : CaretRight;
+  return <Icon size={14} weight="bold" className="w-4 text-muted-foreground" aria-hidden />;
+}
+
+function MetricCard({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/60 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`mt-1 font-mono font-semibold text-foreground ${small ? "text-sm" : "text-lg"}`}>{value}</div>
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card p-4 shadow-card">
+      <dt className="truncate text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className={`mt-1.5 font-semibold text-ink ${small ? "text-sm" : "text-xl"}`}>{value}</dd>
     </div>
   );
 }

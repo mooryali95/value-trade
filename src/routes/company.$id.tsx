@@ -1,10 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { Num } from "@/components/num";
 import { NotFoundBlock } from "@/components/not-found-block";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { useI18n, pick } from "@/lib/i18n";
 import { canonicalUrl } from "@/lib/config/site";
-import { formatCurrency, formatInt } from "@/lib/format";
 import { getPublicCompanyProfile } from "@/lib/market/public-market.functions";
 import {
   ChangeText,
@@ -16,6 +17,7 @@ import {
   formatDateTime,
   instrumentName,
   markOf,
+  sectorLabel,
 } from "@/components/market-data";
 
 export const Route = createFileRoute("/company/$id")({
@@ -70,40 +72,41 @@ function CompanyPage() {
       <PageHeader
         eyebrow={t("companyProfile")}
         title={name}
-        description={profile.sector ?? undefined}
+        description={profile.sector ? sectorLabel(profile.sector, t) : undefined}
         crumbs={[
           { label: t("marketOverview"), to: "/market" },
           { label: name },
         ]}
       />
 
-      <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label={t("e2_listedInstruments")} value={formatInt(profile.instruments.length)} />
-        <Stat label={t("e2_trades24h")} value={formatInt(trades24h)} />
-        <Stat label={t("e2_value24h")} value={formatCurrency(value24h, true, lang)} />
+      <dl className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label={t("e2_listedInstruments")} value={<Num value={profile.instruments.length} kind="qty" />} />
+        <Stat label={t("e2_trades24h")} value={<Num value={trades24h} kind="qty" />} />
+        <Stat label={t("e2_value24h")} value={<Num value={value24h} kind="currency" />} />
         <Stat label={t("e2_lastTrade")} value={lastTradeAt ? formatDateTime(lastTradeAt, lang) : t("e2_noTradesYet")} small />
-      </div>
+      </dl>
 
-      <h2 className="mb-3 text-sm font-semibold text-foreground">{t("e2_companyInstruments")}</h2>
+      <h2 className="mb-3 text-[15px] font-bold text-ink">{t("e2_companyInstruments")}</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {profile.instruments.map((b) => (
           <Link
             key={b.symbol}
             to="/market/$slug"
             params={{ slug: b.slug }}
-            className="rounded-xl border border-border/60 bg-card/60 p-4 transition hover:border-primary/40"
+            className="rounded-xl border border-border/70 bg-card p-4 shadow-card transition hover:border-[var(--gold)]/60 hover:shadow-luxury"
           >
             <div className="flex items-center gap-3">
-              <Monogram symbol={b.symbol} className="h-10 w-10 text-[10px]" />
+              <Monogram symbol={b.symbol} className="h-10 w-10" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-foreground">{instrumentName(b, lang)}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {[b.symbol, b.sector, assetClassLabel(b.assetClass, t)].filter(Boolean).join(" · ")}
+                <div className="truncate text-sm font-semibold text-ink">{instrumentName(b, lang)}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  <span dir="ltr">{b.symbol}</span>
+                  {[b.sector ? sectorLabel(b.sector, t) : null, assetClassLabel(b.assetClass, t)].filter(Boolean).map((x) => ` · ${x}`).join("")}
                 </div>
               </div>
               <div className="text-end">
-                <PriceText mark={markOf(b)} className="text-sm text-foreground" />
-                <div className="text-[10px]"><ChangeText pct={b.change24hPct} /></div>
+                <PriceText mark={markOf(b)} className="text-sm font-semibold text-ink" />
+                <div className="text-xs"><ChangeText pct={b.change24hPct} /></div>
               </div>
             </div>
             <div className="mt-3">
@@ -116,11 +119,11 @@ function CompanyPage() {
   );
 }
 
-function Stat({ label, value, small }: { label: string; value: string; small?: boolean }) {
+function Stat({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/60 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`mt-1 font-mono font-semibold text-foreground ${small ? "text-sm" : "text-lg"}`}>{value}</div>
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card p-4 shadow-card">
+      <dt className="truncate text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className={`mt-1.5 font-semibold text-ink ${small ? "text-sm" : "text-xl"}`}>{value}</dd>
     </div>
   );
 }

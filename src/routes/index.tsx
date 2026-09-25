@@ -660,7 +660,7 @@ function AccountHome({ userId }: { userId: string }) {
 
         {(state === "active" || state === "hold") && (
           <div className="mt-6">
-            <PortfolioKpis q={portfolio} />
+            <PortfolioKpis q={portfolio} onHold={state === "hold"} />
           </div>
         )}
       </section>
@@ -674,7 +674,7 @@ function AccountHome({ userId }: { userId: string }) {
 
 type PortfolioData = Awaited<ReturnType<typeof getMyPortfolio>>;
 
-function PortfolioKpis({ q }: { q: UseQueryResult<PortfolioData> }) {
+function PortfolioKpis({ q, onHold }: { q: UseQueryResult<PortfolioData>; onHold?: boolean }) {
   const { t } = useI18n();
   if (q.isLoading) return <LuxurySkeleton lines={3} />;
   if (q.isError || !q.data) return <MarketDataError error={q.error} onRetry={() => q.refetch()} />;
@@ -700,7 +700,8 @@ function PortfolioKpis({ q }: { q: UseQueryResult<PortfolioData> }) {
               : undefined
           }
         />
-        <Kpi label={t("m_buyingPower")} value={<Num value={summary.buyingPower} kind="currency" />} />
+        {/* On hold no order can be placed, so buying power would mislead. */}
+        {!onHold && <Kpi label={t("m_buyingPower")} value={<Num value={summary.buyingPower} kind="currency" />} />}
         <Kpi label={t("u_kpiHoldings")} value={<Num value={summary.marketValue} kind="currency" />} />
         <Kpi
           label={t("u_kpiUnrealized")}
