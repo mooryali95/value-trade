@@ -2,9 +2,12 @@
 
 ## Reporting a Vulnerability
 
-Please email **security@valueunit.app** with a description, reproduction steps,
-and impact assessment. We aim to acknowledge within 48 hours and remediate
-critical issues within 7 days.
+Report privately to the platform operator with a description, reproduction
+steps and impact assessment. **Owner input pending:** the monitored security
+mailbox is not confirmed yet (`SITE.securityEmail` in `src/lib/config/site.ts`
+is empty, and the address `security@valueunit.app` published earlier is on a
+domain the site does not use). Until the owner confirms it, no response-time
+commitment is made here.
 
 Do **not** file public GitHub issues for security reports.
 
@@ -69,11 +72,9 @@ units, and only invited, admin-activated investors trade them.
   service role or a platform admin (trigger `brands_guard`), and `published`
   changes only inside `set_instrument_published` (no API caller, not even a
   platform admin or the service role, can insert a published brand or flip
-  the flag directly). Product submissions always start `pending`, move only
-  from `pending` to `approved` (which requires the instrument the server
-  creates first, off the market with no reference price, together with the
-  approving reviewer's Shariah ruling) or `rejected`, and are frozen
-  afterwards; submission documents must belong to a
+  the flag directly). Product submissions follow one lifecycle, enforced in
+  SQL (`20260926101000_submission_lifecycle.sql`, see *Submission to listing
+  lifecycle* below); submission documents must belong to a
   submission of the same company and live under
   `<company_id>/<submission_id>/`. Units of a listed brand enter the market
   only through primary issuance (`issue_units`, platform admins, recorded in
@@ -89,7 +90,11 @@ units, and only invited, admin-activated investors trade them.
 - **Stable error codes.** Server functions return `UPPER_SNAKE` codes (e.g. `INSUFFICIENT_CASH`, `ORDER_NOT_OPEN`); database and driver messages are logged server side and never sent to the browser.
 - **HMAC-signed** public webhooks/cron (`/api/public/cron-alerts`, others).
 - **Rate limiting** on public routes via `public.check_rate_limit`.
-- **HIBP** leaked-password protection enabled on auth.
+- **HIBP** leaked-password protection: enable it in the Supabase Auth settings
+  (Lovable Cloud) and confirm it there; the app maps the resulting Auth errors
+  to stable codes.
+- **Security headers** on every response the worker renders (see *Security
+  headers* below).
 - **HTTPS** enforced by hosting; strict cookies for the Supabase session.
 
 ## Public market data
@@ -120,10 +125,14 @@ from the database; nothing is generated.
   `reviewer_id` / `updated_by`; Shariah board members and platform admins
   read every ruling (the review console's `listShariahDecisions` requires one
   of those roles).
-- **Caps.** Board ≤ 1000 rows, candles ≤ 500 buckets, trade tape ≤ 50
-  prints, order book depth ≤ 50. `public_candles` walks the buckets newest
-  first with one index probe per bucket and reads only the trades inside the
-  buckets it returns, never a symbol's whole history.
+- **Caps.** Board ≤ 1000 rows, candles ≤ 500 hourly or ≤ 366 daily buckets,
+  trade tape ≤ 50 prints, order book depth ≤ 50. `public_candles` walks the
+  buckets newest first with one index probe per bucket and reads only the
+  trades inside the buckets it returns, never a symbol's whole history; open
+  and close are single index probes and the other aggregates an index-only
+  scan of `idx_trades_symbol_time_cover`, with JIT off
+  (`20260926101100_public_candles_cost.sql`; on 1,000,000 trades of one
+  symbol: 1 bucket ~1-2 ms, 200 daily buckets ~120 ms).
 - **Same definitions as the engine.** Last price = last trade; 24h change vs
   the last trade at least 24h old, else the first trade in the window;
   volume counted once per trade; trading day = Asia/Riyadh; the band shown
@@ -154,7 +163,93 @@ from the database; nothing is generated.
   old approval path published at a default of 100, or kept a seed's price)
   or that has no ruling in force, and reset every unconfirmed price of an
   unlisted instrument to 0, so nothing can be republished at an invented
-  price: an admin sets a real reference price first.
+  price: an admin sets a real reference price first. It creates **no**
+  Shariah ruling (an earlier, never-applied draft recorded 'halal' rulings in
+  the approving reviewer's name for legacy approvals; nobody made those
+  rulings, so they are not invented). A legacy approval without a ruling
+  leaves the market; a Shariah reviewer rules on it from the review console,
+  which lists unpublished instruments too, and an admin lists it again.
+
+## Submission to listing lifecycle
+
+Every transition is one `SECURITY DEFINER` function (service role only; the
+server checks the caller's role first and passes the verified user id, and the
+function checks it again), in one transaction with its audit row:
+
+| From | To | Who | Function |
+| --- | --- | --- | --- |
+| (new) | `pending` | company owner / finance | insert (RLS; the guard forces `pending`) |
+| `pending` | `approved` / `rejected` | Shariah reviewer (`shariah_board`) | `review_submission` |
+| `approved` | `listed` | platform admin | `approve_listing` (or listing the instrument with `set_instrument_published`) |
+| `approved` | `rejected` | platform admin | `decline_listing` (reason required) |
+
+- **Approval** creates the company's instrument off the market with reference
+  price 0 (or updates the company's own existing instrument, never its price
+  or listing state; another company's symbol is `SYMBOL_TAKEN`), records the
+  reviewer's `halal` ruling unless a `halal` ruling is already in force, and
+  flips the status, all together or not at all. A `non_halal` or `reviewing`
+  ruling in force is never overridden silently: the approval fails with
+  `SHARIAH_RULING_CONFLICT` unless the reviewer explicitly replaces it with a
+  written reason (`RULING_CHANGE_REASON_REQUIRED` otherwise). A rejection
+  needs a reason of 10+ characters, which the company sees.
+- **Listing** (`approve_listing`) needs the `halal` ruling in force
+  (`SHARIAH_RULING_REQUIRED` / `SHARIAH_NOT_HALAL`), sets the reference price
+  (database price rules apply; audited as `brand.reference_price`), lists the
+  instrument through `set_instrument_published`, optionally allocates the
+  first units to one of the company's owner / finance members through
+  `issue_units`, and marks the submission `listed`.
+- **No direct writes.** `authenticated` has no UPDATE on
+  `product_submissions` and the reviewer UPDATE policy is gone; the guard
+  refuses any change of a decision field from an API role (including the
+  service role) outside these functions (`SUBMISSION_TRANSITION_FORBIDDEN`),
+  and refuses any transition not in the table above for every caller.
+- **Rulings on unlisted instruments.** `reviewer_instruments` lists every
+  instrument (listed or not) with the ruling in force for Shariah reviewers
+  and platform admins, so a reviewer can rule on an unpublished instrument
+  before it is listed; `recordShariahDecision` accepts existing instruments
+  only.
+
+## Data integrity report
+
+`public.integrity_report()` (service role only, read-only) returns named
+checks with the number of violating rows and up to five sample keys:
+`cash_matches_ledger`, `trade_cash_balanced`, `no_negative_cash`,
+`units_match_history`, `units_conserved_per_symbol`, `no_negative_positions`,
+`orders_fill_within_qty`, `no_resting_on_unpublished`,
+`trades_reference_orders`, `published_ready`, `cost_basis_not_negative`.
+`/admin/health` (`getPlatformHealth`, platform admins) lists each as
+`integrity.<check>` with pass / fail. Run it after the migrations bundle and
+after the go-live reset; every check must pass before investors are invited.
+Legacy rows written before the engine (fills without trades, balances
+without ledger rows) show up here until the go-live reset clears them.
+
+## Security headers
+
+`src/server.ts` adds these to every response the worker renders (SSR HTML,
+server functions, API routes), without overriding a header a handler set
+(`src/lib/ops/security-headers.ts`, tested in `security-headers.test.ts`):
+
+| Header | Value |
+| --- | --- |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` (HTTPS requests; no `preload`) |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | camera, microphone, geolocation, payment, USB, interest-cohort, browsing-topics off |
+| `Content-Security-Policy` | `frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'` |
+| `X-Frame-Options` | `DENY` |
+
+Framing is refused on the production hosts only: Lovable's editor shows the
+app in an iframe on its preview / dev hosts (`id-preview--*.lovable.app`,
+`*-dev.lovable.app`, `*.lovableproject.com`) and on localhost, which get the
+same headers without `frame-ancestors` / `X-Frame-Options`. Static files in
+`public/` are served by the host before the worker; `public/_headers`
+(copied to `.output/public/_headers`, which Cloudflare static assets honour)
+gives them the non-framing subset.
+
+There is **no script CSP** (`script-src` / `default-src`): TanStack Start
+streams inline `<script>` tags for SSR hydration without a nonce hook, so a
+script policy would either need `'unsafe-inline'` (no protection) or break
+hydration. Revisit when the framework supports per-request nonces.
 
 ## Data Retention & Backups
 
@@ -300,5 +395,5 @@ See `docs/api-public.md` for the exact scheduling SQL and response contracts.
 
 ## Contacts
 
-- Security Lead: security@valueunit.app
+- Security contact: **owner input pending** (see *Reporting a Vulnerability*).
 - On-call: see internal runbook.

@@ -186,7 +186,8 @@ describe("listing tools", () => {
 
 describe("queues that cross company boundaries", () => {
   it("reviewer queue keeps submissions of companies the reviewer is not a member of", async () => {
-    state.userRows.product_submissions = [
+    // Read with the service role after the reviewer / admin check.
+    state.adminRows.product_submissions = [
       { id: "s-1", company_id: "co-1", symbol: "ACM", status: "pending" },
       { id: "s-2", company_id: "co-2", symbol: "BRV", status: "pending" },
     ];
@@ -215,42 +216,43 @@ describe("queues that cross company boundaries", () => {
 
 describe("listing truth: approval, publishing, rulings", () => {
   const SUB_ID = "7a1d6a5e-2b1c-4c8e-9a47-0c2f5d8e1b7a";
-  const pendingSubmission = {
-    id: SUB_ID,
-    company_id: "co-1",
-    asset_class: "brand",
-    symbol: "acm",
-    name_ar: "أكمي",
-    name_en: "Acme",
-    sector: "retail",
-    status: "pending",
-  };
 
-  it("approval creates the instrument off the market with no reference price and records the reviewer's ruling", async () => {
-    state.userRows.product_submissions = [pendingSubmission];
-    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).resolves.toEqual({ ok: true });
-    const brandInsert = adminCalls.payloads.find((w) => w.op === "insert" && w.table === "brands");
-    expect(brandInsert?.payload).toMatchObject({ symbol: "ACM", published: false, reference_price: 0, source_submission_id: SUB_ID });
-    // The ruling is written with the reviewer's own session (stamped reviewer).
-    expect(userCalls.payloads).toContainEqual({ op: "insert", table: "shariah_decisions", payload: { symbol: "ACM", status: "halal", reason: null } });
-    expect(adminCalls.writes).not.toContain("insert:shariah_decisions");
+  it("approval is one database call (instrument, ruling and status together), with the verified reviewer id", async () => {
+    state.adminRpc = {
+      data: [{ submission_id: SUB_ID, status: "approved", symbol: "ACM", brand_id: "b-1", ruling_id: "d-1", ruling_recorded: true, previous_ruling: null }],
+      error: null,
+    };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).resolves.toEqual({
+      ok: true,
+      status: "approved",
+      symbol: "ACM",
+      rulingRecorded: true,
+    });
+    expect(adminCalls.rpc).toEqual([
+      {
+        name: "review_submission",
+        args: { _submission_id: SUB_ID, _reviewer_id: "admin-1", _decision: "approved", _reason: null, _replace_ruling: false },
+      },
+    ]);
+    // No separate brand, ruling or status writes that could half-apply.
+    expect(adminCalls.writes).toEqual([]);
+    expect(userCalls.writes).toEqual([]);
   });
 
-  it("approval of an existing company instrument never changes its listing state or price", async () => {
-    state.userRows.product_submissions = [pendingSubmission];
-    state.adminRows.brands = [{ id: "b-1", company_id: "co-1" }];
-    await call(reviewSubmission, { submissionId: SUB_ID, status: "approved" });
-    const update = adminCalls.payloads.find((w) => w.op === "update" && w.table === "brands");
-    expect(update?.payload).toBeDefined();
-    expect(update?.payload).not.toHaveProperty("published");
-    expect(update?.payload).not.toHaveProperty("reference_price");
+  it("an existing non-compliant ruling is never overridden silently", async () => {
+    state.adminRpc = { data: null, error: { message: "SHARIAH_RULING_CONFLICT" } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^SHARIAH_RULING_CONFLICT$/);
+    state.adminRpc = { data: null, error: { message: 'duplicate key value violates unique constraint "brands_slug_key"', code: "23505" } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^SYMBOL_TAKEN$/);
+    state.adminRpc = { data: null, error: { message: 'relation "x" does not exist' } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^INTERNAL_ERROR$/);
   });
 
-  it("a rejection writes no instrument and no ruling", async () => {
-    state.userRows.product_submissions = [pendingSubmission];
-    await call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "Documents are incomplete." });
-    expect(adminCalls.writes.filter((w) => w.endsWith(":brands"))).toEqual([]);
-    expect(userCalls.writes).not.toContain("insert:shariah_decisions");
+  it("a rejection needs a reason, and only a Shariah reviewer decides", async () => {
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "short" })).rejects.toThrow(/^REJECTION_REASON_REQUIRED$/);
+    state.isReviewer = false;
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "Documents are incomplete." })).rejects.toThrow(/^FORBIDDEN$/);
+    expect(adminCalls.rpc).toEqual([]);
   });
 
   it("publishing is audited by the database function, not by a second best-effort write", async () => {

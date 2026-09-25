@@ -229,6 +229,8 @@ export type PendingActivation = {
   requestReference: string | null;
   requestedAt: string | null;
   pendingCompanyInvitations: number;
+  /** Unresolved launch review hold: activation would resolve it, so review it in the investor panel. */
+  onHold: boolean;
 };
 
 /**
@@ -261,6 +263,7 @@ export const listPendingActivations = createServerFn({ method: "GET" })
       request_reference: string | null;
       requested_at: string | null;
       pending_company_invitations: number | null;
+      on_hold: boolean | null;
     };
     return ((data ?? []) as Row[]).map((r) => ({
       userId: r.user_id,
@@ -273,5 +276,6 @@ export const listPendingActivations = createServerFn({ method: "GET" })
       requestReference: r.request_reference,
       requestedAt: r.requested_at,
       pendingCompanyInvitations: Number(r.pending_company_invitations ?? 0),
+      onHold: r.on_hold === true,
     }));
   });

@@ -24,9 +24,10 @@
 --      history explains the position's quantity; otherwise (pre-engine
 --      fills) round(qty * avg_price, 2), never negative.
 --   4) unit_issuances.created_at is stamped with clock_timestamp() at insert
---      (issue_units inserts it after applying the position, under the
---      user and symbol locks), so ordering issuances and trades by time
---      replays them in the order the engine applied them.
+--      when it takes the column default (issue_units inserts the row after
+--      applying the position, under the user and symbol locks; trades are
+--      already stamped with clock_timestamp()), so ordering issuances and
+--      trades by time replays them in the order the engine applied them.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -216,13 +217,18 @@ GRANT EXECUTE ON FUNCTION public.apply_trade_position(uuid, text, text, text, nu
 -- ---------------------------------------------------------------------------
 -- 4) Issuance time = the moment the units were credited.
 -- ---------------------------------------------------------------------------
+-- Only a row that takes the column default (now(), the transaction start)
+-- is re-stamped; a row inserted with an explicit historical time (e.g. the
+-- owner restoring the go-live archive) keeps it.
 CREATE OR REPLACE FUNCTION public.unit_issuances_stamp()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  NEW.created_at := clock_timestamp();
+  IF NEW.created_at IS NULL OR NEW.created_at = now() THEN
+    NEW.created_at := clock_timestamp();
+  END IF;
   RETURN NEW;
 END;
 $$;

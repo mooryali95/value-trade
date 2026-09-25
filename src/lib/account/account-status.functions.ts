@@ -22,7 +22,11 @@ export type AccountStatus = {
   companies: Array<{ id: string; nameAr: string; nameEn: string; role: string }>;
   /** Pending, unexpired company invitations addressed to the confirmed e-mail. */
   pendingInvitations: number;
-  /** The latest access request filed with this e-mail that is still pending. */
+  /**
+   * The latest access request filed with this (confirmed) e-mail that is
+   * still in progress: "pending" (under review) or "approved" (the account
+   * now waits for activation). Rejected requests are not reported.
+   */
   pendingAccessRequest: { id: string; status: string; joinMethod: string } | null;
 };
 
@@ -87,7 +91,8 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
         const remaining = Number(o.qty) - Number(o.filled_qty ?? 0);
         if (remaining > 0) reservedCents += Math.round(remaining * Number(o.price) * 100);
       }
-      buyingPower = money((Math.round(cashBalance * 100) - reservedCents) / 100);
+      // Floored to the cent, like public.buying_power.
+      buyingPower = money(Math.floor(Math.round(cashBalance * 100) - reservedCents) / 100);
     }
 
     const companies = (membersRes.data ?? []).map((m) => {
@@ -107,13 +112,17 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
               .eq("status", "pending")
               .gt("expires_at", new Date().toISOString())
           : Promise.resolve({ count: 0, error: null }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabaseAdmin.from("access_requests" as any) as any)
-          .select("id, status, join_method")
-          .ilike("email", account.email.replace(/[\\%_]/g, (c: string) => `\\${c}`))
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(1),
+        // Only for a confirmed address: an access request is filed by
+        // whoever owns the mailbox, not by whoever registered the account.
+        account.emailConfirmed
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabaseAdmin.from("access_requests" as any) as any)
+              .select("id, status, join_method")
+              .ilike("email", account.email.replace(/[\\%_]/g, (c: string) => `\\${c}`))
+              .in("status", ["pending", "approved"])
+              .order("created_at", { ascending: false })
+              .limit(1)
+          : Promise.resolve({ data: [], error: null }),
       ]);
       if (invRes.error || reqRes.error) {
         console.error("[account-status] invitation/request lookup failed", (invRes.error ?? reqRes.error)?.code ?? "");

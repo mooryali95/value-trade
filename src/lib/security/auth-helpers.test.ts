@@ -182,3 +182,43 @@ describe("hasPasswordIdentity", () => {
     expect(hasPasswordIdentity(null)).toBe(false);
   });
 });
+
+describe("every auth and onboarding code has a translated message", () => {
+  it("maps each code to a key present in both dictionaries", async () => {
+    const { errorMessageKey } = await import("@/hooks/use-error-message");
+    const { en } = await import("@/lib/i18n/en");
+    const { ar } = await import("@/lib/i18n/ar");
+    const codes = [
+      ...AUTH_ERROR_CODES,
+      "PASSWORD_TOO_SHORT",
+      "PASSWORD_TOO_LONG",
+      "PASSWORD_NEEDS_LETTER_AND_DIGIT",
+      "PASSWORD_HAS_SPACES_AT_ENDS",
+      "PASSWORD_MISMATCH",
+      "ALREADY_MEMBER",
+      "EMAIL_NOT_CONFIRMED",
+      "EMAIL_SEND_FAILED",
+      "INVITATION_EXPIRED",
+      "INVITATION_NOT_FOUND",
+      "INVITATION_NOT_PENDING",
+      "INVITATION_NOT_REVOKED",
+      "INVITATION_EMAIL_MISMATCH",
+      "INVITATION_ALREADY_PENDING",
+      "NOT_AUTHENTICATED",
+      "RATE_LIMITED",
+      "REQUEST_NOT_PENDING",
+      "REQUEST_NOT_FOUND",
+      "SLUG_TAKEN",
+      "SLUG_AND_SECTOR_REQUIRED",
+      "ROLE_REQUIRED",
+      "FORBIDDEN",
+      "FORBIDDEN_ADMIN_REQUIRED",
+    ];
+    for (const code of codes) {
+      const key = errorMessageKey(code);
+      expect(key, code).toBeTruthy();
+      expect((en as Record<string, string>)[key!], `${code} en`).toBeTruthy();
+      expect((ar as Record<string, string>)[key!], `${code} ar`).toBeTruthy();
+    }
+  });
+});

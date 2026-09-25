@@ -167,10 +167,6 @@ function RequestAccessPage() {
         <aside className="relative hidden overflow-hidden ivory-gradient lg:flex lg:flex-col lg:justify-between lg:p-12">
           <Link to="/" className="flex items-center gap-3 w-fit">
             <BrandMark size={44} />
-            <div>
-              <div className="text-lg font-bold tracking-wide text-ink">{t("brand")}</div>
-              <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--gold-deep)]">Value Unit</div>
-            </div>
           </Link>
           <div className="max-w-md">
             <div className="mb-4 h-px w-24 hairline-gold" />
@@ -192,7 +188,6 @@ function RequestAccessPage() {
             <div className="mb-8 lg:hidden">
               <Link to="/" className="flex items-center gap-3">
                 <BrandMark size={40} />
-                <span className="text-lg font-bold text-ink">{t("brand")}</span>
               </Link>
             </div>
 

@@ -86,7 +86,8 @@ function AuthPage() {
     const go = () => {
       if (navigated.current) return;
       navigated.current = true;
-      navigate({ to: consumePostAuthRedirect() ?? target, replace: true });
+      // `href` keeps the query of the target (e.g. /invitations?token=...).
+      navigate({ href: consumePostAuthRedirect() ?? target, replace: true });
     };
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) go();
@@ -192,12 +193,6 @@ function AuthPage() {
           <div className="relative flex h-full flex-col justify-between p-12">
             <Link to="/" className="flex items-center gap-3 w-fit">
               <BrandMark size={44} />
-              <div>
-                <div className="text-lg font-bold tracking-wide text-ink">{t("brand")}</div>
-                <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--gold-deep)]">
-                  Value Unit
-                </div>
-              </div>
             </Link>
 
             <div className="max-w-md">
@@ -220,7 +215,6 @@ function AuthPage() {
             <div className="mb-8 lg:hidden">
               <Link to="/" className="flex items-center gap-3">
                 <BrandMark size={40} />
-                <span className="text-lg font-bold text-ink">{t("brand")}</span>
               </Link>
             </div>
 
@@ -234,10 +228,9 @@ function AuthPage() {
               </h2>
             </div>
 
-            {/* Tabs */}
-            <div
-              className={`mb-2 grid ${ENABLE_LEGACY_SELF_SIGNUP ? "grid-cols-2" : "grid-cols-1"} rounded-lg border border-border bg-card p-1 text-sm font-medium`}
-            >
+            {/* Tabs (only while self-service sign-up exists; sign-in alone needs none) */}
+            {ENABLE_LEGACY_SELF_SIGNUP && (
+            <div className="mb-2 grid grid-cols-2 rounded-lg border border-border bg-card p-1 text-sm font-medium">
               <button
                 onClick={() => {
                   setMode("signin");
@@ -261,6 +254,7 @@ function AuthPage() {
                 </button>
               )}
             </div>
+            )}
 
             {inviteToken && (
               <div className="mb-3 rounded-md border border-[var(--gold-deep)]/40 bg-card px-3 py-2.5 text-xs leading-relaxed text-ink">
@@ -310,6 +304,7 @@ function AuthPage() {
                     required
                     autoComplete="email"
                     aria-label={t("email")}
+                    dir="ltr"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"
@@ -327,6 +322,7 @@ function AuthPage() {
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}
                     minLength={mode === "signin" ? undefined : 8}
                     aria-label={t("password")}
+                    dir="ltr"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-muted-foreground"

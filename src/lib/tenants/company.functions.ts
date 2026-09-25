@@ -82,16 +82,25 @@ const AddMemberInput = z.object({
   userId: z.string().uuid(),
   role: z.enum(["owner", "finance", "shariah", "trader", "viewer"]),
 });
+/**
+ * People join a company by accepting an invitation (their consent, from a
+ * confirmed address). Adding an account directly is a platform-admin repair
+ * tool only; API users have no insert path (20260926100300).
+ */
 export const addCompanyMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => AddMemberInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    const { isPlatformAdmin } = await import("./invitations.server");
+    if (!(await isPlatformAdmin(userId))) throw new Error("FORBIDDEN");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
       .from("company_members")
       .insert({ company_id: data.companyId, user_id: data.userId, role: data.role, invited_by: userId })
       .select("*")
       .single();
+    if (error?.code === "23505") throw new Error("ALREADY_MEMBER");
     if (error) throw companyError("company.member.add", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: data.companyId, action: "member.add", entity: "company_members", entityId: row.id,

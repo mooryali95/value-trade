@@ -447,9 +447,12 @@ export const listRecentAccessDecisions = createServerFn({ method: "GET" })
     const { data: rows, error } = await (context.supabase.from("access_requests" as any) as any)
       .select("id, email, full_name, join_method, reference_code, reviewed_at, requested_company_id, new_company_name_ar, new_company_name_en, resulting_invitation_id")
       .eq("status", "approved")
-      .gte("reviewed_at", since)
+      // New companies stay listed past 60 days until their owner accepts:
+      // until then the company has no member and only this list reaches
+      // its owner invitation.
+      .or(`reviewed_at.gte.${since},join_method.eq.new_company`)
       .order("reviewed_at", { ascending: false })
-      .limit(100);
+      .limit(200);
     if (error) throw toStableError("access.recent", error);
     const list = (rows ?? []) as Array<{
       id: string;
@@ -509,7 +512,13 @@ export const listRecentAccessDecisions = createServerFn({ method: "GET" })
       }
     }
 
-    return list.map((r) => {
+    const sinceMs = Date.parse(since);
+    const recentOrOpen = (r: (typeof list)[number]) => {
+      if (r.reviewed_at && Date.parse(r.reviewed_at) >= sinceMs) return true;
+      const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
+      return !!inv && inv.status !== "accepted";
+    };
+    return list.filter(recentOrOpen).slice(0, 100).map((r) => {
       const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
       const companyId = r.requested_company_id ?? inv?.company_id ?? null;
       const co = companyId ? names.get(companyId) : undefined;

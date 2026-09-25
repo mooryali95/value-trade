@@ -339,7 +339,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
               <MiniStat label={t("e2_dayLow")} v={<Num value={brand.dayLow} />} />
               <MiniStat label={t("e2_volumeUnits24h")} v={<Num value={brand.volume24hUnits} kind="qty" />} />
               <MiniStat label={t("e2_value24h")} v={<span dir="ltr" className="tabular-nums" style={{ unicodeBidi: "isolate" }}>{formatCurrency(brand.volume24hValue, true, lang)}</span>} />
-              <MiniStat label={t("m_todaysRange")} v={<><Num value={band.low} /> – <Num value={band.high} /></>} />
+              <MiniStat label={t("m_todaysRange")} v={<PriceRange low={band.low} high={band.high} />} />
             </dl>
           </section>
           <ChartPanel symbol={brand.symbol} height={isMobile ? 300 : 460} />
@@ -378,7 +378,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
             )}
             <p id="order-price-hint" className="mt-1 text-[10px] text-muted-foreground">
               {t("m_allowedToday")}{" "}
-              <Num value={band.low} className="font-semibold text-ink-soft" /> – <Num value={band.high} className="font-semibold text-ink-soft" />
+              <PriceRange low={band.low} high={band.high} className="font-semibold text-ink-soft" />
             </p>
             <Field
               label={t("qty")}
@@ -595,6 +595,14 @@ function Row({ label, value, strong }: { label: string; value: React.ReactNode; 
       <dt className="text-ink-soft">{label}</dt>
       <dd className="text-end">{value}</dd>
     </div>
+  );
+}
+/** A low – high price range, always read left to right (also inside Arabic text). */
+function PriceRange({ low, high, className }: { low: number; high: number; className?: string }) {
+  return (
+    <span dir="ltr" className={`tabular-nums ${className ?? ""}`} style={{ unicodeBidi: "isolate" }}>
+      {formatNum(low, "number")} – {formatNum(high, "number")}
+    </span>
   );
 }
 function MiniStat({ label, v }: { label: string; v: React.ReactNode }) {

@@ -172,7 +172,6 @@ function UpdatePasswordPage() {
       <div className="w-full max-w-md">
         <Link to="/" className="mb-8 flex items-center gap-3">
           <BrandMark size={40} />
-          <span className="text-lg font-bold text-ink">{t("brand")}</span>
         </Link>
         <h1 className="text-2xl font-bold text-ink">{title}</h1>
 
@@ -224,7 +223,7 @@ function UpdatePasswordPage() {
             </p>
             <button
               type="button"
-              onClick={() => navigate({ to: next, replace: true })}
+              onClick={() => navigate({ href: next, replace: true })}
               className="inline-flex min-h-11 w-full items-center justify-center rounded-md gold-gradient text-sm font-semibold text-ink"
             >
               {backToInvite ? t("r_pwContinueToInvitation") : t("r_continue")}

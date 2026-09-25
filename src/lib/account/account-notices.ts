@@ -27,11 +27,12 @@ export function accountNotices(
   }
   if (s.onHold) out.push({ id: "hold", tone: "warn", key: "r_bannerOnHold" });
   const staff = s.isPlatformAdmin || s.isShariahReviewer || s.companies.length > 0;
-  if (!s.isTrader && !staff) {
+  // A review hold already explains why trading is paused.
+  if (!s.isTrader && !staff && !s.onHold) {
     out.push({
       id: "activation",
       tone: "info",
-      key: s.pendingAccessRequest ? "r_bannerRequestPending" : "r_bannerAwaitingActivation",
+      key: s.pendingAccessRequest?.status === "pending" ? "r_bannerRequestPending" : "r_bannerAwaitingActivation",
     });
   } else if (s.isTrader && !s.onHold && s.cashBalance <= 0) {
     out.push({ id: "funding", tone: "info", key: "r_bannerAwaitingFunding" });

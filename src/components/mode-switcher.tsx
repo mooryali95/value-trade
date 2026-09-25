@@ -34,7 +34,7 @@ export function ModeSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[12px] font-semibold outline-none transition"
+        className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border px-3 text-[12px] font-semibold outline-none transition lg:min-h-9"
         style={{
           borderColor: `color-mix(in oklch, ${accent} 40%, transparent)`,
           backgroundColor: `color-mix(in oklch, ${accent} 6%, transparent)`,

@@ -24,6 +24,11 @@ describe("accountNotices", () => {
     );
   });
 
+  it("an approved request waits for activation, it is not under review any more", () => {
+    const n = accountNotices({ ...base, pendingAccessRequest: { id: "r", status: "approved", joinMethod: "investor" } });
+    expect(n.map((x) => x.key)).toEqual(["r_bannerAwaitingActivation"]);
+  });
+
   it("puts an unconfirmed address and pending invitations first", () => {
     expect(ids({ emailConfirmed: false, pendingInvitations: 2 })).toEqual(["email", "invitations", "activation"]);
     expect(accountNotices({ ...base, pendingInvitations: 1 }).find((n) => n.id === "invitations")?.key).toBe("r_bannerOneInvitation");
@@ -39,5 +44,6 @@ describe("accountNotices", () => {
     expect(ids({ isTrader: true })).toEqual(["funding"]);
     expect(ids({ isTrader: true, cashBalance: 1000 })).toEqual([]);
     expect(ids({ isTrader: true, onHold: true })).toEqual(["hold"]);
+    expect(ids({ onHold: true })).toEqual(["hold"]);
   });
 });

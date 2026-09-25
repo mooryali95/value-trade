@@ -10,8 +10,9 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
-import { MarketDataError, ShariahPill, instrumentName, useMarketOverview } from "@/components/market-data";
-import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit } from "@/lib/trading/shariah.functions";
+import { ShariahPill, instrumentName } from "@/components/market-data";
+import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit, listReviewInstruments } from "@/lib/trading/shariah.functions";
+import { SubmissionStageBadge } from "@/lib/submissions/lifecycle";
 import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -74,9 +75,11 @@ function ReviewPage() {
 
   const mutation = useMutation({
     mutationFn: (v: { symbol: string; status: "halal" | "non_halal" | "reviewing"; reason?: string }) => recordFn({ data: v }),
-    onSuccess: () => {
-      toast.success(t("submitDecision"));
+    onSuccess: (_res, v) => {
+      toast.success(t("d_rulingSaved").replace("{symbol}", v.symbol));
+      setReason((r) => ({ ...r, [v.symbol]: "" }));
       qc.invalidateQueries({ queryKey: ["shariah-decisions"] });
+      qc.invalidateQueries({ queryKey: ["review-instruments"] });
       qc.invalidateQueries({ queryKey: ["market-overview"] });
     },
     onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
@@ -92,20 +95,28 @@ function ReviewPage() {
     onError: (e: unknown) => toast.error(errorMessage(e, { FORBIDDEN: "reviewerRequired" })),
   });
 
-  // Instruments to rule on: the published instruments on the market, each
-  // with the ruling currently in force, from the database.
-  const market = useMarketOverview();
+  // Instruments to rule on: every instrument, listed or not, each with the
+  // ruling currently in force (reviewer_instruments; role checked in SQL).
+  const poolFn = useServerFn(listReviewInstruments);
+  const market = useQuery({ queryKey: ["review-instruments"], queryFn: () => poolFn(), enabled: isReviewer });
   const [poolQ, setPoolQ] = useState("");
-  const poolAll = market.data?.instruments ?? [];
+  const [poolNeeds, setPoolNeeds] = useState(false);
+  // Seeded instruments with no company and no ruling (the delisted demo
+  // set) are hidden unless asked for: nothing to rule on for a listing.
+  const [poolSeeded, setPoolSeeded] = useState(false);
+  const poolAll = market.data ?? [];
   const poolNeedle = poolQ.trim().toLowerCase();
   const poolMatches = poolAll.filter(
-    (b) => !poolNeedle || b.symbol.toLowerCase().includes(poolNeedle) || b.nameEn.toLowerCase().includes(poolNeedle) || b.nameAr.includes(poolQ.trim()),
+    (b) =>
+      (poolSeeded || b.hasCompany || b.published || b.shariahStatus != null) &&
+      (!poolNeeds || b.shariahStatus == null || b.shariahStatus === "reviewing") &&
+      (!poolNeedle || b.symbol.toLowerCase().includes(poolNeedle) || b.nameEn.toLowerCase().includes(poolNeedle) || b.nameAr.includes(poolQ.trim())),
   );
   // Instruments without a ruling, then under review, first.
   const rank = (s: string | null) => (s == null ? 0 : s === "reviewing" ? 1 : s === "non_halal" ? 2 : 3);
   const pool = poolMatches
     .slice()
-    .sort((a, b) => rank(a.shariahStatus) - rank(b.shariahStatus) || a.symbol.localeCompare(b.symbol))
+    .sort((a, b) => Number(b.hasCompany) - Number(a.hasCompany) || rank(a.shariahStatus) - rank(b.shariahStatus) || a.symbol.localeCompare(b.symbol))
     .slice(0, 50);
 
   const cmp = comparator(search.sortDir);
@@ -154,21 +165,34 @@ function ReviewPage() {
 
       <section className="mb-8">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-ink">{t("e2_reviewPoolTitle")}</h2>
-          <input
-            value={poolQ}
-            onChange={(e) => setPoolQ(e.target.value)}
-            placeholder={t("e2_searchInstruments")}
-            aria-label={t("e2_searchInstruments")}
-            className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-          />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-ink">{t("d_poolTitle")}</h2>
+            <p className="text-[11px] text-muted-foreground">{t("d_poolDesc")}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
+              <input type="checkbox" checked={poolNeeds} onChange={(e) => setPoolNeeds(e.target.checked)} />
+              {t("d_filterNeedsRuling")}
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
+              <input type="checkbox" checked={poolSeeded} onChange={(e) => setPoolSeeded(e.target.checked)} />
+              {t("d_showSeeded")}
+            </label>
+            <input
+              value={poolQ}
+              onChange={(e) => setPoolQ(e.target.value)}
+              placeholder={t("e2_searchInstruments")}
+              aria-label={t("e2_searchInstruments")}
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+            />
+          </div>
         </div>
-        {market.isLoading ? (
+        {market.isLoading || rolesLoading ? (
           <LuxurySkeleton lines={4} />
-        ) : !market.data ? (
-          <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+        ) : market.isError || !market.data ? (
+          <ErrorState description={errorMessage(market.error)} reset={() => market.refetch()} />
         ) : poolAll.length === 0 ? (
-          <EmptyState title={t("e2_reviewPoolEmptyTitle")} description={t("e2_reviewPoolEmptyDesc")} />
+          <EmptyState title={t("d_poolEmptyTitle")} description={t("d_poolEmptyDesc")} />
         ) : pool.length === 0 ? (
           <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
         ) : (
@@ -180,6 +204,8 @@ function ReviewPage() {
                 <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase text-muted-foreground">
                   <span>{[b.symbol, b.sector].filter(Boolean).join(" · ")}</span>
                   <ShariahPill status={b.shariahStatus} />
+                  <span className="rounded-full border border-border px-2 py-0.5 normal-case">{b.published ? t("e2_published") : t("e2_unpublished")}</span>
+                  {b.submissionStatus && <SubmissionStageBadge status={b.submissionStatus} />}
                 </div>
               </div>
               <input
@@ -189,9 +215,9 @@ function ReviewPage() {
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
               />
               <div className="flex gap-2">
-                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
-                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
-                <button disabled={!isReviewer} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] || undefined })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => mutation.mutate({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
               </div>
             </div>
           ))}

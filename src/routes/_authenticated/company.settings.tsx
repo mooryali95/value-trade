@@ -19,7 +19,6 @@ import {
   listMyCompanies,
   createCompany,
   getCompanyDetails,
-  addCompanyMember,
   removeCompanyMember,
   updateCompanyMemberRole,
   addCompanyBrand,
@@ -66,7 +65,6 @@ function CompanySettings() {
   const listFn = useServerFn(listMyCompanies);
   const createFn = useServerFn(createCompany);
   const detailsFn = useServerFn(getCompanyDetails);
-  const addMemberFn = useServerFn(addCompanyMember);
   const removeMemberFn = useServerFn(removeCompanyMember);
   const updateMemberRoleFn = useServerFn(updateCompanyMemberRole);
   const addBrandFn = useServerFn(addCompanyBrand);
@@ -94,7 +92,6 @@ function CompanySettings() {
   });
 
   const [newCo, setNewCo] = useState({ slug: "", name_ar: "", name_en: "" });
-  const [newMember, setNewMember] = useState({ userId: "", role: "viewer" as const });
   const [newBrand, setNewBrand] = useState("");
   const [newInvite, setNewInvite] = useState({
     email: "",
@@ -169,18 +166,6 @@ function CompanySettings() {
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const invalidateDetails = () => qc.invalidateQueries({ queryKey: ["company-details", activeId] });
-  const memberMut = useMutation({
-    mutationFn: (v: {
-      userId: string;
-      role: "owner" | "finance" | "shariah" | "trader" | "viewer";
-    }) => addMemberFn({ data: { companyId: activeId!, userId: v.userId, role: v.role } }),
-    onSuccess: () => {
-      toast.success(t("memberAdded"));
-      invalidateDetails();
-      setNewMember({ userId: "", role: "viewer" });
-    },
-    onError: (e: unknown) => toast.error(errorMessage(e)),
-  });
   const removeMemberMut = useMutation({
     mutationFn: (memberId: string) => removeMemberFn({ data: { memberId } }),
     onSuccess: () => {
@@ -384,34 +369,9 @@ function CompanySettings() {
                     )}
                   </div>
                   {canManageMembers && (
-                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
-                      <input
-                        value={newMember.userId}
-                        onChange={(e) => setNewMember({ ...newMember, userId: e.target.value })}
-                        placeholder={t("memberUserId")}
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-                      />
-                      <select
-                        value={newMember.role}
-                        onChange={(e) =>
-                          setNewMember({ ...newMember, role: e.target.value as never })
-                        }
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                      >
-                        {COMPANY_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {roleLabel(r)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        disabled={memberMut.isPending || !newMember.userId}
-                        onClick={() => memberMut.mutate(newMember)}
-                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                      >
-                        {t("addMember")}
-                      </button>
-                    </div>
+                    <p className="border-b border-border/40 px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                      {t("r_membersJoinByInvite")}
+                    </p>
                   )}
                   <ul>
                     {details.data.members.map((m) => (

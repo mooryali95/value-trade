@@ -32,12 +32,14 @@ export function UserMenu() {
       // the redirect URL was not allow-listed) still has to set a password.
       if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/auth/update-password") {
         navigate({ to: "/auth/update-password", search: { flow: "recovery" }, replace: true });
-      } else if (event === "SIGNED_IN") {
+      } else if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
         // Back from Google sign-in: continue where the user started
-        // (e.g. an invitation page). Consumed once; stale entries expire.
+        // (e.g. an invitation page). The client may have read the tokens
+        // from the URL before this menu subscribed, in which case only
+        // INITIAL_SESSION arrives. Consumed once; stale entries expire.
         const next = consumePostAuthRedirect();
         if (next && next !== `${window.location.pathname}${window.location.search}`) {
-          navigate({ to: next, replace: true });
+          navigate({ href: next, replace: true });
         }
       }
       const u = session?.user;

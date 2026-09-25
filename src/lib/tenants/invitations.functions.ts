@@ -317,7 +317,27 @@ export const acceptInvitation = createServerFn({ method: "POST" })
       _actor_id: userId,
       _actor_email: account.email,
     });
-    if (error || !companyId) throw toStableError("invitations.accept", error);
+    if (error || !companyId) {
+      const failure = toStableError("invitations.accept", error);
+      if (failure.message === "INVITATION_EXPIRED") {
+        // The function refuses without writing; record the expiry here, in
+        // its own statement, so the row stops reading as pending. Best
+        // effort: the caller gets INVITATION_EXPIRED either way.
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { error: expErr } = await supabaseAdmin
+            .from("company_invitations")
+            .update({ status: "expired" })
+            .eq("token", data.token)
+            .eq("status", "pending")
+            .lte("expires_at", new Date().toISOString());
+          if (expErr) console.error("[invitations.accept] marking expired failed", expErr.code ?? "");
+        } catch (err) {
+          console.error("[invitations.accept] marking expired threw", err instanceof Error ? err.name : "unknown");
+        }
+      }
+      throw failure;
+    }
     await writeAudit(context.supabase, {
       actorId: userId, companyId, action: "invitation.accept", entity: "company_invitations",
       metadata: {},
@@ -331,6 +351,11 @@ export const acceptInvitation = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------------
 
 const TokenInput = z.object({ token: z.string().uuid() });
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
 
 export type InvitationPreview =
   | { found: false }
@@ -405,7 +430,8 @@ export const sendInvitationAccountLink = createServerFn({ method: "POST" })
     const { checkRateLimit, clientKeyFromRequest } = await import("@/lib/security/rate-limit.server");
     const [ipOk, tokenOk] = await Promise.all([
       checkRateLimit(clientKeyFromRequest(getRequest(), "invite-account-link-ip"), 10, 3600),
-      checkRateLimit(`invite-account-link:${data.token}`, 3, 3600),
+      // The token is a credential: only its hash is used as the key.
+      checkRateLimit(`invite-account-link:${await sha256Hex(data.token)}`, 3, 3600),
     ]);
     if (!ipOk || !tokenOk) throw new Error("RATE_LIMITED");
 

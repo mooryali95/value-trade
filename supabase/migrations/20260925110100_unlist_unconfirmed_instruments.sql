@@ -11,10 +11,14 @@
 -- audit_log row (action 'brand.reference_price', written by the admin
 -- screen) has the instrument's current price as its new value.
 --
---   a) Approvals were made by Shariah board reviewers, and an approval is
---      now recorded as the reviewer's ruling ('halal'). An approved
---      submission's instrument that has no ruling at all gets that ruling,
---      attributed to the submission's reviewer.
+--   a) No Shariah ruling is created here. (An earlier draft of this
+--      migration, never applied to production, recorded a 'halal' ruling in
+--      the approving reviewer's name for every legacy approval that had
+--      none. Nobody recorded those rulings, and a legacy approval may be a
+--      test approval of a real issuer, so they are not invented.) A legacy
+--      approval without a ruling therefore leaves the market under (b): a
+--      Shariah reviewer rules on it from the review console (which lists
+--      unpublished instruments too) and a platform admin lists it again.
 --   b) A published instrument whose reference price no platform admin set,
 --      or that has no Shariah ruling in force, is taken off the market
 --      under the engine's per-symbol lock; its resting orders are closed
@@ -26,18 +30,6 @@
 --
 -- Idempotent: a second run finds nothing to change.
 -- ============================================================================
-
--- a) The approving reviewer's ruling for legacy approvals.
-INSERT INTO public.shariah_decisions (symbol, status, reason, reviewer_id, updated_by)
-SELECT DISTINCT ON (b.symbol)
-       b.symbol, 'halal', NULL,
-       CASE WHEN EXISTS (SELECT 1 FROM auth.users u WHERE u.id = s.reviewer_id) THEN s.reviewer_id END,
-       CASE WHEN EXISTS (SELECT 1 FROM auth.users u WHERE u.id = s.reviewer_id) THEN s.reviewer_id END
-  FROM public.brands b
-  JOIN public.product_submissions s ON s.id = b.source_submission_id AND s.company_id = b.company_id
- WHERE s.status = 'approved'
-   AND NOT EXISTS (SELECT 1 FROM public.shariah_decisions d WHERE d.symbol = b.symbol)
- ORDER BY b.symbol;
 
 -- b) and c)
 DO $$

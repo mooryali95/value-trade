@@ -141,6 +141,10 @@ else bad "governance fixes migration re-applies on a drifted database" "${GOVMIG
 LCMIG=$(ls "$REPO"/supabase/migrations/*_listing_control_and_public_reads.sql 2>/dev/null | head -1)
 if [ -n "$LCMIG" ] && out=$("${PSQL[@]}" -1 -f "$LCMIG" 2>&1 >/dev/null); then ok "listing control migration re-applies after it"
 else bad "listing control migration re-applies after it" "${LCMIG:-*_listing_control_and_public_reads.sql not found} ${out:-}"; fi
+# ... and the submission lifecycle (phase 3) redefines it once more.
+SLMIG=$(ls "$REPO"/supabase/migrations/*_submission_lifecycle.sql 2>/dev/null | head -1)
+if [ -n "$SLMIG" ] && out=$("${PSQL[@]}" -1 -f "$SLMIG" 2>&1 >/dev/null); then ok "submission lifecycle migration re-applies after it"
+else bad "submission lifecycle migration re-applies after it" "${SLMIG:-*_submission_lifecycle.sql not found} ${out:-}"; fi
 expect_err "drifted self-insert policy no longer lets a user grant themselves a role" "$CAROL" "permission denied" "INSERT INTO public.user_roles (user_id, role) VALUES (auth.uid(),'platform_admin');"
 expect_eq "viewer cannot promote self to owner" "$VIEWER" "" "UPDATE public.company_members SET role='owner' WHERE company_id='$CO' AND user_id=auth.uid() RETURNING role;"
 su_eq "viewer role unchanged" "viewer" "SELECT role FROM public.company_members WHERE company_id='$CO' AND user_id='$VIEWER';"
@@ -502,28 +506,29 @@ expect_eq "other company's owner cannot edit brands" "$OWNER2" "" "UPDATE public
 SUB=$(q "$OWNER" "INSERT INTO public.product_submissions (company_id, submitted_by, asset_class, symbol, name_ar, name_en, status, reviewer_id, review_reason, reviewed_at) VALUES ('$CO','$ALICE','brand','NEWB','n','n','approved','$BOARD','ok',now()) RETURNING id;")
 su_eq "submission forced to pending, submitter = session user" "pending|||$OWNER" "SELECT status || '|' || coalesce(reviewer_id::text,'') || '|' || coalesce(review_reason,'') || '|' || submitted_by FROM public.product_submissions WHERE id='$SUB';"
 expect_err "submitter cannot change company of submission" "$OWNER" "permission denied" "UPDATE public.product_submissions SET company_id = gen_random_uuid() WHERE id='$SUB';"
-expect_eq "submitter cannot approve own submission" "$OWNER" "" "UPDATE public.product_submissions SET status='approved' WHERE id='$SUB' RETURNING status;"
+expect_err "submitter cannot approve own submission" "$OWNER" "permission denied" "UPDATE public.product_submissions SET status='approved' WHERE id='$SUB' RETURNING status;"
 expect_err "viewer cannot submit for the company" "$VIEWER" "row-level security" "INSERT INTO public.product_submissions (company_id, submitted_by, asset_class, symbol, name_ar, name_en) VALUES ('$CO',auth.uid(),'brand','VWR','v','v');"
 expect_err "owner cannot submit for another company" "$OWNER2" "row-level security" "INSERT INTO public.product_submissions (company_id, submitted_by, asset_class, symbol, name_ar, name_en) VALUES ('$CO',auth.uid(),'brand','XCO','x','x');"
-expect_err "approval without the listed brand refused" "$BOARD" "BRAND_NOT_LISTED" "UPDATE public.product_submissions SET status='approved' WHERE id='$SUB';"
-expect_err "reviewer cannot move a submission to an unknown status" "$BOARD" "SUBMISSION_NOT_PENDING|product_submissions_status_check" "UPDATE public.product_submissions SET status='listed' WHERE id='$SUB';"
-# The approval path (reviewSubmission): the brand is created off the market
-# with no reference price, the reviewer's ruling is recorded, then the
-# submission is approved. Nothing is listed.
+# Decisions go through review_submission / approve_listing only (phase 3).
+expect_err "reviewer cannot approve through a direct update" "$BOARD" "permission denied" "UPDATE public.product_submissions SET status='approved' WHERE id='$SUB';"
+expect_err "even the service role cannot change a decision directly" service "SUBMISSION_TRANSITION_FORBIDDEN" "UPDATE public.product_submissions SET status='listed' WHERE id='$SUB';"
+# The approval path (review_submission): the brand exists off the market
+# with no reference price, the reviewer's ruling is recorded and the
+# submission is approved, in one transaction. Nothing is listed.
 expect_err "approval path cannot create a published brand" service "FORBIDDEN_BRAND_FIELD" "INSERT INTO public.brands (symbol, slug, name_ar, name_en, published, company_id, source_submission_id) VALUES ('NEWB','newb','n','n',true,'$CO','$SUB');"
 expect_eq "approval path creates the brand unpublished, reference price 0 by default" service "NEWB|false|0" "INSERT INTO public.brands (symbol, slug, name_ar, name_en, published, company_id, source_submission_id) VALUES ('NEWB','newb','n','n',false,'$CO','$SUB') RETURNING symbol || '|' || published || '|' || reference_price;"
 expect_err "approval path cannot publish the brand it updates" service "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=true, name_en='n' WHERE symbol='NEWB' AND company_id='$CO';"
-expect_ok "approving reviewer's ruling recorded" "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('NEWB','halal');"
-expect_eq "board review stamps reviewer" "$BOARD" "approved|$BOARD" "UPDATE public.product_submissions SET status='approved', reviewer_id='$ALICE' WHERE id='$SUB' RETURNING status || '|' || reviewer_id;"
+expect_eq "approval records the reviewer's ruling with the status change" service "approved|NEWB|true" "SELECT status || '|' || symbol || '|' || ruling_recorded FROM public.review_submission('$SUB', '$BOARD', 'approved', NULL);"
+su_eq "board review stamps reviewer" "approved|$BOARD|halal|$BOARD" "SELECT s.status || '|' || s.reviewer_id || '|' || d.status || '|' || d.reviewer_id FROM public.product_submissions s JOIN public.shariah_decisions d ON d.id = s.shariah_decision_id WHERE s.id='$SUB';"
 su_eq "approval does not list the instrument" "false|0" "SELECT published || '|' || reference_price FROM public.brands WHERE symbol='NEWB';"
 expect_err "listing an approved instrument needs a reference price set by an admin" service "INVALID_PRICE" "SELECT * FROM public.set_instrument_published('NEWB', true, '$ADMIN');"
 q service "UPDATE public.brands SET reference_price = 12.5 WHERE symbol='NEWB';" >/dev/null
 AUD0=$(su "SELECT count(*) FROM public.audit_log WHERE action='brand.publish';")
 expect_eq "a platform admin lists it once priced and ruled on" service "NEWB|true|true|0" "SELECT symbol || '|' || published || '|' || changed || '|' || cancelled_orders FROM public.set_instrument_published('NEWB', true, '$ADMIN');"
 su_eq "listing audited in the same transaction" "$((AUD0 + 1))|$ADMIN|$CO|NEWB" "SELECT (SELECT count(*) FROM public.audit_log WHERE action='brand.publish') || '|' || (SELECT actor_id || '|' || company_id || '|' || (metadata->>'symbol') FROM public.audit_log WHERE action='brand.publish' AND entity='brands' AND entity_id=(SELECT id::text FROM public.brands WHERE symbol='NEWB') ORDER BY created_at DESC LIMIT 1);"
-expect_err "decision cannot be reverted to pending" "$BOARD" "SUBMISSION_NOT_PENDING" "UPDATE public.product_submissions SET status='pending' WHERE id='$SUB';"
-expect_err "decision cannot be flipped to rejected" "$BOARD" "SUBMISSION_NOT_PENDING" "UPDATE public.product_submissions SET status='rejected', review_reason='changed my mind' WHERE id='$SUB';"
-expect_err "decided submission's reason is frozen" "$BOARD" "SUBMISSION_NOT_PENDING" "UPDATE public.product_submissions SET review_reason='rewritten' WHERE id='$SUB';"
+expect_err "decision cannot be reverted to pending" service "SUBMISSION_TRANSITION_FORBIDDEN" "UPDATE public.product_submissions SET status='pending' WHERE id='$SUB';"
+expect_err "decision cannot be flipped to rejected" service "SUBMISSION_NOT_PENDING" "SELECT * FROM public.review_submission('$SUB', '$BOARD', 'rejected', 'changed my mind');"
+expect_err "decided submission's reason is frozen" service "SUBMISSION_TRANSITION_FORBIDDEN" "UPDATE public.product_submissions SET review_reason='rewritten' WHERE id='$SUB';"
 SUB2=$(su "INSERT INTO public.product_submissions (company_id, submitted_by, asset_class, symbol, name_ar, name_en) VALUES ('$CO2','$OWNER2','brand','OTH','o','o') RETURNING id;" | head -1)
 expect_ok "document under <company>/<submission>/ accepted" "$OWNER" "INSERT INTO public.submission_documents (submission_id, company_id, file_name, file_path, uploaded_by) VALUES ('$SUB','$CO','a.pdf','$CO/$SUB/x-a..b.pdf',auth.uid());"
 expect_err "document path outside the submission folder" "$OWNER" "INVALID_FILE_PATH" "INSERT INTO public.submission_documents (submission_id, company_id, file_name, file_path, uploaded_by) VALUES ('$SUB','$CO','a.pdf','$CO2/$SUB2/a.pdf',auth.uid());"
@@ -1015,7 +1020,7 @@ if [ -n "$UNLIST" ] && out=$("${PSQL[@]}" -1 -f "$UNLIST" 2>&1 >/dev/null); then
 else bad "unlist migration applies to a live market" "${UNLIST:-*_unlist_unconfirmed_instruments.sql not found} ${out:-}"; fi
 su_eq "admin-priced and ruled-on listing stays; the others leave the market" "UNA:false:0|UNB:true:25|UNC:false:30|UND:false:0|UNE:false:0" \
   "SELECT string_agg(symbol || ':' || published || ':' || trim_scale(reference_price), '|' ORDER BY symbol) FROM public.brands WHERE symbol LIKE 'UN_';"
-su_eq "legacy approval recorded as the approving reviewer's ruling" "halal|$BOARD" "SELECT status || '|' || reviewer_id FROM public.shariah_decisions WHERE symbol='UNE';"
+su_eq "legacy approval gets no invented Shariah ruling" "0" "SELECT count(*) FROM public.shariah_decisions WHERE symbol='UNE';"
 su_eq "resting order on an unlisted instrument closed as delisted" "cancelled|delisted" \
   "SELECT (SELECT status FROM public.orders WHERE id='$UNA_BID') || '|' || (SELECT action FROM public.orders_audit WHERE order_id='$UNA_BID' ORDER BY changed_at DESC LIMIT 1);"
 su_eq "no published instrument without an admin price or a ruling" "0" \

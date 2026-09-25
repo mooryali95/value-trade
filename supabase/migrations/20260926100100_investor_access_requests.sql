@@ -223,7 +223,9 @@ $$;
 --      'invited_no_account' approved investor request, no account yet (the
 --                           platform invitation was not used yet)
 --      'no_role'            account with no platform role and no company
---    Accounts holding the trader role are never listed.
+--    Accounts holding the trader role are never listed. on_hold flags an
+--    unresolved launch review hold (activating resolves it, so the admin
+--    reviews those accounts in the investor panel first).
 -- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.admin_pending_activations(uuid, integer);
 CREATE OR REPLACE FUNCTION public.admin_pending_activations(_actor_id uuid, _limit integer DEFAULT 200)
@@ -237,7 +239,8 @@ RETURNS TABLE(
   request_id uuid,
   request_reference text,
   requested_at timestamptz,
-  pending_company_invitations integer
+  pending_company_invitations integer,
+  on_hold boolean
 )
 LANGUAGE plpgsql
 STABLE
@@ -285,7 +288,9 @@ BEGIN
   )
   SELECT r.uid, r.addr, r.name, r.u_created, r.confirmed, r.src, r.rid, r.rref, r.rat,
          (SELECT count(*)::integer FROM public.company_invitations ci
-           WHERE lower(ci.email) = r.addr AND ci.status = 'pending' AND ci.expires_at > now())
+           WHERE lower(ci.email) = r.addr AND ci.status = 'pending' AND ci.expires_at > now()),
+         (r.uid IS NOT NULL AND EXISTS (SELECT 1 FROM public.launch_review_holds h
+                                         WHERE h.user_id = r.uid AND h.resolved_at IS NULL))
     FROM cand r
    ORDER BY COALESCE(r.rat, r.u_created) DESC NULLS LAST, r.addr
    LIMIT GREATEST(1, LEAST(COALESCE(_limit, 200), 500));

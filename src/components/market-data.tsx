@@ -2,9 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck, ShieldWarning, Hourglass, Storefront } from "@phosphor-icons/react";
-import { useI18n, type Lang } from "@/lib/i18n";
+import { useI18n, type Key, type Lang } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
-import { formatPct } from "@/lib/format";
+import { Num } from "@/components/num";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import {
@@ -85,6 +85,37 @@ export function formatDateTime(iso: string, lang: Lang): string {
   }).format(d);
 }
 
+/** A calendar date (Gregorian, Latin digits) in the market's time zone. */
+export function formatDate(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(dateLocale(lang), {
+    timeZone: MARKET_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
+/** Short day + time ("24 Sep, 10:12"), for trade tapes that span several days. */
+export function formatShortDateTime(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(dateLocale(lang), {
+    timeZone: MARKET_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+/** Same calendar day in the market's time zone. */
+export function isSameMarketDay(a: string | Date, b: string | Date): boolean {
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: MARKET_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+  return f.format(new Date(a)) === f.format(new Date(b));
+}
+
 export function formatTime(iso: string, lang: Lang): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -108,6 +139,31 @@ export function assetClassLabel(assetClass: string, t: ReturnType<typeof useI18n
   return assetClass;
 }
 
+/**
+ * Sector label. Sectors are stored as free-text keys ("retail", "food");
+ * the known ones are translated, anything else is shown as stored.
+ */
+const SECTOR_KEYS: Record<string, Key> = {
+  retail: "u_sectorRetail",
+  food: "u_sectorFood",
+  fashion: "u_sectorFashion",
+  hospitality: "u_sectorHospitality",
+  fintech: "u_sectorFintech",
+  tech: "u_sectorTech",
+  energy: "u_sectorEnergy",
+  health: "u_sectorHealth",
+  logistics: "u_sectorLogistics",
+  realestate: "u_sectorRealEstate",
+  education: "u_sectorEducation",
+  media: "u_sectorMedia",
+  auto: "u_sectorAuto",
+};
+export function sectorLabel(sector: string | null | undefined, t: ReturnType<typeof useI18n>["t"]): string {
+  if (!sector) return "";
+  const key = SECTOR_KEYS[sector.trim().toLowerCase()];
+  return key ? t(key) : sector;
+}
+
 /** Deterministic decorative colour for an instrument's monogram (not data). */
 const MONOGRAM_PALETTE = [
   "oklch(0.24 0.05 260)",
@@ -125,14 +181,22 @@ export function monogramColor(symbol: string): string {
   return MONOGRAM_PALETTE[h % MONOGRAM_PALETTE.length];
 }
 
+/**
+ * Decorative symbol tile. Shows the whole symbol (up to 5 characters), so
+ * instruments sharing a prefix stay distinguishable.
+ */
 export function Monogram({ symbol, className }: { symbol: string; className?: string }) {
+  const label = symbol.slice(0, 5);
   return (
     <div
       aria-hidden
-      className={`grid shrink-0 place-items-center rounded-md font-bold text-ivory ${className ?? "h-9 w-9 text-[10px]"}`}
-      style={{ background: monogramColor(symbol) }}
+      dir="ltr"
+      className={`grid shrink-0 place-items-center overflow-hidden rounded-lg font-bold leading-none text-ivory ring-1 ring-inset ring-white/10 ${className ?? "h-9 w-9"}`}
+      style={{ background: monogramColor(symbol), containerType: "size" }}
     >
-      {symbol.slice(0, 3)}
+      <span style={{ fontSize: label.length > 4 ? "21cqw" : label.length > 3 ? "25cqw" : "30cqw" }} className="block">
+        {label}
+      </span>
     </div>
   );
 }
@@ -142,7 +206,7 @@ export function PriceText({ mark, className }: { mark: Mark; className?: string 
   const { t } = useI18n();
   return (
     <span className={`inline-flex items-baseline gap-1 ${className ?? ""}`}>
-      <span className="font-mono">{formatPrice(mark.price)}</span>
+      <Num value={mark.price} className="font-mono" />
       {mark.isReference && (
         <span
           className="rounded border border-border px-1 text-[9px] font-medium not-italic text-muted-foreground"
@@ -158,8 +222,9 @@ export function PriceText({ mark, className }: { mark: Mark; className?: string 
 /** 24h change, or a dash when there is no comparable trade. */
 export function ChangeText({ pct, className }: { pct: number | null; className?: string }) {
   if (pct == null) return <span className={`font-mono text-muted-foreground ${className ?? ""}`}>—</span>;
-  const tone = pct > 0 ? "text-[var(--bull)]" : pct < 0 ? "text-[var(--bear)]" : "text-muted-foreground";
-  return <span className={`font-mono ${tone} ${className ?? ""}`}>{formatPct(pct)}</span>;
+  const rounded = Math.round(pct * 100) / 100;
+  const tone = rounded > 0 ? "text-[var(--bull)]" : rounded < 0 ? "text-[var(--bear)]" : "text-muted-foreground";
+  return <Num value={pct} kind="pct" signed className={`font-mono ${tone} ${className ?? ""}`} />;
 }
 
 /** The Shariah ruling in force, or "no ruling yet". */

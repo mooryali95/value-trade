@@ -988,6 +988,12 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                         <Badge variant="bear">{t("emailUnconfirmed")}</Badge>
                       </div>
                     )}
+                    {r.onHold && (
+                      <div className="mt-1">
+                        <Badge variant="bear">{t("r_invOnHold")}</Badge>
+                        <p className="mt-0.5 max-w-[16rem] text-[10px] leading-relaxed text-muted-foreground">{t("r_invOnHoldHint")}</p>
+                      </div>
+                    )}
                     {r.pendingCompanyInvitations > 0 && (
                       <div className="mt-1 text-[10px] text-muted-foreground">
                         {fill(t("r_invPendingCompanyInvites"), { n: <Num value={r.pendingCompanyInvitations} kind="qty" /> })}
@@ -1016,6 +1022,7 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                           >
                             {t("r_invOpen")}
                           </button>
+                          {!r.onHold && (
                           <button
                             type="button"
                             disabled={activate.isPending}
@@ -1032,6 +1039,7 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                           >
                             {t("activateTrading")}
                           </button>
+                          )}
                         </>
                       )}
                     </div>

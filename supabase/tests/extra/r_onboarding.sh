@@ -157,6 +157,11 @@ R_INVESTOR=$(newuser investor1@test.local)
 expect_eq "once the account exists it is queued under the request" service "investor_request|$R_INVESTOR|false" "SELECT source || '|' || user_id || '|' || email_confirmed FROM public.admin_pending_activations('$ADMIN', 500) WHERE email='investor1@test.local';"
 R_NOROLE=$(newuser lonely@test.local)
 expect_eq "an account with no role and no company is queued" service "no_role" "SELECT source FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
+expect_eq "an account without a review hold is not flagged" service "f" "SELECT on_hold FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
+su "INSERT INTO public.launch_review_holds (user_id, reason) VALUES ('$R_NOROLE','unexplained_cash');" >/dev/null
+expect_eq "an unresolved review hold is flagged in the queue" service "t" "SELECT on_hold FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
+su "UPDATE public.launch_review_holds SET resolved_at = now() WHERE user_id='$R_NOROLE';" >/dev/null
+expect_eq "a resolved review hold is no longer flagged" service "f" "SELECT on_hold FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
 q service "SELECT id FROM public.create_company_invitation('$CO','lonely@test.local','viewer','$OWNER');" >/dev/null
 expect_eq "the queue shows pending company invitations of a queued account" service "1" "SELECT pending_company_invitations FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
 expect_eq "company members and role holders are not queued" service "0" "SELECT count(*) FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id IN ('$FOUNDER','$VIEWER','$ADMIN','$BOARD');"
@@ -211,3 +216,17 @@ expect_err "an approved investor request cannot be approved twice" service "REQU
 expect_err "a rejected investor request cannot be approved" service "REQUEST_NOT_PENDING" "SELECT * FROM public.approve_access_request('$R_REQ2','$ADMIN',NULL,NULL,NULL);"
 expect_eq "status lookup ignores LIKE wildcards in the address" service "0" "SELECT count(*) FROM public.check_access_request_status_ref('$R_REF', 'investor1@test.loca_');"
 expect_eq "a legacy request id still works with the old lookup" service "approved" "SELECT status FROM public.check_access_request_status('$R_REQ', 'investor1@test.local');"
+
+section "(R) company membership is by invitation only"
+R_DIRECT=$(newuser direct-add@test.local)
+expect_err "owner cannot add an account as a member directly" "$OWNER" "row-level security" "INSERT INTO public.company_members (company_id, user_id, role) VALUES ('$CO','$R_DIRECT','viewer');"
+expect_err "owner cannot make an account an owner directly" "$OWNER" "row-level security" "INSERT INTO public.company_members (company_id, user_id, role, invited_by) VALUES ('$CO','$R_DIRECT','owner','$ALICE');"
+su_eq "no INSERT policy remains on company_members" "0" "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename='company_members' AND cmd IN ('INSERT','ALL');"
+su_eq "the refused inserts wrote nothing" "0" "SELECT count(*) FROM public.company_members WHERE user_id='$R_DIRECT';"
+expect_eq "owner still changes a member's role" "$OWNER" "viewer" "UPDATE public.company_members SET role='viewer' WHERE company_id='$CO' AND user_id='$R_ML' RETURNING role;"
+R_NEWCO2=$(q "$ALICE" "INSERT INTO public.companies (slug, name_ar, name_en, created_by) VALUES ('r-selfco','ش','SelfCo',auth.uid()) RETURNING id;" | head -1)
+if grep -qE '^[0-9a-f-]{36}$' <<<"$R_NEWCO2"; then
+  su_eq "company creation still makes its creator the owner" "owner" "SELECT role FROM public.company_members WHERE company_id='$R_NEWCO2' AND user_id='$ALICE';"
+else
+  ok "company creation by API users is closed (creator-owner trigger not reachable)"
+fi

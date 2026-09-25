@@ -209,3 +209,53 @@ describe("toEngineResult", () => {
     expect(toEngineResult(null)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3 (M3, reference price rules).
+// ---------------------------------------------------------------------------
+import { estimateMarketFill, isValidReferencePrice, MIN_REFERENCE_PRICE, orderCashCommitment } from "./calc";
+
+describe("orderCashCommitment: what the engine reserves for a buy", () => {
+  it("limit: qty x limit; market: qty x the band top on the tick", () => {
+    expect(orderCashCommitment(10, "limit", 41, 60)).toBe(410);
+    // Formula audit M3 repro: ref 50 -> band top 60.00; the engine needs 600.00, not 10 x 41.
+    expect(orderCashCommitment(10, "market", null, 60)).toBe(600);
+    // ref 10.01: band top on the tick is 12.01 (12.012 unrounded), 1,000 x 12.01 = 12,010.00.
+    expect(orderCashCommitment(1000, "market", null, 12.01)).toBe(12_010);
+    expect(orderCashCommitment(3, "limit", 1.005, 60)).toBe(3.02);
+    expect(orderCashCommitment(0, "limit", 10, 60)).toBe(0);
+    expect(orderCashCommitment(5, "limit", null, 60)).toBe(0);
+  });
+});
+
+describe("estimateMarketFill: executable part of a market order against the book", () => {
+  const book = {
+    asks: [{ price: 65, qty: 5 }, { price: 41, qty: 3 }, { price: 42.5, qty: 4 }],
+    bids: [{ price: 39, qty: 2 }, { price: 45, qty: 1 }],
+  };
+  const band = { low: 40, high: 60 };
+
+  it("buys best price first and never crosses outside the band", () => {
+    expect(estimateMarketFill("buy", 5, book, band)).toEqual({ filledQty: 5, amount: 208, avgPrice: 41.6 });
+    // Only 7 units are inside the band (the ask at 65 is not): the rest would be cancelled.
+    expect(estimateMarketFill("buy", 20, book, band)).toMatchObject({ filledQty: 7, amount: 293 });
+  });
+
+  it("sells to the best bid inside the band only", () => {
+    expect(estimateMarketFill("sell", 3, book, band)).toMatchObject({ filledQty: 1, amount: 45 });
+  });
+
+  it("no liquidity", () => {
+    expect(estimateMarketFill("buy", 3, { asks: [], bids: [] }, band)).toEqual({ filledQty: 0, amount: 0, avgPrice: null });
+  });
+});
+
+describe("reference price (SQL trg_brands_reference_price)", () => {
+  it("on the tick, from 0.05 (a band with more than one tick) to 1,000,000,000", () => {
+    expect(MIN_REFERENCE_PRICE).toBe(0.05);
+    for (const ok of [0.05, 0.06, 1, 10.01, 1_000_000_000]) expect(isValidReferencePrice(ok)).toBe(true);
+    for (const bad of [0, 0.01, 0.04, -1, 10.005, 1_000_000_000.01, Number.NaN, "10"]) {
+      expect(isValidReferencePrice(bad)).toBe(false);
+    }
+  });
+});

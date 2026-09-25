@@ -11,7 +11,7 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { useI18n, type Key } from "@/lib/i18n";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
-import { StatusBadge } from "@/components/status-badge";
+import { LifecycleSteps, NEXT_STEP, StageProgress, SubmissionStageBadge } from "@/lib/submissions/lifecycle";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { SubmissionDocuments } from "@/components/submission-documents";
 import { useMyRoles } from "@/hooks/use-my-roles";
@@ -35,8 +35,8 @@ export const Route = createFileRoute("/_authenticated/company/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "طروحات الشركة — وحدة القيمة" },
-      { name: "description", content: "حالة الطروحات المقدَّمة للاعتماد." },
+      { title: "طلبات إدراج الشركة — وحدة القيمة" },
+      { name: "description", content: "مراحل طلبات الإدراج المقدَّمة: المراجعة الشرعية ثم اعتماد الإدراج." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -100,13 +100,15 @@ function CompanySubmissions() {
         title={t("submissionsIn")}
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("submissionsIn") }]}
       />
+      <LifecycleSteps />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={search.q} onChange={(e) => patch({ q: e.target.value, page: 1 })} placeholder={t("g_searchSubmissions")} aria-label={t("g_searchSubmissions")} className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
         <select aria-label={t("g_filterStatus")} value={search.status} onChange={(e) => patch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="pending">{t("statusPending")}</option>
-          <option value="approved">{t("statusApproved")}</option>
-          <option value="rejected">{t("statusRejected")}</option>
+          <option value="pending">{t("d_stPending")}</option>
+          <option value="approved">{t("d_stApproved")}</option>
+          <option value="listed">{t("d_stListed")}</option>
+          <option value="rejected">{t("d_stRejected")}</option>
         </select>
         <select aria-label={t("g_filterAssetClass")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
@@ -163,7 +165,7 @@ function CompanySubmissions() {
               <div className="text-muted-foreground">{s.sector ?? "—"}</div>
               <div className="text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
               <div className="flex items-center gap-2">
-                <StatusBadge status={s.status} />
+                <SubmissionStageBadge status={s.status} />
                 <button
                   type="button"
                   onClick={() => setOpenDocs((cur) => (cur === s.id ? null : s.id))}
@@ -173,6 +175,24 @@ function CompanySubmissions() {
                   {t("documents")}
                 </button>
               </div>
+            </div>
+            <div className="space-y-1 px-4 pb-3 text-[11px]">
+              <StageProgress status={s.status} />
+              {NEXT_STEP[s.status] && (
+                <p className="text-ink-soft">
+                  <span className="font-semibold text-ink">{t("d_nextStep")}:</span> {t(NEXT_STEP[s.status])}
+                </p>
+              )}
+              {s.review_reason && (
+                <p className="text-ink-soft">
+                  <span className="font-semibold text-ink">{t("d_reviewerNote")}:</span> {s.review_reason}
+                </p>
+              )}
+              {s.listing_reason && (
+                <p className="text-ink-soft">
+                  <span className="font-semibold text-ink">{t("d_listingNote")}:</span> {s.listing_reason}
+                </p>
+              )}
             </div>
             {openDocs === s.id && (
               <div className="px-4 pb-3">

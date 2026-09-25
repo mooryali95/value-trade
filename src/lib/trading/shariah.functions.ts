@@ -24,6 +24,21 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
     // normalized value is used for the audit row and the notification, whose
     // recipient lookups (positions, watchers, alerts) match it exactly.
     const symbol = data.symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9._-]{1,32}$/.test(symbol)) throw new Error("INSTRUMENT_NOT_FOUND");
+
+    // A ruling is recorded for an existing instrument only, listed or not
+    // (unlisted ones are ruled on before a platform admin lists them).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: brand, error: brandErr } = await supabaseAdmin
+      .from("brands")
+      .select("id")
+      .eq("symbol", symbol)
+      .maybeSingle();
+    if (brandErr) {
+      console.error("[shariah] instrument lookup failed", brandErr.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!brand) throw new Error("INSTRUMENT_NOT_FOUND");
 
     // reviewer_id / updated_by are stamped from the session by the database.
     // A non_halal ruling cancels every resting buy on the symbol in the same
@@ -163,4 +178,58 @@ export const listDecisionAudit = createServerFn({ method: "GET" })
       .eq("decision_id", data.decisionId)
       .order("changed_at", { ascending: false });
     return rows ?? [];
+  });
+export type ReviewInstrument = {
+  symbol: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  sector: string | null;
+  assetClass: string;
+  published: boolean;
+  hasCompany: boolean;
+  /** Status of the product submission that created it, if any. */
+  submissionStatus: string | null;
+  shariahStatus: "halal" | "non_halal" | "reviewing" | null;
+  rulingEffectiveAt: string | null;
+};
+
+/**
+ * Every instrument a Shariah reviewer can rule on, listed or not, with the
+ * ruling in force (reviewer_instruments re-checks the role in SQL). Shariah
+ * board members and platform admins only.
+ */
+export const listReviewInstruments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ReviewInstrument[]> => {
+    const { supabase, userId } = context;
+    const [board, admin] = await Promise.all([
+      supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" }),
+      supabase.rpc("has_role", { _user_id: userId, _role: "platform_admin" }),
+    ]);
+    if (board.error || admin.error) {
+      console.error("[shariah] has_role failed", board.error?.code ?? admin.error?.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!board.data && !admin.data) throw new Error("FORBIDDEN");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.rpc("reviewer_instruments" as never, { _actor_id: userId } as never);
+    if (error) {
+      console.error("[shariah] reviewer_instruments failed", (error as { code?: string }).code ?? "unknown");
+      throw new Error((error as { message?: string }).message === "FORBIDDEN" ? "FORBIDDEN" : "INTERNAL_ERROR");
+    }
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      symbol: String(r.symbol),
+      slug: String(r.slug),
+      nameAr: String(r.name_ar),
+      nameEn: String(r.name_en),
+      sector: (r.sector as string | null) ?? null,
+      assetClass: String(r.asset_class),
+      published: r.published === true,
+      hasCompany: r.has_company === true,
+      submissionStatus: (r.submission_status as string | null) ?? null,
+      shariahStatus: (r.shariah_status as ReviewInstrument["shariahStatus"]) ?? null,
+      rulingEffectiveAt: (r.ruling_effective_at as string | null) ?? null,
+    }));
   });

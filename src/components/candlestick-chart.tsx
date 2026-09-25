@@ -3,7 +3,9 @@ import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
+  TickMarkType,
   type IChartApi,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { ChartLine } from "@phosphor-icons/react";
@@ -43,6 +45,41 @@ function toPoints(candles: ChartCandle[]) {
 }
 
 /**
+ * Axis and crosshair labels: Gregorian calendar and Latin digits in both
+ * languages (the app-wide policy), Arabic month names in Arabic. The
+ * timestamps are already shifted to Riyadh wall time, so they are read as UTC.
+ */
+function makeFormatters(lang: "ar" | "en") {
+  const locale = lang === "ar" ? "ar-u-nu-latn-ca-gregory" : "en-GB";
+  const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, { timeZone: "UTC", ...opts });
+  const year = fmt({ year: "numeric" });
+  const month = fmt({ month: "short" });
+  const day = fmt({ day: "numeric", month: "short" });
+  const time = fmt({ hour: "2-digit", minute: "2-digit", hour12: false });
+  const full = fmt({ day: "numeric", month: "short", year: "numeric" });
+  const fullTime = fmt({ day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  const toDate = (t: Time) => new Date((typeof t === "number" ? t : 0) * 1000);
+  const price = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return {
+    tick: (t: Time, type: TickMarkType) => {
+      const d = toDate(t);
+      switch (type) {
+        case TickMarkType.Year:
+          return year.format(d);
+        case TickMarkType.Month:
+          return month.format(d);
+        case TickMarkType.DayOfMonth:
+          return day.format(d);
+        default:
+          return time.format(d);
+      }
+    },
+    crosshair: (intraday: boolean) => (t: Time) => (intraday ? fullTime : full).format(toDate(t)),
+    price: (p: number) => price.format(p),
+  };
+}
+
+/**
  * Candlestick + volume chart of executed trades. With no candles it renders
  * an explicit "no trades yet" state instead of an empty grid.
  */
@@ -60,7 +97,7 @@ export function CandlestickChart({
   emptyTitle?: string;
   emptyDescription?: string;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const isEmpty = candles.length === 0;
@@ -68,18 +105,30 @@ export function CandlestickChart({
   useEffect(() => {
     if (!containerRef.current || isEmpty) return;
     const points = toPoints(candles);
+    const f = makeFormatters(lang);
     const chart = createChart(containerRef.current, {
       layout: {
         background: { color: "transparent" },
         textColor: "#5A6478",
-        fontFamily: "Inter, IBM Plex Sans Arabic, sans-serif",
+        fontFamily: "IBM Plex Sans Arabic, Tajawal, system-ui, sans-serif",
+        fontSize: 11,
+      },
+      localization: {
+        locale: "en-US",
+        timeFormatter: f.crosshair(intraday),
+        priceFormatter: f.price,
       },
       grid: {
         vertLines: { color: "rgba(120, 100, 60, 0.06)" },
         horzLines: { color: "rgba(120, 100, 60, 0.06)" },
       },
       rightPriceScale: { borderColor: "rgba(120, 100, 60, 0.15)" },
-      timeScale: { borderColor: "rgba(120, 100, 60, 0.15)", timeVisible: intraday, secondsVisible: false },
+      timeScale: {
+        borderColor: "rgba(120, 100, 60, 0.15)",
+        timeVisible: intraday,
+        secondsVisible: false,
+        tickMarkFormatter: f.tick,
+      },
       crosshair: { mode: 1 },
       autoSize: true,
       height,
@@ -114,7 +163,7 @@ export function CandlestickChart({
       chart.remove();
       chartRef.current = null;
     };
-  }, [candles, height, isEmpty, intraday]);
+  }, [candles, height, isEmpty, intraday, lang]);
 
   if (isEmpty) {
     return (
@@ -130,5 +179,7 @@ export function CandlestickChart({
     );
   }
 
-  return <div ref={containerRef} style={{ width: "100%", height }} />;
+  // The chart canvas is laid out left to right (time runs left to right) in
+  // both languages.
+  return <div ref={containerRef} dir="ltr" style={{ width: "100%", height }} />;
 }

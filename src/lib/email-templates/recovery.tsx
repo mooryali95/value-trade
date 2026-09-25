@@ -25,9 +25,16 @@ export const RecoveryEmail = ({ confirmationUrl }: RecoveryEmailProps) => (
       </Button>
     </div>
     <Text style={{ ...styles.textEn, marginTop: 22 }}>
+      يعمل الرابط مرة واحدة ولفترة محدودة. وبعد حفظ كلمة المرور الجديدة يُسجَّل خروج حسابك من الأجهزة الأخرى.
+      <br />
+      <span dir="ltr">
+        The link works once and for a limited time. Saving the new password signs your account out on other devices.
+      </span>
+    </Text>
+    <Text style={{ ...styles.textEn }}>
       إن لم تطلب ذلك، تجاهل الرسالة ولن يتغير شيء في حسابك.
       <br />
-      If you didn't request this, ignore the email — nothing will change.
+      <span dir="ltr">If you didn't request this, ignore the email; nothing will change.</span>
     </Text>
   </BrandLayout>
 )

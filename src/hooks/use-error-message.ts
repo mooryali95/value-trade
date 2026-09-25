@@ -86,6 +86,11 @@ const CODE_TO_KEY: Record<string, Key> = {
   PASSWORD_MISMATCH: "r_pwMismatch",
 };
 
+/** i18n key of a stable error code, or undefined when it has no message. */
+export function errorMessageKey(code: string): Key | undefined {
+  return Object.prototype.hasOwnProperty.call(CODE_TO_KEY, code) ? CODE_TO_KEY[code] : undefined;
+}
+
 export function errorCode(e: unknown): string {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
   return /^[A-Z][A-Z0-9_]{1,63}$/.test(msg) ? msg : "";

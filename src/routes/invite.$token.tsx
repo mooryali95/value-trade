@@ -54,10 +54,14 @@ function InvitePage() {
 
   useEffect(() => {
     let mounted = true;
+    // Signed in on this page: the post-sign-in target (this invitation) has
+    // been reached, so it must not pull the user back here later.
     supabase.auth.getSession().then(({ data }) => {
+      if (data.session) clearPostAuthRedirect();
       if (mounted) setSession(data.session ? { email: data.session.user.email ?? null } : null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (s) clearPostAuthRedirect();
       if (mounted) setSession(s ? { email: s.user.email ?? null } : null);
     });
     return () => {
@@ -137,7 +141,6 @@ function InvitePage() {
       <div className="w-full max-w-lg">
         <Link to="/" className="mb-8 flex items-center gap-3">
           <BrandMark size={40} />
-          <span className="text-lg font-bold text-ink">{t("brand")}</span>
         </Link>
 
         <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
