@@ -7,13 +7,15 @@ export type AccountNotice = { id: "email" | "invitations" | "hold" | "activation
  * Which account notices apply, most important first: unconfirmed e-mail,
  * pending company invitations, a review hold, trading not activated yet
  * (only for people who are not platform staff or company members), or an
- * activated account without funds.
+ * activated account that has never been funded (no ledger entry and no
+ * units: an investor who has spent all their cash on units is funded).
  */
 export function accountNotices(
   s: Pick<
     AccountStatus,
     "email" | "emailConfirmed" | "pendingInvitations" | "onHold" | "isPlatformAdmin" | "isShariahReviewer" | "isTrader" | "companies" | "cashBalance" | "pendingAccessRequest"
-  >,
+  > &
+    Partial<Pick<AccountStatus, "hasPositions" | "everFunded">>,
 ): AccountNotice[] {
   const out: AccountNotice[] = [];
   if (s.email && !s.emailConfirmed) out.push({ id: "email", tone: "warn", key: "r_bannerEmailUnconfirmed" });
@@ -34,7 +36,7 @@ export function accountNotices(
       tone: "info",
       key: s.pendingAccessRequest?.status === "pending" ? "r_bannerRequestPending" : "r_bannerAwaitingActivation",
     });
-  } else if (s.isTrader && !s.onHold && s.cashBalance <= 0) {
+  } else if (s.isTrader && !s.onHold && s.cashBalance <= 0 && !s.hasPositions && !s.everFunded) {
     out.push({ id: "funding", tone: "info", key: "r_bannerAwaitingFunding" });
   }
   return out;

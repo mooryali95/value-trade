@@ -12,6 +12,8 @@ const base = {
   companies: [] as Array<{ id: string; nameAr: string; nameEn: string; role: string }>,
   cashBalance: 0,
   pendingAccessRequest: null as { id: string; status: string; joinMethod: string } | null,
+  hasPositions: false,
+  everFunded: false,
 };
 
 const ids = (s: Partial<typeof base>) => accountNotices({ ...base, ...s }).map((n) => n.id);
@@ -44,6 +46,9 @@ describe("accountNotices", () => {
     expect(ids({ isTrader: true })).toEqual(["funding"]);
     expect(ids({ isTrader: true, cashBalance: 1000 })).toEqual([]);
     expect(ids({ isTrader: true, onHold: true })).toEqual(["hold"]);
+    // Spent all the cash on units, or funded and withdrew: not "no funds yet".
+    expect(ids({ isTrader: true, cashBalance: 0, hasPositions: true })).toEqual([]);
+    expect(ids({ isTrader: true, cashBalance: 0, everFunded: true })).toEqual([]);
     expect(ids({ onHold: true })).toEqual(["hold"]);
   });
 });

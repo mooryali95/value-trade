@@ -18,14 +18,19 @@
 --      go_live_archive (no access for anon, authenticated or service_role;
 --      not exposed through the API):
 --        portfolios, positions, orders, orders_audit, trades, cash_ledger,
---        unit_issuances, price_alerts
+--        unit_issuances, price_alerts, symbol_watchers, brands
 --      as go_live_archive.archive_20260925_<table>, and checks that every
 --      archive has exactly as many rows as its source.
 --   5. Resets the trading state to a clean launch:
 --        - cancels every open or partially filled order,
 --        - deletes every row of cash_ledger, trades, orders_audit, orders,
 --          positions and unit_issuances,
---        - sets every portfolios.cash_balance to 0 (portfolio rows are kept).
+--        - sets every portfolios.cash_balance to 0 (portfolio rows are kept),
+--        - deletes the legacy demo instruments: every instrument that is off
+--          the market, belongs to no company and did not come from a product
+--          submission (the early builds seeded them, some named after real
+--          listed issuers), with the price alerts and watch-list rows on
+--          their symbols. Their Shariah rulings stay on record.
 --   6. Verifies the ledger invariants the database security suite checks
 --      (cash balance = sum of the ledger for every portfolio, positions =
 --      issued + bought - sold for every holder, no negative cash or units)
@@ -41,10 +46,12 @@
 -- are archived with their tables like every other column.
 --
 -- WHAT IT KEEPS: users (auth.users, profiles), roles (user_roles),
--- companies and memberships, brands (including reference prices and the
+-- companies and memberships, every listed instrument and every instrument
+-- of a company or a submission (including reference prices and the
 -- published flag), product submissions and documents, Shariah decisions and
 -- their audit trail, audit_log, access requests and invitations, price
--- alerts and watch lists, notification settings, launch_review_holds.
+-- alerts and watch lists (except those on removed demo instruments),
+-- notification settings, launch_review_holds.
 -- After the reset every investor has cash 0 and no units: activate and fund
 -- investors (admin deposit), then issue units, as in the README checklist.
 -- Open launch_review_holds rows describe balances this reset zeroes; review
@@ -71,6 +78,15 @@
 --   INSERT INTO public.unit_issuances SELECT * FROM go_live_archive.archive_20260925_unit_issuances;
 --   UPDATE public.portfolios p SET cash_balance = a.cash_balance
 --     FROM go_live_archive.archive_20260925_portfolios a WHERE a.user_id = p.user_id;
+--   -- the removed demo instruments (legacy prices predate the price rules)
+--   ALTER TABLE public.brands DISABLE TRIGGER trg_brands_reference_price;
+--   INSERT INTO public.brands SELECT * FROM go_live_archive.archive_20260925_brands a
+--    WHERE NOT EXISTS (SELECT 1 FROM public.brands b WHERE b.id = a.id);
+--   ALTER TABLE public.brands ENABLE TRIGGER trg_brands_reference_price;
+--   INSERT INTO public.price_alerts SELECT * FROM go_live_archive.archive_20260925_price_alerts a
+--    WHERE NOT EXISTS (SELECT 1 FROM public.price_alerts x WHERE x.id = a.id);
+--   INSERT INTO public.symbol_watchers SELECT * FROM go_live_archive.archive_20260925_symbol_watchers a
+--    WHERE NOT EXISTS (SELECT 1 FROM public.symbol_watchers x WHERE x.id = a.id);
 --   ALTER TABLE public.orders ENABLE TRIGGER trg_orders_require_published;
 --   COMMIT;
 --
@@ -93,7 +109,7 @@ DO $go_live_reset$
 DECLARE
   v_tables constant text[] := ARRAY[
     'portfolios', 'positions', 'orders', 'orders_audit', 'trades',
-    'cash_ledger', 'unit_issuances', 'price_alerts'
+    'cash_ledger', 'unit_issuances', 'price_alerts', 'symbol_watchers', 'brands'
   ];
   v_table text;
   v_archive text;
@@ -107,6 +123,7 @@ DECLARE
   v_units_before numeric;
   v_bad bigint;
   v_failed_checks text;
+  v_demo_removed bigint;
 BEGIN
   -- 1. Run once only.
   IF EXISTS (
@@ -133,7 +150,8 @@ BEGIN
   -- 3. No trading while the reset runs.
   PERFORM pg_catalog.set_config('lock_timeout', '15s', true);
   LOCK TABLE public.portfolios, public.positions, public.orders, public.orders_audit,
-             public.trades, public.cash_ledger, public.unit_issuances, public.price_alerts
+             public.trades, public.cash_ledger, public.unit_issuances, public.price_alerts,
+             public.symbol_watchers, public.brands
     IN SHARE ROW EXCLUSIVE MODE;
 
   SELECT coalesce(sum(cash_balance), 0) INTO v_cash_before FROM public.portfolios;
@@ -170,6 +188,16 @@ BEGIN
   DELETE FROM public.unit_issuances;
   UPDATE public.portfolios SET cash_balance = 0 WHERE cash_balance <> 0;
   GET DIAGNOSTICS v_portfolios_zeroed = ROW_COUNT;
+
+  -- Legacy demo instruments (off the market, no company, no submission):
+  -- nothing refers to them any more once the trading state is cleared.
+  CREATE TEMP TABLE go_live_demo_symbols ON COMMIT DROP AS
+    SELECT b.symbol FROM public.brands b
+     WHERE NOT b.published AND b.company_id IS NULL AND b.source_submission_id IS NULL;
+  DELETE FROM public.price_alerts a USING go_live_demo_symbols d WHERE upper(a.symbol) = d.symbol;
+  DELETE FROM public.symbol_watchers w USING go_live_demo_symbols d WHERE upper(w.symbol) = d.symbol;
+  DELETE FROM public.brands b USING go_live_demo_symbols d WHERE b.symbol = d.symbol;
+  GET DIAGNOSTICS v_demo_removed = ROW_COUNT;
 
   -- 6. The invariants of supabase/tests/security.sh must hold.
   SELECT count(*) INTO v_bad
@@ -216,11 +244,12 @@ BEGIN
   VALUES (
     v_actor, 'go_live_reset', 'trading_state', 'archive_20260925',
     jsonb_build_object(
-      'description', 'Go-live reset: trading state archived to go_live_archive.archive_20260925_* and cleared (orders, trades, positions, cash ledger, unit issuances deleted; every cash balance set to 0). Users, roles, companies, brands, submissions, Shariah decisions and audit_log kept.',
+      'description', 'Go-live reset: trading state archived to go_live_archive.archive_20260925_* and cleared (orders, trades, positions, cash ledger, unit issuances deleted; every cash balance set to 0; legacy demo instruments removed). Users, roles, companies, listed and company instruments, submissions, Shariah decisions and audit_log kept.',
       'archive_schema', 'go_live_archive',
       'archived_rows', v_archived,
       'open_orders_cancelled', v_open_orders,
       'portfolios_zeroed', v_portfolios_zeroed,
+      'demo_instruments_removed', v_demo_removed,
       'cash_total_before', v_cash_before,
       'units_total_before', v_units_before,
       'executed_as', session_user,
@@ -228,8 +257,8 @@ BEGIN
     )
   );
 
-  RAISE NOTICE 'GO_LIVE_RESET_DONE archived=% open_orders_cancelled=% portfolios_zeroed=%',
-    v_archived, v_open_orders, v_portfolios_zeroed;
+  RAISE NOTICE 'GO_LIVE_RESET_DONE archived=% open_orders_cancelled=% portfolios_zeroed=% demo_instruments_removed=%',
+    v_archived, v_open_orders, v_portfolios_zeroed, v_demo_removed;
 END
 $go_live_reset$;
 

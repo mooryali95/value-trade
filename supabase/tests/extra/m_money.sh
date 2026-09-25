@@ -178,7 +178,7 @@ expect_err "above 1,000,000,000" service "INVALID_PRICE" "UPDATE public.brands S
 expect_ok "0.05 accepted (band 0.04..0.06)" service "UPDATE public.brands SET reference_price=0.05 WHERE symbol='MMRF';"
 expect_ok "1,000,000,000 accepted" service "UPDATE public.brands SET reference_price=1000000000 WHERE symbol='MMRF';"
 expect_ok "0 (not set) accepted while unlisted" service "UPDATE public.brands SET reference_price=0 WHERE symbol='MMRF';"
-expect_err "platform admin through the API: off-tick refused" "$ADMIN" "INVALID_PRICE" "UPDATE public.brands SET reference_price=7.777 WHERE symbol='MMRF';"
+expect_err "platform admin through the API: refused (server path only)" "$ADMIN" "INVALID_PRICE|permission denied" "UPDATE public.brands SET reference_price=7.777 WHERE symbol='MMRF';"
 check "even the migration owner cannot insert a listed instrument at 0.03" \
   "$(su "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('MMRX','mmrx','m','X',0.03,true);" 2>&1 | grep -o INVALID_PRICE)" "INVALID_PRICE"
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('MMRF','halal');" >/dev/null

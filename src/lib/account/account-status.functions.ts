@@ -19,6 +19,10 @@ export type AccountStatus = {
   cashBalance: number;
   /** Cash minus what the account's open buy orders reserve (as the engine computes it). */
   buyingPower: number;
+  /** Holds units of at least one instrument. */
+  hasPositions: boolean;
+  /** The cash ledger has at least one entry (the account was funded at some point). */
+  everFunded: boolean;
   companies: Array<{ id: string; nameAr: string; nameEn: string; role: string }>;
   /** Pending, unexpired company invitations addressed to the confirmed e-mail. */
   pendingInvitations: number;
@@ -44,7 +48,7 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadAccount } = await import("./platform-invite.server");
 
-    const [account, rolesRes, portfolioRes, holdsRes, membersRes] = await Promise.all([
+    const [account, rolesRes, portfolioRes, holdsRes, membersRes, positionsRes, ledgerRes] = await Promise.all([
       loadAccount(userId),
       supabaseAdmin.from("user_roles").select("role").eq("user_id", userId),
       supabaseAdmin.from("portfolios").select("cash_balance").eq("user_id", userId).maybeSingle(),
@@ -53,8 +57,10 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
         .from("company_members")
         .select("role, company_id, companies:companies!inner(id, name_ar, name_en)")
         .eq("user_id", userId),
+      supabaseAdmin.from("positions").select("symbol").eq("user_id", userId).gt("qty", 0).limit(1),
+      supabaseAdmin.from("cash_ledger").select("id").eq("user_id", userId).limit(1),
     ]);
-    for (const r of [rolesRes, portfolioRes, holdsRes, membersRes]) {
+    for (const r of [rolesRes, portfolioRes, holdsRes, membersRes, positionsRes, ledgerRes]) {
       if (r.error) {
         console.error("[account-status] lookup failed", r.error.code ?? "");
         throw new Error("INTERNAL_ERROR");
@@ -143,6 +149,8 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
       onHold: (holdsRes.data ?? []).length > 0,
       cashBalance,
       buyingPower: buyingPower ?? cashBalance,
+      hasPositions: (positionsRes.data ?? []).length > 0,
+      everFunded: (ledgerRes.data ?? []).length > 0,
       companies,
       pendingInvitations,
       pendingAccessRequest,

@@ -156,7 +156,7 @@ expect_eq "approved investor without an account is queued as invited" service "i
 R_INVESTOR=$(newuser investor1@test.local)
 expect_eq "once the account exists it is queued under the request" service "investor_request|$R_INVESTOR|false" "SELECT source || '|' || user_id || '|' || email_confirmed FROM public.admin_pending_activations('$ADMIN', 500) WHERE email='investor1@test.local';"
 R_NOROLE=$(newuser lonely@test.local)
-expect_eq "an account with no role and no company is queued" service "no_role" "SELECT source FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
+expect_eq "an account with no role and no company is queued (never signed in)" service "no_role_never_signed_in" "SELECT source FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
 expect_eq "an account without a review hold is not flagged" service "f" "SELECT on_hold FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"
 su "INSERT INTO public.launch_review_holds (user_id, reason) VALUES ('$R_NOROLE','unexplained_cash');" >/dev/null
 expect_eq "an unresolved review hold is flagged in the queue" service "t" "SELECT on_hold FROM public.admin_pending_activations('$ADMIN', 500) WHERE user_id='$R_NOROLE';"

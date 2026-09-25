@@ -145,6 +145,13 @@ else bad "listing control migration re-applies after it" "${LCMIG:-*_listing_con
 SLMIG=$(ls "$REPO"/supabase/migrations/*_submission_lifecycle.sql 2>/dev/null | head -1)
 if [ -n "$SLMIG" ] && out=$("${PSQL[@]}" -1 -f "$SLMIG" 2>&1 >/dev/null); then ok "submission lifecycle migration re-applies after it"
 else bad "submission lifecycle migration re-applies after it" "${SLMIG:-*_submission_lifecycle.sql not found} ${out:-}"; fi
+# ... and the phase 3 fixer migrations redefine brands_guard,
+# product_submissions_guard and set_instrument_published after that.
+for mig in fixer_security_hardening fixer_market_rules fixer_execute_allowlist; do
+  f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
+  if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies after it"
+  else bad "$mig migration re-applies after it" "${f:-*_$mig.sql not found} ${out:-}"; fi
+done
 expect_err "drifted self-insert policy no longer lets a user grant themselves a role" "$CAROL" "permission denied" "INSERT INTO public.user_roles (user_id, role) VALUES (auth.uid(),'platform_admin');"
 expect_eq "viewer cannot promote self to owner" "$VIEWER" "" "UPDATE public.company_members SET role='owner' WHERE company_id='$CO' AND user_id=auth.uid() RETURNING role;"
 su_eq "viewer role unchanged" "viewer" "SELECT role FROM public.company_members WHERE company_id='$CO' AND user_id='$VIEWER';"
@@ -216,7 +223,7 @@ expect_err "anon cannot insert access_requests directly" anon "permission denied
 expect_err "authenticated cannot insert access_requests directly" "$ALICE" "permission denied" "INSERT INTO public.access_requests (email, full_name, join_method, new_company_name_ar, new_company_name_en) VALUES ('a@b.c','A','new_company','x','y');"
 expect_err "anon cannot update access_requests" anon "permission denied" "UPDATE public.access_requests SET status='approved';"
 su_eq "SECURITY DEFINER functions executable by anon = public market data only" "get_order_book,get_symbol_last_trade,public_candles,public_company_profile,public_instrument,public_market_overview,public_market_summary,public_recent_trades,public_shariah_rulings" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('anon', p.oid, 'EXECUTE');"
-su_eq "SECURITY DEFINER functions executable by authenticated = RLS helpers + market data" "get_market_snapshot,get_order_book,get_symbol_last_trade,get_symbol_market_stats,has_company_role,has_role,is_company_member,is_company_owner,public_candles,public_company_profile,public_instrument,public_market_overview,public_market_summary,public_recent_trades,public_shariah_rulings,shariah_decision_is_mine" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated', p.oid, 'EXECUTE');"
+su_eq "SECURITY DEFINER functions executable by authenticated = RLS helpers + market data" "get_order_book,get_symbol_last_trade,has_company_role,has_role,is_company_member,is_company_owner,public_candles,public_company_profile,public_instrument,public_market_overview,public_market_summary,public_recent_trades,public_shariah_rulings,shariah_decision_is_mine" "SELECT string_agg(p.proname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND has_function_privilege('authenticated', p.oid, 'EXECUTE');"
 su_eq "every SECURITY DEFINER function pins search_path" "0" "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}')) c WHERE c LIKE 'search_path=%');"
 
 # ------------------------------------------------- (d) engine validation ---
@@ -388,8 +395,14 @@ su "INSERT INTO public.orders (user_id, symbol, side, type, qty, price, status, 
 R=$(mo "$ALICE" TSTA sell limit 2 119)
 check "resting (legacy) buy on non_halal symbol never filled" "$(cut -d'|' -f2,4 <<<"$R")" "0|open"
 q service "SELECT * FROM public.cancel_order('$ALICE', '$(cut -d'|' -f1 <<<"$R")');" >/dev/null
-expect_ok "board updates status/reason" "$BOARD" "UPDATE public.shariah_decisions SET status='reviewing', reason='re-check' WHERE id='$DEC';"
+# Rulings change through update_shariah_decision (server, with a written
+# change reason); direct UPDATE is revoked (fixer, phase 3).
+expect_err "board cannot UPDATE a ruling directly" "$BOARD" "permission denied" "UPDATE public.shariah_decisions SET status='reviewing', reason='re-check' WHERE id='$DEC';"
+expect_err "a ruling change needs a change reason" service "RULING_CHANGE_REASON_REQUIRED" "SELECT * FROM public.update_shariah_decision('$DEC', '$BOARD', 'reviewing', 're-check', '  ');"
+expect_err "only a Shariah reviewer changes a ruling" service "FORBIDDEN" "SELECT * FROM public.update_shariah_decision('$DEC', '$ALICE', 'reviewing', 're-check', 'why');"
+expect_ok "board updates status/reason" service "SELECT * FROM public.update_shariah_decision('$DEC', '$BOARD', 'reviewing', 're-check', 'new evidence to review');"
 su_eq "decision audit changed_by = session user" "$BOARD|non_halal|reviewing" "SELECT changed_by || '|' || previous_status || '|' || new_status FROM public.shariah_decision_audit WHERE decision_id='$DEC';"
+su_eq "decision audit records the change reason" "new evidence to review" "SELECT change_reason FROM public.shariah_decision_audit WHERE decision_id='$DEC';"
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','non_halal');" >/dev/null
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','halal');" >/dev/null
 expect_eq "latest ruling wins (non_halal then halal)" service "halal" "SELECT public.current_shariah_status('TSTA');"
@@ -397,11 +410,11 @@ R=$(mo "$DAVE" TSTA buy limit 1 120)
 check "buy allowed again after a later halal ruling" "$(cut -d'|' -f4 <<<"$R")" "open"
 DBUY=$(cut -d'|' -f1 <<<"$R")
 # Editing an OLDER ruling row puts that change in force (most recent change wins).
-expect_ok "board edits the older ruling row to non_halal" "$BOARD" "UPDATE public.shariah_decisions SET status='non_halal', reason='re-review' WHERE id='$DEC';"
+expect_ok "board edits the older ruling row to non_halal" service "SELECT * FROM public.update_shariah_decision('$DEC', '$BOARD', 'non_halal', 're-review', 're-review');"
 expect_eq "edited older row is the ruling in force" service "non_halal" "SELECT public.current_shariah_status('TSTA');"
 su_eq "resting buy cancelled by the edit" "cancelled" "SELECT status FROM public.orders WHERE id='$DBUY';"
 expect_err "buys blocked after the edit" service "SHARIAH_BLOCKED" "SELECT * FROM public.match_order('$DAVE','TSTA','brand','buy','limit',1,100);"
-expect_ok "reason-only edit of an older row" "$BOARD" "UPDATE public.shariah_decisions SET reason='typo fixed' WHERE id=(SELECT id FROM public.shariah_decisions WHERE symbol='TSTA' AND status='halal' ORDER BY created_at LIMIT 1);"
+expect_ok "reason-only edit of an older row" service "SELECT * FROM public.update_shariah_decision((SELECT id FROM public.shariah_decisions WHERE symbol='TSTA' AND status='halal' ORDER BY created_at LIMIT 1), '$BOARD', 'halal', 'typo fixed', 'typo');"
 expect_eq "reason-only edit does not change the ruling in force" service "non_halal" "SELECT public.current_shariah_status('TSTA');"
 expect_err "effective_at is not client-writable" "$BOARD" "permission denied" "UPDATE public.shariah_decisions SET effective_at = now() + interval '1 day' WHERE id='$DEC';"
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','halal');" >/dev/null
@@ -452,12 +465,14 @@ expect_err "user cannot insert a filled order to move stats" "$ALICE" "permissio
 su "INSERT INTO public.orders (user_id, symbol, side, type, qty, price, status, filled_qty, filled_price, filled_at) VALUES ('$ALICE','TSTA','buy','limit',99999,1,'filled',99999,1,now());" >/dev/null
 expect_eq "last price from trades, not orders (anon)" anon "$LAST" "SELECT last_price FROM public.get_symbol_last_trade('TSTA');"
 VOL=$(su "SELECT sum(qty) || '|' || count(*) FROM public.trades WHERE symbol='TSTA';")
-expect_eq "stats: last price, volume counted once per trade" "$ALICE" "$LAST|$VOL" "SELECT last_price || '|' || volume_24h || '|' || trade_count_24h FROM public.get_symbol_market_stats('TSTA');"
+expect_eq "stats: last price, volume counted once per trade" service "$LAST|$VOL" "SELECT last_price || '|' || volume_24h || '|' || trade_count_24h FROM public.get_symbol_market_stats('TSTA');"
 FIRST=$(su "SELECT price FROM public.trades WHERE symbol='TSTA' ORDER BY created_at, id LIMIT 1;")
-expect_eq "stats: change vs first trade in window" "$ALICE" "$(su "SELECT round(($LAST - $FIRST) / $FIRST * 100, 2);")" "SELECT change_24h_pct FROM public.get_symbol_market_stats('TSTA');"
-expect_eq "snapshot agrees" "$ALICE" "TSTA|$LAST|$(cut -d'|' -f1 <<<"$VOL")" "SELECT symbol || '|' || last_price || '|' || volume_24h FROM public.get_market_snapshot(ARRAY['TSTA']);"
-expect_eq "snapshot: no trades -> null price, zero volume" "$ALICE" "TSTC||0" "SELECT symbol || '|' || coalesce(last_price::text,'') || '|' || volume_24h FROM public.get_market_snapshot(ARRAY['TSTC']);"
+expect_eq "stats: change vs first trade in window" service "$(su "SELECT round(($LAST - $FIRST) / $FIRST * 100, 2);")" "SELECT change_24h_pct FROM public.get_symbol_market_stats('TSTA');"
+expect_eq "snapshot agrees" service "TSTA|$LAST|$(cut -d'|' -f1 <<<"$VOL")" "SELECT symbol || '|' || last_price || '|' || volume_24h FROM public.get_market_snapshot(ARRAY['TSTA']);"
+expect_eq "snapshot: no trades -> null price, zero volume" service "TSTC||0" "SELECT symbol || '|' || coalesce(last_price::text,'') || '|' || volume_24h FROM public.get_market_snapshot(ARRAY['TSTC']);"
 expect_err "anon cannot call market stats" anon "permission denied" "SELECT * FROM public.get_symbol_market_stats('TSTA');"
+expect_err "signed-in users cannot call market stats (they ignore the listing state)" "$ALICE" "permission denied" "SELECT * FROM public.get_symbol_market_stats('TSTU');"
+expect_err "signed-in users cannot call the market snapshot either" "$ALICE" "permission denied" "SELECT * FROM public.get_market_snapshot(ARRAY['TSTU']);"
 su "INSERT INTO public.orders (user_id, symbol, side, type, qty, price, status, filled_qty) SELECT '$BOB','TSTD','sell','limit',1,100+g,'open',0 FROM generate_series(1,60) g;" >/dev/null
 expect_eq "order book depth capped at 50" anon "50" "SELECT count(*) FROM public.get_order_book('TSTD', 1000) WHERE side='sell';"
 su_eq "order book exposes no user or order ids" "_symbol,_depth,side,price,qty" "SELECT array_to_string(proargnames, ',') FROM pg_proc WHERE oid = 'public.get_order_book(text, integer)'::regprocedure;"
@@ -484,22 +499,25 @@ expect_ok "service writes audit_log" service "INSERT INTO public.audit_log (acto
 expect_eq "actor reads own audit rows" "$ALICE" "1" "SELECT count(*) FROM public.audit_log;"
 expect_err "users cannot delete audit_log" "$ADMIN" "permission denied" "DELETE FROM public.audit_log;"
 expect_err "access request length limits" service "access_requests_text_lengths" "INSERT INTO public.access_requests (email, full_name, join_method, new_company_name_ar, new_company_name_en) VALUES (repeat('a',321),'A','new_company','x','y');"
-expect_err "company owner cannot change symbol" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET symbol='HACK' WHERE symbol='TSTC';"
-expect_err "company owner cannot change slug" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET slug='hack' WHERE symbol='TSTC';"
-expect_err "company owner cannot publish/unpublish" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=false WHERE symbol='TSTC';"
-expect_err "company owner cannot move reference price" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET reference_price=1 WHERE symbol='TSTC';"
-expect_err "company owner cannot move the brand to another company" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET company_id='$CO2' WHERE symbol='TSTC';"
-expect_err "company owner cannot detach the brand" "$OWNER" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET company_id=NULL WHERE symbol='TSTC';"
+expect_err "company owner cannot change symbol" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET symbol='HACK' WHERE symbol='TSTC';"
+expect_err "company owner cannot change slug" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET slug='hack' WHERE symbol='TSTC';"
+expect_err "company owner cannot publish/unpublish" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET published=false WHERE symbol='TSTC';"
+expect_err "company owner cannot move reference price" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET reference_price=1 WHERE symbol='TSTC';"
+expect_err "company owner cannot move the brand to another company" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET company_id='$CO2' WHERE symbol='TSTC';"
+expect_err "company owner cannot detach the brand" "$OWNER" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET company_id=NULL WHERE symbol='TSTC';"
 su_eq "brand protected fields unchanged" "TSTC|tstc|true|50|$CO" "SELECT symbol || '|' || slug || '|' || published || '|' || reference_price || '|' || company_id FROM public.brands WHERE symbol='TSTC';"
 expect_eq "company owner edits descriptive fields" "$OWNER" "Renamed C" "UPDATE public.brands SET name_en='Renamed C', sector='tech' WHERE symbol='TSTC' RETURNING name_en;"
-expect_eq "platform admin may move reference price" "$ADMIN" "55" "UPDATE public.brands SET reference_price=55 WHERE symbol='TSTC' RETURNING reference_price;"
+expect_err "platform admin cannot move the reference price through the API" "$ADMIN" "permission denied" "UPDATE public.brands SET reference_price=55 WHERE symbol='TSTC';"
+expect_err "set_reference_price: platform admins only" service "FORBIDDEN_ADMIN_REQUIRED" "SELECT * FROM public.set_reference_price('TSTC', 55, '$OWNER');"
+expect_eq "platform admin moves the reference price through the server" service "55|true" "SELECT reference_price || '|' || changed FROM public.set_reference_price('TSTC', 55, '$ADMIN');"
+su_eq "reference price change audited in the same transaction" "50|55" "SELECT (metadata->>'from') || '|' || (metadata->>'to') FROM public.audit_log WHERE action='brand.reference_price' AND metadata->>'symbol'='TSTC';"
 expect_eq "service role may change protected fields" service "t" "UPDATE public.brands SET published=true WHERE symbol='TSTC' RETURNING published;"
 expect_err "service role cannot unpublish directly (set_instrument_published only)" service "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=false WHERE symbol='TSTC';"
-expect_err "platform admin cannot unpublish directly through the API" "$ADMIN" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=false WHERE symbol='TSTC';"
+expect_err "platform admin cannot unpublish directly through the API" "$ADMIN" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET published=false WHERE symbol='TSTC';"
 expect_err "service role cannot publish directly" service "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=true WHERE symbol='TSTU';"
-expect_err "platform admin cannot publish directly through the API" "$ADMIN" "FORBIDDEN_BRAND_FIELD" "UPDATE public.brands SET published=true WHERE symbol='TSTU';"
+expect_err "platform admin cannot publish directly through the API" "$ADMIN" "FORBIDDEN_BRAND_FIELD|permission denied" "UPDATE public.brands SET published=true WHERE symbol='TSTU';"
 expect_err "an API caller cannot insert a published brand" service "FORBIDDEN_BRAND_FIELD" "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('PUBX','pubx','p','p',10,true);"
-expect_err "platform admin cannot insert a published brand either" "$ADMIN" "FORBIDDEN_BRAND_FIELD" "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('PUBX','pubx','p','p',10,true);"
+expect_err "platform admin cannot insert a published brand either" "$ADMIN" "FORBIDDEN_BRAND_FIELD|permission denied" "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('PUBX','pubx','p','p',10,true);"
 su_eq "listing state unchanged by the refused writes" "true|false|0" "SELECT (SELECT published FROM public.brands WHERE symbol='TSTC') || '|' || (SELECT published FROM public.brands WHERE symbol='TSTU') || '|' || (SELECT count(*) FROM public.brands WHERE symbol='PUBX');"
 expect_eq "other users cannot edit brands" "$ALICE" "" "UPDATE public.brands SET name_en='x' WHERE symbol='TSTC' RETURNING name_en;"
 expect_eq "other company's owner cannot edit brands" "$OWNER2" "" "UPDATE public.brands SET name_en='x' WHERE symbol='TSTC' RETURNING name_en;"
@@ -547,7 +565,7 @@ expect_eq "own company's submissions visible" "$OWNER2" "1" "SELECT count(*) FRO
 expect_eq "other company's documents invisible" "$OWNER2" "0" "SELECT count(*) FROM public.submission_documents WHERE company_id='$CO';"
 expect_eq "company owner reads only own company's audit rows" "$OWNER2" "co2.event" "SELECT string_agg(action, ',') FROM public.audit_log;"
 expect_eq "and the reverse" "$OWNER" "co1.event" "SELECT string_agg(action, ',') FROM public.audit_log WHERE company_id IS NOT NULL AND action LIKE 'co_.event';"
-expect_eq "company owner reads the listing audit of its own instrument" "$OWNER" "brand.publish" "SELECT string_agg(DISTINCT action, ',') FROM public.audit_log WHERE company_id IS NOT NULL AND action LIKE 'brand.%';"
+expect_eq "company owner reads the listing audit of its own instrument" "$OWNER" "brand.publish" "SELECT string_agg(DISTINCT action, ',') FROM public.audit_log WHERE company_id IS NOT NULL AND action LIKE 'brand.pub%';"
 expect_eq "viewer (non-owner) does not read company audit rows" "$VIEWER" "0" "SELECT count(*) FROM public.audit_log;"
 expect_eq "other company's invitations invisible" "$OWNER2" "0" "SELECT count(*) FROM public.company_invitations WHERE company_id='$CO';"
 expect_eq "outsider sees no company at all" "$ALICE" "0" "SELECT count(*) FROM public.companies;"
@@ -779,7 +797,7 @@ expect_eq "overview: listing data and the company of a published instrument" ano
   "SELECT slug || '|' || name_en || '|' || sector || '|' || asset_class || '|' || trim_scale(reference_price) || '|' || company_id || '|' || company_name_en FROM public.public_market_overview() WHERE symbol='MKTA';"
 expect_eq "overview: no trade yet -> null prices, zero volume, reference price kept" anon "|||0|0|0||33.33" \
   "SELECT coalesce(last_price::text,'') || '|' || coalesce(change_24h_pct::text,'') || '|' || coalesce(last_trade_at::text,'') || '|' || volume_24h_units || '|' || volume_24h_value || '|' || trades_24h || '|' || coalesce(shariah_status,'') || '|' || trim_scale(reference_price) FROM public.public_market_overview() WHERE symbol='MKTB';"
-expect_eq "overview agrees with get_symbol_market_stats" "$ALICE" "t" \
+expect_eq "overview agrees with get_symbol_market_stats" service "t" \
   "SELECT (o.last_price, o.change_24h_pct, o.volume_24h_units, o.trades_24h) IS NOT DISTINCT FROM (s.last_price, s.change_24h_pct, s.volume_24h, s.trade_count_24h) FROM public.public_market_overview() o, public.get_symbol_market_stats('MKTA') s WHERE o.symbol='MKTA';"
 expect_eq "overview lists every published instrument, only those, by symbol" anon "true|0|true" \
   "SELECT ((SELECT count(*) FROM public.public_market_overview()) = (SELECT listed_count FROM public.public_market_summary())) || '|' || (SELECT count(*) FROM public.public_market_overview() WHERE symbol = 'TSTU') || '|' || (SELECT array_agg(symbol) = array_agg(symbol ORDER BY symbol) FROM public.public_market_overview());"
@@ -882,8 +900,8 @@ expect_err "signed-in user cannot read updated_by either" "$NOROLE" "permission 
 expect_eq "Shariah board reads every ruling, listed or not" "$BOARD" "1" "SELECT count(*) FROM public.shariah_decisions WHERE symbol='TSTU';"
 expect_eq "platform admin reads every ruling" "$ADMIN" "1" "SELECT count(*) FROM public.shariah_decisions WHERE symbol='TSTU';"
 TSTU_DEC=$(su "SELECT id FROM public.shariah_decisions WHERE symbol='TSTU';")
-q "$BOARD" "UPDATE public.shariah_decisions SET reason='unlisted, re-read' WHERE id='$TSTU_DEC';" >/dev/null
-q "$BOARD" "UPDATE public.shariah_decisions SET status='reviewing' WHERE id='$TSTU_DEC';" >/dev/null
+q service "SELECT * FROM public.update_shariah_decision('$TSTU_DEC', '$BOARD', 'halal', 'unlisted, re-read', 're-read');" >/dev/null
+q service "SELECT * FROM public.update_shariah_decision('$TSTU_DEC', '$BOARD', 'reviewing', 'unlisted, re-read', 'under review');" >/dev/null
 expect_eq "the reviewer still reads the audit trail of a ruling they made" "$BOARD" "halal>reviewing" "SELECT string_agg(previous_status || '>' || new_status, ',') FROM public.shariah_decision_audit WHERE decision_id='$TSTU_DEC' AND previous_status IS DISTINCT FROM new_status;"
 expect_eq "the audit trail stays hidden from other users" "$NOROLE" "0" "SELECT count(*) FROM public.shariah_decision_audit WHERE decision_id='$TSTU_DEC';"
 expect_eq "shariah_decision_is_mine answers for the caller only" "$NOROLE" "f" "SELECT public.shariah_decision_is_mine('$TSTU_DEC');"
@@ -951,7 +969,7 @@ q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('MKTY'
 expect_eq "any ruling in force is enough to list" service "MKTY|true" "SELECT symbol || '|' || published FROM public.set_instrument_published('MKTY', true, '$ADMIN');"
 su_eq "every publish / unpublish above wrote its audit row" "t" "SELECT (SELECT count(*) FROM public.audit_log WHERE action IN ('brand.publish','brand.unpublish') AND entity_id IN (SELECT id::text FROM public.brands WHERE symbol IN ('MKTX','MKTY'))) = 4;"
 expect_err "published reference price cannot be set to 0" service "brands_published_reference_price" "UPDATE public.brands SET reference_price = 0 WHERE symbol='MKTA';"
-for mig in public_market_data instrument_publish_control listing_control_and_public_reads; do
+for mig in public_market_data instrument_publish_control listing_control_and_public_reads fixer_security_hardening fixer_market_rules fixer_execute_allowlist; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies cleanly"
   else bad "$mig migration re-applies cleanly" "${f:-*_$mig.sql not found} ${out:-}"; fi

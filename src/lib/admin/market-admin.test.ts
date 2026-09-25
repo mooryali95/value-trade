@@ -61,7 +61,7 @@ const supabaseAdmin = {
     adminCalls.tables.push(table);
     return query(state.adminRows[table] ?? [], adminCalls.writes, table, adminCalls.payloads);
   },
-  auth: { admin: { getUserById: async (id: string) => ({ data: { user: { id } }, error: null }) } },
+  auth: { admin: { getUserById: async (id: string) => ({ data: { user: { id, email: "invitee@example.com", email_confirmed_at: "2026-01-01T00:00:00Z" } }, error: null }) } },
 };
 
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
@@ -199,7 +199,10 @@ describe("queues that cross company boundaries", () => {
   });
 
   it("invitee sees an invitation to a company they cannot read yet", async () => {
-    state.userRows.company_invitations = [{ id: "i-1", role: "owner", token: "t", status: "pending", company_id: "co-9" }];
+    // Read with the service role for the caller's own confirmed address (not the JWT email claim).
+    state.adminRows.company_invitations = [
+      { id: "i-1", role: "owner", token: "t", status: "pending", company_id: "co-9", expires_at: "2999-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z" },
+    ];
     state.adminRows.companies = [{ id: "co-9", name_ar: "ج", name_en: "NewCo", slug: "newco" }];
     const rows = (await call(listMyInvitations)) as { id: string; companies: { slug: string } | null }[];
     expect(rows).toHaveLength(1);

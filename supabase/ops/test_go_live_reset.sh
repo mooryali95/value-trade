@@ -72,6 +72,13 @@ check "open ask remains" "$(mo "$B" GLVA sell 10 110)" "open"
 CXL=$(svc "SELECT order_id FROM public.match_order('$C'::uuid, 'GLVB', 'brand', 'sell', 'limit', 5, 24);" | tail -1)
 check "a resting order is cancelled (orders_audit row)" "$(svc "SELECT status FROM public.cancel_order('$C'::uuid, '$CXL'::uuid);" | tail -1)" "cancelled"
 su "INSERT INTO public.price_alerts (user_id, symbol, direction, target_price) VALUES ('$A','GLVA','above',120);" >/dev/null
+# A legacy demo instrument (off the market, no company, no submission) with
+# an alert and a watcher on it, next to the seeded ones.
+su "INSERT INTO public.brands (symbol, slug, name_ar, name_en, reference_price, published) VALUES ('GLVD','glvd','د','Go-live demo',30,false);
+    INSERT INTO public.price_alerts (user_id, symbol, direction, target_price) VALUES ('$B','GLVD','below',10);
+    INSERT INTO public.symbol_watchers (user_id, symbol) VALUES ('$B','GLVD'), ('$A','GLVA');" >/dev/null
+DEMO_Q="SELECT count(*) FROM public.brands WHERE NOT published AND company_id IS NULL AND source_submission_id IS NULL"
+DEMO_BEFORE=$(su "$DEMO_Q;"); BRANDS_BEFORE=$(su "SELECT count(*) FROM public.brands;")
 check "invariants hold before the reset" "$(invariants)" "0|0|0|0"
 BEFORE=$(counts); SNAP=$(snapshot)
 OPEN_BEFORE=$(su "SELECT count(*) FROM public.orders WHERE status IN ('open','partial');")
@@ -85,8 +92,12 @@ check "reset succeeds" "$RC" "0"
 grep -q GO_LIVE_RESET_DONE <<<"$OUT" && check "reset reports completion" "t" "t" || check "reset reports completion" "$OUT" "GO_LIVE_RESET_DONE"
 ARCH=""; for t in $TABLES; do ARCH+="$t=$(su "SELECT count(*) FROM go_live_archive.archive_20260925_$t;") "; done
 check "archives hold exactly the pre-reset rows" "$ARCH" "$BEFORE"
-check "trading tables cleared, portfolios and alerts kept" "$(counts)" \
-  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=$(sed -E 's/.*price_alerts=([0-9]+).*/\1/' <<<"$BEFORE") "
+check "trading tables cleared, portfolios and alerts on listed instruments kept" "$(counts)" \
+  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=$(( $(sed -E 's/.*price_alerts=([0-9]+).*/\1/' <<<"$BEFORE") - 1 )) "
+check "legacy demo instruments removed (with their alerts and watchers), archived first" \
+  "$(su "$DEMO_Q;")|$(su "SELECT count(*) FROM public.brands WHERE symbol='GLVD';")|$(su "SELECT count(*) FROM public.symbol_watchers WHERE symbol='GLVD';")|$(su "SELECT count(*) FROM go_live_archive.archive_20260925_brands;")|$(su "SELECT (metadata->>'demo_instruments_removed') FROM public.audit_log WHERE action='go_live_reset';")" \
+  "0|0|0|$BRANDS_BEFORE|$DEMO_BEFORE"
+check "watch lists on listed instruments kept" "$(su "SELECT count(*) FROM public.symbol_watchers WHERE symbol='GLVA';")" "1"
 check "every cash balance is 0" "$(su "SELECT count(*) FROM public.portfolios WHERE cash_balance <> 0;")" "0"
 check "invariants hold after the reset" "$(invariants)" "0|0|0|0"
 check "users, roles and brands kept" "$(su "SELECT (SELECT count(*) FROM auth.users WHERE email LIKE 'golive-%') || '|' || (SELECT count(*) FROM public.user_roles WHERE user_id IN ('$ADMIN','$A','$B','$C')) || '|' || (SELECT count(*) FROM public.brands WHERE symbol LIKE 'GLV_');")" "4|4|2"
@@ -114,6 +125,8 @@ RESTORE=$(sed -n '/^--   BEGIN;$/,/^--   COMMIT;$/p' "$SCRIPT" | sed -E 's/^--  
 OUT=$(printf '%s\n' "$RESTORE" | "${PSQL[@]}" 2>&1); RC=$?
 check "restore applies" "$RC" "0"
 check "restore brings back the archived state exactly" "$(snapshot)" "$SNAP"
+check "restore brings back the demo instruments, their alert and watcher" \
+  "$(su "SELECT count(*) FROM public.brands;")|$(su "SELECT count(*) FROM public.price_alerts WHERE symbol='GLVD';")|$(su "SELECT count(*) FROM public.symbol_watchers WHERE symbol='GLVD';")" "$BRANDS_BEFORE|1|1"
 check "invariants hold after the restore" "$(invariants)" "0|0|0|0"
 
 echo
