@@ -1,0 +1,8 @@
+# Security headers for static files served by the host (Cloudflare static
+# assets honour this file). Responses rendered by the worker get the same
+# set from src/lib/ops/security-headers.ts. Keep the two in sync.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=(), browsing-topics=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains

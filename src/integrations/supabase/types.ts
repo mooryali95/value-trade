@@ -949,6 +949,7 @@ export type Database = {
       }
       shariah_decisions: {
         Row: {
+          change_reason: string | null
           created_at: string
           effective_at: string
           id: string
@@ -960,6 +961,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -971,6 +973,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -1248,6 +1251,10 @@ export type Database = {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
       }
+      close_instrument_orders: {
+        Args: { _action: string; _actor?: string; _symbol: string }
+        Returns: number
+      }
       current_shariah_status: { Args: { _symbol: string }; Returns: string }
       deactivate_trader: {
         Args: { _actor_id: string; _user_id: string }
@@ -1356,6 +1363,29 @@ export type Database = {
           symbol: string
         }[]
       }
+      market_instrument_rows: {
+        Args: { _brand_id?: string; _company_id?: string }
+        Returns: {
+          asset_class: string
+          brand_id: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
       match_order: {
         Args: {
           _asset_class: string
@@ -1392,6 +1422,106 @@ export type Database = {
           _user_id: string
         }
         Returns: number
+      }
+      public_candles: {
+        Args: { _interval?: string; _limit?: number; _symbol: string }
+        Returns: {
+          bucket_start: string
+          close_price: number
+          high_price: number
+          low_price: number
+          open_price: number
+          trade_count: number
+          volume_units: number
+        }[]
+      }
+      public_company_profile: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          name_ar: string
+          name_en: string
+          sector: string | null
+        }[]
+      }
+      public_instrument: {
+        Args: { _slug: string }
+        Returns: {
+          asset_class: string
+          band_high: number | null
+          band_low: number | null
+          band_reference: number | null
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          day_high: number | null
+          day_low: number | null
+          day_open: number | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_overview: {
+        Args: { _company_id?: string }
+        Returns: {
+          asset_class: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_summary: {
+        Args: never
+        Returns: {
+          last_trade_at: string | null
+          listed_count: number
+          trades_24h: number
+          volume_24h_value: number
+        }[]
+      }
+      public_recent_trades: {
+        Args: { _limit?: number; _symbol: string }
+        Returns: {
+          price: number
+          qty: number
+          traded_at: string
+        }[]
+      }
+      public_shariah_rulings: {
+        Args: never
+        Returns: {
+          effective_at: string
+          name_ar: string
+          name_en: string
+          reason: string | null
+          slug: string
+          status: string
+          symbol: string
+        }[]
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
@@ -1430,6 +1560,17 @@ export type Database = {
           name_ar: string
           name_en: string
           slug: string
+        }[]
+      }
+      set_instrument_published: {
+        Args: { _actor_id: string; _published: boolean; _symbol: string }
+        Returns: {
+          brand_id: string
+          cancelled_orders: number
+          changed: boolean
+          company_id: string | null
+          published: boolean
+          symbol: string
         }[]
       }
     }

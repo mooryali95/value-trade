@@ -31,10 +31,11 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
 
+      # No env overrides here: Vite reads the public Supabase URL and
+      # publishable key committed in .env (as the CI build job does). Setting
+      # them from repository secrets that are not configured would override
+      # .env with empty values and every page would render the error screen.
       - name: Start dev server
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           bun run dev > /tmp/dev.log 2>&1 &
           for i in $(seq 1 60); do

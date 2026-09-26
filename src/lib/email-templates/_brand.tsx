@@ -193,7 +193,7 @@ export function BrandLayout({
           <Section style={styles.footer}>
             <Text style={styles.footerBrand}>Value Unit</Text>
             <Text style={styles.footerText}>
-              hub.sunkvalue.com · تداول موثّق ومتوافق شرعاً
+              hub.sunkvalue.com · سوق خاصة لوحدات العلامات التجارية · Private market for brand units
             </Text>
           </Section>
         </Container>

@@ -20,12 +20,26 @@ import { formatCurrency } from "@/lib/format";
 import {
   findInvestorByEmail,
   getInvestorLedger,
+  listPendingActivations,
   setTraderRole,
   type InvestorSummary,
+  type PendingActivation,
 } from "@/lib/admin/investors.functions";
+import { resendInvestorInvitation } from "@/lib/access/access-requests.functions";
+import { appRoleKey } from "@/lib/tenants/role-labels";
+import { Num } from "@/components/num";
+import { fill } from "@/lib/account/fill";
+import { formatDay, formatDayTime } from "@/lib/account/dates";
 import { adjustCash } from "@/lib/trading/cash.functions";
-import { issueUnits, setReferencePrice } from "@/lib/admin/listing.functions";
+import {
+  issueUnits,
+  listAdminInstruments,
+  setInstrumentPublished,
+  setReferencePrice,
+  type AdminInstrument,
+} from "@/lib/admin/listing.functions";
 import { validatePrice, validateQty } from "@/components/order-outcome";
+import { isValidReferencePrice } from "@/lib/trading/calc";
 
 export const Route = createFileRoute("/_authenticated/admin/investors")({
   head: () => ({
@@ -104,12 +118,23 @@ function AdminInvestorsPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
+        eyebrow={t("modePlatform")}
         title={t("nav_investors")}
         description={t("investorsDesc")}
-        crumbs={[{ label: "Admin", to: "/admin/companies" }, { label: t("nav_investors") }]}
+        crumbs={[{ label: t("modePlatform"), to: "/admin/companies" }, { label: t("nav_investors") }]}
       />
 
+      {!rolesLoading && isAdmin && (
+        <PendingActivationsCard
+          onOpen={(address) => {
+            setInput(address);
+            setTouched(false);
+            setEmail(address);
+          }}
+        />
+      )}
+
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t("r_invFindTitle")}</h2>
       <form
         className="mb-6 flex max-w-xl flex-wrap items-start gap-2"
         onSubmit={(e) => {
@@ -174,6 +199,7 @@ function AdminInvestorsPage() {
       )}
 
       {!rolesLoading && isAdmin && <ReferencePriceCard />}
+      {!rolesLoading && isAdmin && <InstrumentListingCard />}
     </AppShell>
   );
 }
@@ -189,11 +215,19 @@ function ReferencePriceCard() {
   const [touched, setTouched] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const symbolValid = SYMBOL_RE.test(symbol.trim());
-  const priceError = validatePrice(price);
+  // A reference price runs from 0.05 to 1,000,000,000 on the 0.01 tick
+  // (the database enforces the same rule).
+  const priceError: Key | null =
+    price.trim() !== "" && !validatePrice(price) && isValidReferencePrice(Number(price.trim()))
+      ? null
+      : "fx3_errReferencePriceRange";
 
+  const qc = useQueryClient();
   const mut = useMutation({
     mutationFn: (v: { symbol: string; price: number }) => setRefFn({ data: v }),
     onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["admin-instruments"] });
+      qc.invalidateQueries({ queryKey: ["market-overview"] });
       const msg = t("referencePriceSet")
         .replace("{symbol}", res.symbol)
         .replace("{price}", formatCurrency(res.referencePrice, false, lang));
@@ -203,7 +237,7 @@ function ReferencePriceCard() {
       setTouched(false);
     },
     onError: (e: unknown) => {
-      const msg = errorMessage(e);
+      const msg = errorMessage(e, { INVALID_PRICE: "fx3_errReferencePriceRange" });
       toast.error(msg);
       setAnnouncement(msg);
     },
@@ -252,7 +286,7 @@ function ReferencePriceCard() {
           <input
             type="number"
             inputMode="decimal"
-            min="0.01"
+            min="0.05"
             step="0.01"
             dir="ltr"
             value={price}
@@ -271,6 +305,188 @@ function ReferencePriceCard() {
       </form>
       {touched && (!symbolValid || priceError) && (
         <p className="mt-2 text-xs text-[var(--bear)]">{!symbolValid ? t("symbolInvalid") : t(priceError!)}</p>
+      )}
+    </section>
+  );
+}
+
+type ListingFilter = "all" | "published" | "unpublished";
+
+/**
+ * Publish / unpublish instruments. Only published instruments appear on the
+ * public market and accept orders; unpublishing closes the instrument's
+ * resting orders (holders keep their units). Publishing needs a positive
+ * reference price.
+ */
+function InstrumentListingCard() {
+  const { t, lang } = useI18n();
+  const confirm = useConfirm();
+  const errorMessage = useErrorMessage();
+  const qc = useQueryClient();
+  const listFn = useServerFn(listAdminInstruments);
+  const publishFn = useServerFn(setInstrumentPublished);
+  const [q, setQ] = useState("");
+  // Listed instruments first; the legacy demo instruments of the early
+  // builds (no company, no submission) are hidden unless asked for.
+  const [filter, setFilter] = useState<ListingFilter>("published");
+  const [showSeeded, setShowSeeded] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const list = useQuery({ queryKey: ["admin-instruments"], queryFn: () => listFn() });
+
+  const mut = useMutation({
+    mutationFn: (v: { symbol: string; published: boolean }) => publishFn({ data: v }),
+    onSuccess: (res) => {
+      const msg = (res.published ? t("e2_publishedToast") : t("e2_unpublishedToast"))
+        .replace("{symbol}", res.symbol)
+        .replace("{n}", String(res.cancelledOrders));
+      toast.success(msg);
+      setAnnouncement(msg);
+      qc.invalidateQueries({ queryKey: ["admin-instruments"] });
+      qc.invalidateQueries({ queryKey: ["market-overview"] });
+      qc.invalidateQueries({ queryKey: ["book"] });
+    },
+    onError: (e: unknown) => {
+      const msg = errorMessage(e, { INVALID_PRICE: "e2_publishNeedsPrice", SHARIAH_RULING_REQUIRED: "fx_publishNeedsRuling" });
+      toast.error(msg);
+      setAnnouncement(msg);
+    },
+  });
+
+  const toggle = async (i: AdminInstrument) => {
+    const publish = !i.published;
+    // No reference price yet (0 = not set): nothing to confirm.
+    if (publish && !(i.referencePrice > 0)) {
+      const msg = t("e2_publishNeedsPrice");
+      toast.error(msg);
+      setAnnouncement(msg);
+      return;
+    }
+    const ok = await confirm({
+      title: publish ? t("e2_publishConfirmTitle") : t("e2_unpublishConfirmTitle"),
+      description: `${i.symbol} — ${lang === "ar" ? i.nameAr : i.nameEn}. ${
+        publish
+          ? t("e2_publishConfirmDesc").replace("{price}", formatCurrency(i.referencePrice, false, lang)) +
+            (i.origin === "demo_seed" ? ` ${t("fx_publishDemoWarning")}` : "")
+          : t("e2_unpublishConfirmDesc")
+      }`,
+      confirmLabel: publish ? t("e2_publish") : t("e2_unpublish"),
+      cancelLabel: t("cancel"),
+      tone: publish ? "default" : "danger",
+    });
+    if (ok) mut.mutate({ symbol: i.symbol, published: publish });
+  };
+
+  const all = list.data ?? [];
+  const seededCount = all.filter((i) => i.origin === "demo_seed" && !i.published).length;
+  // A listed seeded instrument stays visible (it must be delistable).
+  const rows = showSeeded ? all : all.filter((i) => i.origin !== "demo_seed" || i.published);
+  const needle = q.trim().toLowerCase();
+  const filtered = rows.filter((i) => {
+    if (filter === "published" && !i.published) return false;
+    if (filter === "unpublished" && i.published) return false;
+    if (!needle) return true;
+    return i.symbol.toLowerCase().includes(needle) || i.nameEn.toLowerCase().includes(needle) || i.nameAr.includes(q.trim());
+  });
+  const shown = filtered.slice(0, 100);
+  const publishedCount = rows.filter((i) => i.published).length;
+  const originLabel = (o: AdminInstrument["origin"]) =>
+    o === "submission" ? t("e2_originSubmission") : o === "company" ? t("e2_originCompany") : t("e2_originDemo");
+
+  return (
+    <section className="mt-6 rounded-xl border border-border/60 bg-card p-4">
+      <LiveRegion message={announcement} />
+      <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t("e2_publishTitle")}</h2>
+      <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{t("e2_publishDesc")}</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t("e2_searchInstruments")}
+          aria-label={t("e2_searchInstruments")}
+          className="min-w-[200px] flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs outline-none focus:border-[var(--gold-deep)]"
+        />
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as ListingFilter)}
+          aria-label={t("filterStatus")}
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+        >
+          <option value="all">{t("filterAll")}</option>
+          <option value="published">{t("e2_published")}</option>
+          <option value="unpublished">{t("e2_unpublished")}</option>
+        </select>
+        {seededCount > 0 && (
+          <label className="inline-flex min-h-9 items-center gap-1.5 text-xs text-ink-soft">
+            <input type="checkbox" checked={showSeeded} onChange={(e) => setShowSeeded(e.target.checked)} />
+            {t("d_showSeeded")}
+          </label>
+        )}
+        {list.data && (
+          <span className="text-[11px] text-muted-foreground">
+            {t("e2_publishedCount").replace("{n}", String(publishedCount)).replace("{total}", String(rows.length))}
+          </span>
+        )}
+      </div>
+      {list.isLoading ? (
+        <LuxurySkeleton lines={5} />
+      ) : list.isError ? (
+        <ErrorState description={errorMessage(list.error)} reset={() => list.refetch()} />
+      ) : rows.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{t("e2_noInstrumentsAdmin")}</p>
+      ) : filtered.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">{t("emptyTitle")}</p>
+      ) : (
+        <div>
+          <table className="w-full text-sm max-md:block">
+            <thead className="max-md:hidden">
+              <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 text-start font-semibold">{t("e2_colInstrument")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("e2_origin")}</th>
+                <th className="px-3 py-2 text-end font-semibold">{t("referencePrice")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("filterStatus")}</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="max-md:block">
+              {shown.map((i) => (
+                <tr key={i.symbol} className="border-b border-border/40 last:border-0 max-md:block max-md:py-2">
+                  <td className="px-3 py-2 max-md:block max-md:pb-1">
+                    <div className="font-mono text-xs font-semibold text-ink"><span dir="ltr">{i.symbol}</span></div>
+                    <div className="max-w-[260px] truncate text-[11px] text-muted-foreground max-md:max-w-none max-md:whitespace-normal">{lang === "ar" ? i.nameAr : i.nameEn}</div>
+                  </td>
+                  <td className="px-3 py-2 text-[11px] text-ink-soft max-md:inline-block max-md:py-1">{originLabel(i.origin)}</td>
+                  <td className="px-3 py-2 text-end font-mono text-xs max-md:inline-block max-md:py-1" dir="ltr">
+                    {i.referencePrice > 0 ? formatCurrency(i.referencePrice, false, lang) : "—"}
+                  </td>
+                  <td className="px-3 py-2 max-md:inline-block max-md:py-1">
+                    <span className="whitespace-nowrap">
+                      <Badge variant={i.published ? "bull" : "neutral"}>{i.published ? t("e2_published") : t("e2_unpublished")}</Badge>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-end max-md:block max-md:pt-1 max-md:text-start">
+                    <button
+                      type="button"
+                      onClick={() => void toggle(i)}
+                      disabled={mut.isPending}
+                      className={`min-h-9 rounded border px-3 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+                        i.published
+                          ? "border-[var(--bear)]/40 text-[var(--bear)] hover:bg-[var(--bear)]/5"
+                          : "border-[var(--gold-deep)]/40 text-[var(--gold-deep)] hover:bg-[var(--gold-soft)]"
+                      }`}
+                    >
+                      {i.published ? t("e2_unpublish") : t("e2_publish")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length > shown.length && (
+            <p className="px-3 py-2 text-[11px] text-muted-foreground">
+              {t("e2_reviewPoolMore").replace("{n}", String(filtered.length - shown.length))}
+            </p>
+          )}
+        </div>
       )}
     </section>
   );
@@ -298,6 +514,7 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["admin-investor", email] });
     qc.invalidateQueries({ queryKey: ["admin-investor-ledger", investor.userId] });
+    qc.invalidateQueries({ queryKey: ["admin-pending-activations"] });
   };
 
   const roleMut = useMutation({
@@ -418,16 +635,7 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
     if (ok) cashMut.mutate({ kind, amount: value, note: note.trim() || undefined });
   };
 
-  const fmtDate = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleString(lang === "ar" ? "ar" : "en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "—";
+  const fmtDate = (iso: string | null) => formatDayTime(iso, lang) || "—";
 
   return (
     <div dir={dir} className="space-y-4">
@@ -470,11 +678,14 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
               {investor.roles.length === 0 ? (
                 <span className="text-xs text-muted-foreground">{t("noRoles")}</span>
               ) : (
-                investor.roles.map((r) => (
-                  <Badge key={r} variant={r === "trader" ? "bull" : "neutral"}>
-                    <span dir="ltr">{r}</span>
-                  </Badge>
-                ))
+                investor.roles.map((r) => {
+                  const k = appRoleKey(r);
+                  return (
+                    <Badge key={r} variant={r === "trader" ? "bull" : "neutral"}>
+                      {k ? t(k) : <span dir="ltr">{r}</span>}
+                    </Badge>
+                  );
+                })
               )}
             </div>
           </div>
@@ -694,5 +905,175 @@ function InvestorPanel({ investor, email }: { investor: InvestorSummary; email: 
         )}
       </section>
     </div>
+  );
+}
+
+const SOURCE_KEY: Record<PendingActivation["source"], Key> = {
+  investor_request: "r_invSourceInvestorRequest",
+  invited_no_account: "r_invSourceInvitedNoAccount",
+  no_role: "r_invSourceNoRole",
+  no_role_never_signed_in: "fx3_srcNoRoleNeverSignedIn",
+};
+
+/**
+ * Accounts waiting for trading activation: approved investors (with or
+ * without an account yet) and people who signed in without any role or
+ * company. Activation grants the trader role; funding is a deposit posted
+ * from the investor panel below.
+ */
+function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void }) {
+  const { t, lang } = useI18n();
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const errorMessage = useErrorMessage();
+  const listFn = useServerFn(listPendingActivations);
+  const setRoleFn = useServerFn(setTraderRole);
+  const resendFn = useServerFn(resendInvestorInvitation);
+  const [announcement, setAnnouncement] = useState("");
+  const q = useQuery({ queryKey: ["admin-pending-activations"], queryFn: () => listFn() });
+
+  const say = (msg: string, ok = true) => {
+    setAnnouncement(msg);
+    if (ok) toast.success(msg);
+    else toast.error(msg);
+  };
+
+  const activate = useMutation({
+    mutationFn: (row: PendingActivation) => setRoleFn({ data: { userId: row.userId!, active: true } }),
+    onSuccess: (_res, row) => {
+      say(t("r_invActivatedFund"));
+      qc.invalidateQueries({ queryKey: ["admin-pending-activations"] });
+      qc.invalidateQueries({ queryKey: ["admin-investor"] });
+      onOpen(row.email);
+    },
+    onError: (e: unknown) => say(errorMessage(e), false),
+  });
+
+  const resend = useMutation({
+    mutationFn: (requestId: string) => resendFn({ data: { requestId } }),
+    onSuccess: (res) => say(res.notification.sent ? t("r_arApprovedInvestorSent") : t("r_arApprovedEmailFailed"), res.notification.sent),
+    onError: (e: unknown) => say(errorMessage(e), false),
+  });
+
+  const fmt = (iso: string | null) =>
+    formatDay(iso, lang) || "—";
+  const rows = q.data ?? [];
+
+  return (
+    <section className="mb-8 rounded-xl border border-border/60 bg-card">
+      <LiveRegion message={announcement} />
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/50 px-4 py-3">
+        <h2 className="text-sm font-semibold text-ink">{t("r_invPendingTitle")}</h2>
+        {q.data && (
+          <span className="text-[11px] text-muted-foreground">
+            {fill(t("r_invPendingCount"), { n: <Num value={rows.length} kind="qty" /> })}
+          </span>
+        )}
+      </div>
+      <p className="px-4 pt-3 text-xs leading-relaxed text-muted-foreground">{t("r_invPendingDesc")}</p>
+      {q.isLoading ? (
+        <div className="p-4">
+          <LuxurySkeleton lines={3} />
+        </div>
+      ) : q.isError ? (
+        <div className="py-6">
+          <ErrorState description={errorMessage(q.error)} reset={() => q.refetch()} />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="px-4 py-6 text-center text-xs text-muted-foreground">{t("r_invPendingEmpty")}</p>
+      ) : (
+        <div className="p-2">
+          {/* Below md each row is a card: applicant, source, date, then the actions. */}
+          <table className="w-full text-sm max-md:block">
+            <thead className="max-md:hidden">
+              <tr className="border-b border-border/60 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 text-start font-semibold">{t("r_arColApplicant")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("r_invColSource")}</th>
+                <th className="px-3 py-2 text-start font-semibold">{t("createdAt")}</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="max-md:block">
+              {rows.map((r) => (
+                <tr key={`${r.userId ?? "none"}:${r.email}`} className="border-b border-border/40 align-top last:border-0 max-md:block max-md:py-2">
+                  <td className="px-3 py-2 max-md:block max-md:pb-1">
+                    <div className="break-words text-xs font-semibold text-ink">{r.fullName || "—"}</div>
+                    <div className="break-all text-[11px] text-muted-foreground" dir="ltr">{r.email}</div>
+                    {r.requestReference && (
+                      <div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{r.requestReference}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 max-md:inline-block max-md:py-1">
+                    <span className="whitespace-nowrap">
+                      <Badge variant={r.source === "invited_no_account" ? "neutral" : "gold"}>{t(SOURCE_KEY[r.source] ?? "r_invSourceNoRole")}</Badge>
+                    </span>
+                    {r.userId && !r.emailConfirmed && (
+                      <div className="mt-1">
+                        <Badge variant="bear">{t("emailUnconfirmed")}</Badge>
+                      </div>
+                    )}
+                    {r.onHold && (
+                      <div className="mt-1">
+                        <Badge variant="bear">{t("r_invOnHold")}</Badge>
+                        <p className="mt-0.5 max-w-[16rem] text-[10px] leading-relaxed text-muted-foreground">{t("r_invOnHoldHint")}</p>
+                      </div>
+                    )}
+                    {r.pendingCompanyInvitations > 0 && (
+                      <div className="mt-1 text-[10px] text-muted-foreground">
+                        {fill(t("r_invPendingCompanyInvites"), { n: <Num value={r.pendingCompanyInvitations} kind="qty" /> })}
+                      </div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground max-md:inline-block max-md:py-1">{fmt(r.requestedAt ?? r.createdAt)}</td>
+                  <td className="px-3 py-2 max-md:block max-md:pt-1">
+                    <div className="flex flex-wrap justify-end gap-1.5 max-md:justify-start">
+                      {r.requestId && (!r.userId || !r.emailConfirmed) && (
+                        <button
+                          type="button"
+                          disabled={resend.isPending}
+                          onClick={() => resend.mutate(r.requestId!)}
+                          className="min-h-9 rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                        >
+                          {t("r_arResendPlatformInvite")}
+                        </button>
+                      )}
+                      {r.userId && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onOpen(r.email)}
+                            className="min-h-9 rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)]"
+                          >
+                            {t("r_invOpen")}
+                          </button>
+                          {!r.onHold && (
+                          <button
+                            type="button"
+                            disabled={activate.isPending}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: t("activateTrading"),
+                                description: `${r.email} — ${t("activateTradingConfirm")}`,
+                                confirmLabel: t("activateTrading"),
+                                cancelLabel: t("cancel"),
+                              });
+                              if (ok) activate.mutate(r);
+                            }}
+                            className="min-h-9 rounded gold-gradient px-2 py-1 text-[11px] font-semibold text-ink disabled:opacity-50"
+                          >
+                            {t("activateTrading")}
+                          </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

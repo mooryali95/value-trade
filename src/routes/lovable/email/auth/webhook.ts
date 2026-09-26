@@ -13,7 +13,7 @@ import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   signup: 'تأكيد بريدك · Confirm your email — وحدة القيمة',
-  invite: 'دعوة للانضمام · You are invited — وحدة القيمة',
+  invite: 'أنشئ حسابك · Create your account — وحدة القيمة',
   magiclink: 'رابط الدخول · Your sign-in link — وحدة القيمة',
   recovery: 'إعادة تعيين كلمة المرور · Reset password — وحدة القيمة',
   email_change: 'تأكيد تغيير البريد · Confirm email change — وحدة القيمة',

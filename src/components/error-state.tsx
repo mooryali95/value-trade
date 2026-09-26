@@ -12,18 +12,19 @@ export function ErrorState({ title, description, reset }: Props) {
       <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full border border-[var(--bear)]/30 bg-[var(--bear)]/5 text-[var(--bear)]">
         <WarningOctagon size={22} weight="duotone" />
       </div>
-      <h3 className="text-sm font-semibold text-ink">{title ?? t("errorTitle")}</h3>
-      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+      <h3 className="text-base font-bold text-ink">{title ?? t("errorTitle")}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
         {description || t("errorDesc")}
       </p>
       <div className="mt-5 flex justify-center gap-2">
         <button
+          type="button"
           onClick={() => { router.invalidate(); reset?.(); }}
-          className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink"
+          className="inline-flex min-h-11 items-center rounded-md gold-gradient px-5 text-sm font-semibold text-ink sm:min-h-10"
         >
           {t("tryAgain")}
         </button>
-        <a href="/" className="rounded-md border border-border bg-background px-4 py-2 text-xs font-semibold text-ink-soft hover:border-[var(--gold-deep)]">
+        <a href="/" className="inline-flex min-h-11 items-center rounded-md border border-border bg-background px-5 text-sm font-semibold text-ink-soft hover:border-[var(--gold-deep)] sm:min-h-10">
           {t("backHome")}
         </a>
       </div>

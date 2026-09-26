@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/app-shell";
@@ -10,14 +10,15 @@ import { EmptyState } from "@/components/empty-state";
 import { TableStatus } from "@/components/live-region";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
-import { useI18n } from "@/lib/i18n";
-import { getMyPortfolio } from "@/lib/trading/portfolio.functions";
+import { useI18n, type Key } from "@/lib/i18n";
+import { getMyPortfolio, type MarkSource, type ValuedPosition } from "@/lib/trading/portfolio.functions";
 import { cancelOrder, modifyOrder, restoreOrder } from "@/lib/trading/order-mutations.functions";
-import { getBrand } from "@/lib/mock-data";
-import { formatCurrency, formatPct } from "@/lib/format";
-import { positionValue, unrealizedPnl, weight } from "@/lib/trading/calc";
+import { formatDateTime, instrumentName, monogramColor } from "@/components/market-data";
+import { weight } from "@/lib/trading/calc";
+import { Num } from "@/components/num";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useAccountStatus } from "@/hooks/use-account-status";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { describeOrderOutcome, isWorkingOrder, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
@@ -57,10 +58,20 @@ export const Route = createFileRoute("/_authenticated/portfolio")({
   component: PortfolioPage,
 });
 
+/** Plain decimal for CSV exports (no grouping, fixed decimals); empty when missing. */
+function csvNum(n: number | null | undefined, decimals: number): string {
+  if (n == null || !Number.isFinite(n)) return "";
+  const s = n.toFixed(decimals);
+  return /^-0(\.0+)?$/.test(s) ? s.slice(1) : s;
+}
+
 function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
-  const { isTrader } = useMyRoles();
+  const { isTrader, isLoading: rolesLoading } = useMyRoles();
+  const notActivated = !rolesLoading && !isTrader;
+  // A review hold pauses trading: buying power and trade links are not shown.
+  const onHold = useAccountStatus().data?.onHold === true;
   const confirm = useConfirm();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
@@ -70,6 +81,9 @@ function PortfolioPage() {
   const cancelFn = useServerFn(cancelOrder);
   const restoreFn = useServerFn(restoreOrder);
   const modifyFn = useServerFn(modifyOrder);
+  // Holdings arrive valued by the server from the database: the last traded
+  // price, else the band reference price (labelled), else no price at all.
+  // The investor's own average cost is never used as a market price.
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["portfolio"],
     queryFn: () => fetchPortfolio(),
@@ -161,37 +175,45 @@ function PortfolioPage() {
     return (<AppShell><div className="py-16"><ErrorState reset={() => refetch()} /></div></AppShell>);
   }
 
-  const cash = Number(data.portfolio?.cash_balance ?? 0);
-  const enriched = data.positions.map((p) => {
-    const b = getBrand(p.symbol.toLowerCase());
-    const last = b?.price ?? Number(p.avg_price);
-    const qty = Number(p.qty);
-    const avg = Number(p.avg_price);
-    return {
-      ...p, qty, avg, last,
-      value: positionValue(qty, last),
-      pnl: unrealizedPnl(qty, avg, last),
-      brand: b,
-    };
-  });
-  const positionsValue = enriched.reduce((s, p) => s + p.value, 0);
-  const totalValue = cash + positionsValue;
-  const totalPnl = enriched.reduce((s, p) => s + p.pnl, 0);
+  const summary = data.summary;
+  const positions = data.positions;
+  const displayName = (p: ValuedPosition) =>
+    p.name_ar || p.name_en ? instrumentName({ nameAr: p.name_ar ?? "", nameEn: p.name_en ?? "" }, lang) : p.symbol;
+  const hasReference = positions.some((p) => p.mark_source === "reference");
+  const unpriced = positions.filter((p) => p.mark_source === "none").length;
+  const pnlTone = (n: number | null | undefined) =>
+    n == null || n === 0 ? "text-ink" : n > 0 ? "text-[var(--bull)]" : "text-[var(--bear)]";
+  const markTag = (p: ValuedPosition) => {
+    const tag = (label: string, hint: string) => (
+      <span className="ms-1 whitespace-nowrap rounded border border-border px-1 text-[9px] font-medium text-muted-foreground" title={hint}>
+        {label}
+      </span>
+    );
+    if (p.mark_source === "reference") return tag(t("e2_refShort"), t("e2_referencePriceHint"));
+    if (p.mark_source === "last" && !p.published) return tag(t("m_notListedShort"), t("m_notListedHint"));
+    return null;
+  };
 
   const dir = search.sortDir === "asc" ? 1 : -1;
   const cmp = (a: number | string, b: number | string) =>
     (a < b ? -1 : a > b ? 1 : 0) * dir;
+  // Missing values (no market price) always sort last.
+  const cmpN = (a: number | null, b: number | null) =>
+    a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : cmp(a, b);
 
   const sortedPositions = (() => {
     const q = search.q.trim().toUpperCase();
-    const filtered = q ? enriched.filter((p) => p.symbol.toUpperCase().includes(q)) : enriched.slice();
+    const filtered = q
+      ? positions.filter((p) => p.symbol.toUpperCase().includes(q) || displayName(p).toUpperCase().includes(q))
+      : positions.slice();
     return filtered.sort((a, b) => {
       switch (search.sortBy) {
         case "qty": return cmp(a.qty, b.qty);
-        case "avg": return cmp(a.avg, b.avg);
-        case "last": return cmp(a.last, b.last);
-        case "pnl": return cmp(a.pnl, b.pnl);
-        case "weight": return cmp(a.value, b.value);
+        case "avg": return cmp(a.avg_price, b.avg_price);
+        case "mark": return cmpN(a.mark_price, b.mark_price);
+        case "value":
+        case "weight": return cmpN(a.market_value, b.market_value);
+        case "pnl": return cmpN(a.unrealized_pnl, b.unrealized_pnl);
         default: return cmp(a.symbol, b.symbol);
       }
     });
@@ -211,7 +233,7 @@ function PortfolioPage() {
         case "qty": return cmp(Number(a.qty), Number(b.qty));
         case "price": return cmp(Number(a.price ?? a.filled_price ?? 0), Number(b.price ?? b.filled_price ?? 0));
         case "status": return cmp(a.status, b.status);
-        case "time": return cmp(a.created_at, b.created_at);
+        case "time": return cmp(Date.parse(a.created_at), Date.parse(b.created_at));
         default: return cmp(a.symbol, b.symbol);
       }
     });
@@ -223,6 +245,8 @@ function PortfolioPage() {
   const pageStart = (safePage - 1) * pageSize;
   const pagedPositions = tab === "positions" ? sortedPositions.slice(pageStart, pageStart + pageSize) : [];
   const pagedOrders = tab === "orders" ? filteredOrders.slice(pageStart, pageStart + pageSize) : [];
+  const weightOf = (p: ValuedPosition) =>
+    p.market_value == null || summary.marketValue <= 0 ? null : weight(p.market_value, summary.marketValue);
 
   // Exports exactly what the user is currently looking at: the active tab,
   // after search/filters and sorting, not the raw server payload.
@@ -230,17 +254,29 @@ function PortfolioPage() {
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows: string[] = [];
     if (tab === "positions") {
-      rows.push(["symbol", "qty", "avg_price", "last_price", "value", "unrealized_pnl"].join(","));
+      rows.push([
+        "symbol", "qty", "reserved_in_sell_orders", "avg_cost", "cost_basis", "market_price", "price_source",
+        "market_value", "unrealized_pnl", "unrealized_pct", "weight_pct",
+      ].join(","));
       for (const p of sortedPositions) {
-        rows.push([p.symbol, p.qty, p.avg, p.last, p.value.toFixed(2), p.pnl.toFixed(2)].map(esc).join(","));
+        rows.push([
+          p.symbol, p.qty, p.reserved_qty, csvNum(p.avg_price, 4), csvNum(p.cost_basis, 2), csvNum(p.mark_price, 2),
+          p.mark_source, csvNum(p.market_value, 2), csvNum(p.unrealized_pnl, 2), csvNum(p.unrealized_pct, 2),
+          csvNum(weightOf(p), 2),
+        ].map(esc).join(","));
       }
     } else {
-      rows.push(["created_at", "symbol", "side", "type", "qty", "price", "filled_price", "status"].join(","));
+      rows.push(["created_at", "symbol", "side", "type", "qty", "filled_qty", "limit_price", "avg_fill_price", "status"].join(","));
       for (const o of filteredOrders) {
-        rows.push([o.created_at, o.symbol, o.side, o.type, o.qty, o.price ?? "", o.filled_price ?? "", o.status].map(esc).join(","));
+        rows.push([
+          o.created_at, o.symbol, o.side, o.type, o.qty, o.filled_qty ?? 0,
+          o.price == null ? "" : csvNum(Number(o.price), 2),
+          o.filled_price == null ? "" : csvNum(Number(o.filled_price), 4),
+          o.status,
+        ].map(esc).join(","));
       }
     }
-    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -251,33 +287,49 @@ function PortfolioPage() {
     URL.revokeObjectURL(url);
   }
 
-  const positionCols: { key: string; label: string; align?: "start"|"end" }[] = [
-    { key: "symbol", label: "Symbol" },
+  const positionCols: { key: string; label: string; align?: "start" | "end" }[] = [
+    { key: "symbol", label: t("m_colInstrument") },
     { key: "qty", label: t("qty"), align: "end" },
-    { key: "avg", label: t("avgPrice"), align: "end" },
-    { key: "last", label: t("lastPrice"), align: "end" },
-    { key: "pnl", label: t("pnl"), align: "end" },
+    { key: "avg", label: t("m_avgCost"), align: "end" },
+    { key: "mark", label: t("m_markPrice"), align: "end" },
+    { key: "value", label: t("m_marketValue"), align: "end" },
+    { key: "pnl", label: t("m_unrealizedPnl"), align: "end" },
     { key: "weight", label: t("weight"), align: "end" },
   ];
-  const orderCols: { key: string; label: string; align?: "start"|"end" }[] = [
-    { key: "symbol", label: "Symbol" },
+  const orderCols: { key: string; label: string; align?: "start" | "end" }[] = [
+    { key: "symbol", label: t("e2_colSymbol") },
     { key: "side", label: t("orderType") },
-    { key: "qty", label: t("qty"), align: "end" },
-    { key: "price", label: t("price"), align: "end" },
-    { key: "status", label: "Status", align: "end" },
-    { key: "time", label: "Time", align: "end" },
+    { key: "qty", label: t("m_colFilledOfQty"), align: "end" },
+    { key: "price", label: t("m_colPriceAvgFill"), align: "end" },
+    { key: "status", label: t("filterStatus"), align: "end" },
+    { key: "time", label: t("e2_colTime"), align: "end" },
   ];
-  const SortHeader = ({ k, label, align }: { k: string; label: string; align?: "start"|"end" }) => (
+  const SortHeader = ({ k, label, align }: { k: string; label: string; align?: "start" | "end" }) => (
     <button
+      type="button"
       onClick={() => updateSearch({
         sortBy: k,
         sortDir: search.sortBy === k && search.sortDir === "asc" ? "desc" : "asc",
         page: 1,
       })}
-      className={`inline-flex items-center gap-1 uppercase tracking-wider ${align === "end" ? "justify-end w-full" : ""} ${search.sortBy === k ? "text-[var(--gold-deep)]" : ""}`}
+      aria-sort={search.sortBy === k ? (search.sortDir === "asc" ? "ascending" : "descending") : undefined}
+      className={`inline-flex items-center gap-1 uppercase tracking-wider ${align === "end" ? "w-full justify-end" : ""} ${search.sortBy === k ? "text-[var(--gold-deep)]" : ""}`}
     >
-      {label}{search.sortBy === k && <span>{search.sortDir === "asc" ? "▲" : "▼"}</span>}
+      {label}{search.sortBy === k && <span aria-hidden>{search.sortDir === "asc" ? "▲" : "▼"}</span>}
     </button>
+  );
+  const orderPrice = (o: (typeof data.orders)[number]) => (
+    <>
+      {o.price == null ? <span>{t("market")}</span> : <Num value={Number(o.price)} />}
+      {Number(o.filled_qty ?? 0) > 0 && o.filled_price != null && (
+        <span className="block text-[10px] text-muted-foreground">
+          {t("m_avgFillShort")} <Num value={Number(o.filled_price)} decimals={4} />
+        </span>
+      )}
+    </>
+  );
+  const orderQty = (o: (typeof data.orders)[number]) => (
+    <><Num value={Number(o.filled_qty ?? 0)} kind="qty" /> / <Num value={Number(o.qty)} kind="qty" /></>
   );
 
   return (
@@ -285,21 +337,22 @@ function PortfolioPage() {
       <PageHeader
         eyebrow={t("portfolio")}
         title={t("portfolio")}
-        description={`${t("myPositions")} · ${enriched.length}`}
+        description={`${t("myPositions")} · ${positions.length}`}
         crumbs={[{ label: t("portfolio") }]}
         actions={
           <>
           <Link
             to="/portfolio/realized"
             search={{ from: "", to: "", symbol: "" }}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)]"
+            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)]"
           >
             {t("realizedPnl")}
           </Link>
           <button
+            type="button"
             onClick={exportCsv}
             disabled={activeList.length === 0}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] disabled:opacity-40"
+            className="min-h-9 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-[var(--gold-deep)] disabled:opacity-40"
           >
             {t("exportCsv")}
           </button>
@@ -307,32 +360,65 @@ function PortfolioPage() {
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-4">
-        <KPI label={t("totalValue")} value={formatCurrency(totalValue, false, lang)} />
-        <KPI label={t("cashAvailable")} value={formatCurrency(cash, false, lang)} />
-        <KPI label={t("myPositions")} value={String(enriched.length)} />
-        <KPI label={t("pnl")} value={formatCurrency(totalPnl, false, lang)} tone={totalPnl >= 0 ? "bull" : "bear"} />
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPI
+          label={t("totalValue")}
+          value={<Num value={summary.totalValue} kind="currency" />}
+          hint={t("m_totalValueHint")}
+        />
+        <KPI
+          label={t("m_buyingPower")}
+          value={onHold ? <Num value={null} /> : <Num value={summary.buyingPower} kind="currency" />}
+          hint={
+            <>
+              {onHold && <span className="block font-medium text-[var(--bear)]">{t("fx3_onHoldShort")}</span>}
+              <span className="block">{t("m_cashBalance")} <Num value={summary.cash} kind="currency" /></span>
+              <span className="block">{t("m_reservedByOrders")} <Num value={summary.reserved} kind="currency" /></span>
+            </>
+          }
+        />
+        <KPI
+          label={t("m_holdingsValue")}
+          value={<Num value={summary.marketValue} kind="currency" />}
+          hint={<>{t("costBasis")} <Num value={summary.pricedCostBasis} kind="currency" /></>}
+        />
+        <KPI
+          label={t("m_unrealizedPnl")}
+          value={<Num value={summary.unrealizedPnl} kind="currency" signed />}
+          tone={pnlTone(summary.unrealizedPnl)}
+          hint={summary.unrealizedPct == null ? undefined : <Num value={summary.unrealizedPct} kind="pct" signed />}
+        />
       </div>
 
-      {enriched.length > 0 && (
+      {positions.length > 0 && (
+        <div className="mb-4 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+          <p>{t("m_valuationNote")}{hasReference ? ` ${t("e2_valuationReferenceNote")}` : ""}</p>
+          {unpriced > 0 && (
+            <p className="text-[var(--bear)]">{t("m_unpricedNote").replace("{n}", String(unpriced))}</p>
+          )}
+        </div>
+      )}
+
+      {summary.marketValue > 0 && (
         <AllocationBar
-          positions={enriched.map((p) => ({
-            symbol: p.symbol,
-            value: p.value,
-            color: p.brand?.color ?? "var(--gold)",
-          }))}
-          total={positionsValue}
+          positions={positions
+            .filter((p) => p.market_value != null && p.market_value > 0)
+            .map((p) => ({ symbol: p.symbol, value: p.market_value as number, color: monogramColor(p.symbol) }))}
+          total={summary.marketValue}
           label={t("weight")}
         />
       )}
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-2 border-b border-border/60">
+      <div className="mb-4 flex gap-2 border-b border-border/60" role="tablist" aria-label={t("portfolio")}>
         {[["positions", t("tabPositions")], ["orders", t("tabOrders")]].map(([key, label]) => (
           <button
             key={key}
-            onClick={() => updateSearch({ tab: key as "positions"|"orders", page: 1 })}
-            className={`border-b-2 px-3 py-2 text-sm font-medium transition ${tab === key ? "border-[var(--gold-deep)] text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => updateSearch({ tab: key as "positions" | "orders", page: 1, sortBy: key === "positions" ? "symbol" : "time", sortDir: key === "positions" ? "asc" : "desc" })}
+            className={`min-h-10 border-b-2 px-3 py-2 text-sm font-medium transition ${tab === key ? "border-[var(--gold-deep)] text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}
           >{label}</button>
         ))}
       </div>
@@ -351,28 +437,45 @@ function PortfolioPage() {
         <input
           value={search.q}
           onChange={(e) => updateSearch({ q: e.target.value, page: 1 })}
-          placeholder={t("searchOrders")}
-          className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+          placeholder={tab === "positions" ? t("fx3_searchPositions") : t("searchOrders")}
+          aria-label={tab === "positions" ? t("fx3_searchPositions") : t("searchOrders")}
+          className="min-w-0 flex-1 basis-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none sm:basis-[220px]"
         />
         {tab === "orders" && (
           <>
-            <select value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("filterStatus")} value={search.status} onChange={(e) => updateSearch({ status: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="open">{t("statusOpen")}</option>
               <option value="partial">{t("statusPartial")}</option>
               <option value="filled">{t("filled")}</option>
               <option value="cancelled">{t("statusClosed")}</option>
             </select>
-            <select value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("orderType")} value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="buy">{t("filterBuy")}</option>
               <option value="sell">{t("filterSell")}</option>
             </select>
           </>
         )}
-        <select value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+        <select aria-label={t("rowsPerPage")} value={String(pageSize)} onChange={(e) => updateSearch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
         </select>
+        {tab === "positions" && (
+          <select
+            aria-label={t("a11ySortedBy")}
+            value={`${search.sortBy}:${search.sortDir}`}
+            onChange={(e) => {
+              const [sortBy, sortDir] = e.target.value.split(":");
+              updateSearch({ sortBy, sortDir: sortDir === "desc" ? "desc" : "asc", page: 1 });
+            }}
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-xs md:hidden"
+          >
+            {positionCols.flatMap((c) => [
+              <option key={`${c.key}:asc`} value={`${c.key}:asc`}>{c.label} ▲</option>,
+              <option key={`${c.key}:desc`} value={`${c.key}:desc`}>{c.label} ▼</option>,
+            ])}
+          </select>
+        )}
       </div>
 
       {tab === "positions" ? (
@@ -380,12 +483,18 @@ function PortfolioPage() {
           {sortedPositions.length === 0 ? (
           <EmptyState
             title={t("emptyPositions")}
-            description={t("emptyPositionsDesc")}
-            action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>}
+            description={onHold ? t("fx3_tradeOnHold") : notActivated ? t("fx3_tradeNotActivated") : t("emptyPositionsDesc")}
+            action={
+              !onHold && notActivated ? (
+                <Link to="/request-access" search={{ kind: "invest" }} className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("fx3_tradeNotActivatedCta")}</Link>
+              ) : (
+                <Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>
+              )
+            }
           />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-            <div className="hidden md:grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="hidden min-w-[900px] grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground md:grid">
               {positionCols.map((c) => (
                 <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                   <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -393,47 +502,70 @@ function PortfolioPage() {
               ))}
               <div className="w-16" />
             </div>
-            {pagedPositions.map((p) => (
-              <div key={p.id}>
-                <div className="hidden md:grid min-w-[720px] grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0">
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
-                  <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
-                </div>
-                <div className="text-end font-mono">{p.qty}</div>
-                <div className="text-end font-mono text-muted-foreground">{p.avg.toFixed(2)}</div>
-                <div className="text-end font-mono">{p.last.toFixed(2)}</div>
-                <div className={`text-end font-mono ${p.pnl >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct((p.last - p.avg) / (p.avg || 1))}</div>
-                <div className="text-end font-mono text-muted-foreground">{weight(p.value, positionsValue)}%</div>
-                <div className="text-end">
-                  {p.brand && (
-                    <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
-                  )}
-                </div>
+            {pagedPositions.map((p) => {
+              const w = weightOf(p);
+              const trade = p.published && p.slug && !onHold ? (
+                <Link to="/trade/$symbol" params={{ symbol: p.slug }} className="inline-flex min-h-8 items-center rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
+              ) : null;
+              return (
+              <div key={p.symbol}>
+                <div className="hidden min-w-[900px] grid-cols-[minmax(0,2fr)_repeat(6,minmax(0,1fr))_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-sm last:border-b-0 md:grid">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-ink">{displayName(p)}</div>
+                    <div className="text-[10px] uppercase text-muted-foreground">{p.symbol}</div>
+                  </div>
+                  <div className="text-end font-mono">
+                    <Num value={p.qty} kind="qty" />
+                    {p.reserved_qty > 0 && (
+                      <span className="block text-[10px] text-muted-foreground">
+                        {t("m_inSellOrders")} <Num value={p.reserved_qty} kind="qty" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-end font-mono text-muted-foreground"><Num value={p.avg_price} decimals={p.avg_price === Math.round(p.avg_price * 100) / 100 ? 2 : 4} /></div>
+                  <div className="text-end font-mono">
+                    {p.mark_price == null ? <NoPrice t={t} /> : <><Num value={p.mark_price} />{markTag(p)}</>}
+                  </div>
+                  <div className="text-end font-mono"><Num value={p.market_value} kind="currency" /></div>
+                  <div className={`text-end font-mono ${pnlTone(p.unrealized_pnl)}`}>
+                    <Num value={p.unrealized_pnl} kind="currency" signed />
+                    <span className="block text-[10px]"><Num value={p.unrealized_pct} kind="pct" signed /></span>
+                  </div>
+                  <div className="text-end font-mono text-muted-foreground"><Num value={w} kind="pct" /></div>
+                  <div className="w-16 text-end">{trade}</div>
                 </div>
                 {/* mobile card */}
-                <div className="md:hidden border-b border-border/40 px-4 py-3 last:border-b-0">
+                <div className="border-b border-border/40 px-4 py-3 last:border-b-0 md:hidden">
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-ink">{lang === "ar" ? (p.brand?.nameAr ?? p.symbol) : (p.brand?.nameEn ?? p.symbol)}</div>
-                      <div className="text-[10px] uppercase text-muted-foreground">{p.symbol} · {p.asset_class}</div>
+                      <div className="truncate text-sm font-semibold text-ink">{displayName(p)}</div>
+                      <div className="text-[10px] uppercase text-muted-foreground">{p.symbol}</div>
                     </div>
-                    <div className={`shrink-0 font-mono text-xs ${p.pnl >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{formatPct((p.last - p.avg) / (p.avg || 1))}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div><span className="text-muted-foreground">{t("qty")}: </span>{p.qty}</div>
-                    <div className="text-end"><span className="text-muted-foreground">{t("weight")}: </span>{weight(p.value, positionsValue)}%</div>
-                    <div><span className="text-muted-foreground">{t("avgPrice")}: </span>{p.avg.toFixed(2)}</div>
-                    <div className="text-end"><span className="text-muted-foreground">{t("lastPrice")}: </span>{p.last.toFixed(2)}</div>
-                  </div>
-                  {p.brand && (
-                    <div className="mt-2 flex justify-end">
-                      <Link to="/trade/$symbol" params={{ symbol: p.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft">{t("nav_trade")}</Link>
+                    <div className={`shrink-0 text-end font-mono text-xs ${pnlTone(p.unrealized_pnl)}`}>
+                      <Num value={p.unrealized_pnl} kind="currency" signed />
+                      <span className="block text-[10px]"><Num value={p.unrealized_pct} kind="pct" signed /></span>
                     </div>
-                  )}
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                    <CardStat label={t("qty")} value={<Num value={p.qty} kind="qty" />} />
+                    <CardStat label={t("m_marketValue")} value={<Num value={p.market_value} kind="currency" />} end />
+                    <CardStat label={t("m_avgCost")} value={<Num value={p.avg_price} decimals={p.avg_price === Math.round(p.avg_price * 100) / 100 ? 2 : 4} />} />
+                    <CardStat
+                      label={t("m_markPrice")}
+                      value={p.mark_price == null ? <NoPrice t={t} /> : <><Num value={p.mark_price} />{markTag(p)}</>}
+                      end
+                    />
+                    <CardStat label={t("costBasis")} value={<Num value={p.cost_basis} kind="currency" />} />
+                    <CardStat label={t("weight")} value={<Num value={w} kind="pct" />} end />
+                    {p.reserved_qty > 0 && (
+                      <CardStat label={t("m_availableUnits")} value={<Num value={Math.max(0, p.qty - p.reserved_qty)} kind="qty" />} />
+                    )}
+                  </dl>
+                  {trade && <div className="mt-2 flex justify-end">{trade}</div>}
                 </div>
               </div>
-            ))}
+              );
+            })}
             <Pager page={safePage} pageCount={pageCount} onPage={(p) => updateSearch({ page: p })} t={t} />
           </div>
         )}
@@ -444,7 +576,7 @@ function PortfolioPage() {
             <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-              <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="hidden min-w-[860px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1.2fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground md:grid">
                 {orderCols.map((c) => (
                   <div key={c.key} className={c.align === "end" ? "text-end" : ""}>
                     <SortHeader k={c.key} label={c.label} align={c.align} />
@@ -454,20 +586,20 @@ function PortfolioPage() {
               </div>
               {pagedOrders.map((o) => (
                 <div key={o.id}>
-                <div className="hidden md:grid min-w-[820px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0">
+                <div className="hidden min-w-[860px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1.2fr_auto] items-center gap-3 border-b border-border/40 px-4 py-3 text-xs last:border-b-0 md:grid">
                   <div className="font-mono font-semibold text-ink">{o.symbol}</div>
-                  <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
-                  <div className="text-end font-mono">{Number(o.qty)}</div>
-                  <div className="text-end font-mono text-muted-foreground">{o.filled_price ? Number(o.filled_price).toFixed(2) : o.price ? Number(o.price).toFixed(2) : "—"}</div>
+                  <div className={`font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side === "buy" ? t("buy") : t("sell")} · {o.type === "market" ? t("market") : t("limit")}</div>
+                  <div className="text-end font-mono">{orderQty(o)}</div>
+                  <div className="text-end font-mono text-muted-foreground">{orderPrice(o)}</div>
                   <div className="text-end"><StatusBadge status={o.status} /></div>
-                  <div className="text-end font-mono text-muted-foreground">{new Date(o.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</div>
-                  <div className="flex justify-end gap-1">
+                  <div className="text-end text-muted-foreground">{formatDateTime(o.created_at, lang)}</div>
+                  <div className="flex w-24 justify-end gap-1">
                     {isWorkingOrder(o.status) ? (
                       <>
                         {o.type === "limit" && (
-                          <button disabled={!isTrader || modifyMut.isPending} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
+                          <button type="button" disabled={!isTrader || modifyMut.isPending} title={!isTrader ? t("traderRequired") : undefined} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40">{t("modifyOrder")}</button>
                         )}
-                        <button disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                        <button type="button" disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                       </>
                     ) : (
                       <span className="text-[10px] text-muted-foreground">—</span>
@@ -475,25 +607,25 @@ function PortfolioPage() {
                   </div>
                 </div>
                 {/* mobile card */}
-                <div className="md:hidden border-b border-border/40 px-4 py-3 last:border-b-0">
+                <div className="border-b border-border/40 px-4 py-3 last:border-b-0 md:hidden">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-mono text-sm font-semibold text-ink">{o.symbol}</div>
-                      <div className={`text-[10px] font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side.toUpperCase()} · {o.type}</div>
+                      <div className={`text-[10px] font-mono ${o.side === "buy" ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>{o.side === "buy" ? t("buy") : t("sell")} · {o.type === "market" ? t("market") : t("limit")}</div>
                     </div>
                     <StatusBadge status={o.status} />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div><span className="text-muted-foreground">{t("qty")}: </span>{Number(o.qty)}</div>
-                    <div className="text-end"><span className="text-muted-foreground">{t("price")}: </span>{o.filled_price ? Number(o.filled_price).toFixed(2) : o.price ? Number(o.price).toFixed(2) : "—"}</div>
-                    <div className="col-span-2 text-muted-foreground">{new Date(o.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</div>
-                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                    <CardStat label={t("m_colFilledOfQty")} value={orderQty(o)} />
+                    <CardStat label={t("m_colPriceAvgFill")} value={orderPrice(o)} end />
+                  </dl>
+                  <div className="mt-1 text-[10px] text-muted-foreground">{formatDateTime(o.created_at, lang)}</div>
                   {isWorkingOrder(o.status) && (
                     <div className="mt-2 flex justify-end gap-1">
                       {o.type === "limit" && (
-                        <button disabled={!isTrader || modifyMut.isPending} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft disabled:opacity-40">{t("modifyOrder")}</button>
+                        <button type="button" disabled={!isTrader || modifyMut.isPending} onClick={() => setEditing({ id: o.id, qty: String(remainingQty(o)), price: o.price == null ? "" : Number(o.price).toFixed(2) })} className="min-h-8 rounded border border-border px-2 py-1 text-[10px] text-ink-soft disabled:opacity-40">{t("modifyOrder")}</button>
                       )}
-                      <button disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
+                      <button type="button" disabled={cancelMut.isPending} onClick={() => askCancel(o.id, o.symbol, remainingQty(o))} className="min-h-8 rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40">{t("cancelOrder")}</button>
                     </div>
                   )}
                 </div>
@@ -514,16 +646,17 @@ function PortfolioPage() {
             </DialogHeader>
             <div className="grid gap-2">
               <label className="text-[10px] uppercase text-muted-foreground">{t("qty")}
-                <input type="number" inputMode="numeric" min="1" max="10000000" step="1" value={editing.qty} onChange={(e) => setEditing({ ...editing, qty: e.target.value })} aria-invalid={!!editQtyError} aria-describedby={editQtyError ? "modify-qty-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
+                <input type="number" inputMode="numeric" dir="ltr" min="1" max="10000000" step="1" value={editing.qty} onChange={(e) => setEditing({ ...editing, qty: e.target.value })} aria-invalid={!!editQtyError} aria-describedby={editQtyError ? "modify-qty-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
               </label>
               {editQtyError && <p id="modify-qty-error" className="text-[10px] text-[var(--bear)]">{t(editQtyError)}</p>}
               <label className="text-[10px] uppercase text-muted-foreground">{t("price")}
-                <input type="number" inputMode="decimal" min="0.01" step="0.01" value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} aria-invalid={!!editPriceError} aria-describedby={editPriceError ? "modify-price-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
+                <input type="number" inputMode="decimal" dir="ltr" min="0.01" step="0.01" value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} aria-invalid={!!editPriceError} aria-describedby={editPriceError ? "modify-price-error" : undefined} className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-[var(--gold-deep)] focus:outline-none" />
               </label>
               {editPriceError && <p id="modify-price-error" className="text-[10px] text-[var(--bear)]">{t(editPriceError)}</p>}
               <div className="mt-2 flex justify-end gap-2">
-                <button onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancel")}</button>
+                <button type="button" onClick={() => setEditing(null)} className="rounded border border-border px-3 py-1.5 text-xs text-ink-soft">{t("cancel")}</button>
                 <button
+                  type="button"
                   disabled={modifyMut.isPending || !!editQtyError || !!editPriceError}
                   onClick={() => modifyMut.mutate({ orderId: editing.id, qty: Number(editing.qty), price: Number(editing.price) })}
                   className="rounded-md gold-gradient px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
@@ -548,11 +681,30 @@ function matchesStatusFilter(status: string, filter: string): boolean {
   return status === filter;
 }
 
-function KPI({ label, value, tone }: { label: string; value: string; tone?: "bull" | "bear" }) {
+/** A holding with no market price: shown as such, never at the investor's cost. */
+function NoPrice({ t }: { t: (k: Key) => string }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4">
+    <span className="whitespace-nowrap text-[10px] text-muted-foreground" title={t("m_noPriceHint")}>
+      {t("m_noPrice")}
+    </span>
+  );
+}
+
+function CardStat({ label, value, end }: { label: string; value: ReactNode; end?: boolean }) {
+  return (
+    <div className={`min-w-0 ${end ? "text-end" : ""}`}>
+      <dt className="text-[10px] text-muted-foreground">{label}</dt>
+      <dd className="font-mono text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function KPI({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: string }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border/60 bg-card p-3 sm:p-4">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`mt-1 font-mono text-lg font-semibold ${tone === "bull" ? "text-[var(--bull)]" : tone === "bear" ? "text-[var(--bear)]" : "text-ink"}`}>{value}</div>
+      <div className={`mt-1 break-words font-mono text-base font-semibold sm:text-lg ${tone ?? "text-ink"}`}>{value}</div>
+      {hint && <div className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{hint}</div>}
     </div>
   );
 }
@@ -566,10 +718,11 @@ function AllocationBar({
   total: number;
   label: string;
 }) {
-  if (total <= 0) return null;
-  const top = [...positions].sort((a, b) => b.value - a.value).slice(0, 8);
-  const others = positions.length - top.length;
-  const othersValue = positions.slice(top.length).reduce((s, p) => s + p.value, 0);
+  if (total <= 0 || positions.length === 0) return null;
+  const sorted = [...positions].sort((a, b) => b.value - a.value);
+  const top = sorted.slice(0, 8);
+  const others = sorted.length - top.length;
+  const othersValue = sorted.slice(top.length).reduce((s, p) => s + p.value, 0);
   const segments = [
     ...top.map((p) => ({ symbol: p.symbol, value: p.value, color: p.color })),
     ...(others > 0 ? [{ symbol: `+${others}`, value: othersValue, color: "var(--muted-foreground)" }] : []),
@@ -578,23 +731,23 @@ function AllocationBar({
     <div className="mb-6 rounded-xl border border-border/60 bg-card p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className="text-[10px] font-mono text-muted-foreground">{positions.length}</div>
+        <div className="text-[10px] font-mono text-muted-foreground"><Num value={positions.length} kind="qty" /></div>
       </div>
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-        {segments.map((s, i) => (
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-secondary" dir="ltr">
+        {segments.map((s) => (
           <span
-            key={`${s.symbol}-${i}`}
+            key={s.symbol}
             title={`${s.symbol} · ${((s.value / total) * 100).toFixed(1)}%`}
             style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
           />
         ))}
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
-        {segments.map((s, i) => (
-          <span key={`${s.symbol}-lg-${i}`} className="inline-flex items-center gap-1.5">
+        {segments.map((s) => (
+          <span key={s.symbol} className="inline-flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
             <span className="font-mono text-ink-soft">{s.symbol}</span>
-            <span>{((s.value / total) * 100).toFixed(1)}%</span>
+            <Num value={(s.value / total) * 100} kind="pct" decimals={1} />
           </span>
         ))}
       </div>
@@ -602,14 +755,14 @@ function AllocationBar({
   );
 }
 
-function Pager({ page, pageCount, onPage, t }: { page: number; pageCount: number; onPage: (p: number) => void; t: (k: never) => string }) {
+function Pager({ page, pageCount, onPage, t }: { page: number; pageCount: number; onPage: (p: number) => void; t: (k: Key) => string }) {
   if (pageCount <= 1) return null;
   return (
     <div className="flex items-center justify-between border-t border-border/40 px-4 py-2 text-[11px] text-muted-foreground">
-      <span>{t("page" as never)} {page} {t("of" as never)} {pageCount}</span>
+      <span>{t("page")} <Num value={page} kind="qty" /> {t("of")} <Num value={pageCount} kind="qty" /></span>
       <div className="flex gap-1">
-        <button disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">{t("prev" as never)}</button>
-        <button disabled={page >= pageCount} onClick={() => onPage(page + 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">{t("next" as never)}</button>
+        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)} className="min-h-8 rounded border border-border px-2 py-1 disabled:opacity-40">{t("prev")}</button>
+        <button type="button" disabled={page >= pageCount} onClick={() => onPage(page + 1)} className="min-h-8 rounded border border-border px-2 py-1 disabled:opacity-40">{t("next")}</button>
       </div>
     </div>
   );

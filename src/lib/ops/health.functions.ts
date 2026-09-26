@@ -8,9 +8,38 @@ export type HealthCheck = {
   detail: string;
 };
 
+export type IntegrityCheck = {
+  key: string;
+  ok: boolean;
+  violations: number;
+  /** At most 5 offending keys (user ids, symbols, order or trade ids), as text. */
+  sample: string[];
+};
+
+/**
+ * Ledger and market invariants from public.integrity_report() (service role
+ * only; read-only). `null` when the report could not run.
+ */
+async function loadIntegrity(): Promise<IntegrityCheck[] | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("integrity_report" as never);
+  if (error) {
+    console.error("[health] integrity_report failed", (error as { code?: string }).code ?? "unknown");
+    return null;
+  }
+  return ((data ?? []) as Array<{ check_key: string; ok: boolean; violations: number | string; sample: unknown }>).map((r) => ({
+    key: r.check_key,
+    ok: r.ok === true,
+    violations: Number(r.violations) || 0,
+    sample: Array.isArray(r.sample) ? r.sample.map((v) => (typeof v === "string" ? v : JSON.stringify(v))) : [],
+  }));
+}
+
 /**
  * Operational health for platform admins: reachability + latency per critical
- * table, email delivery failures, and the freshness of the alerts cron.
+ * table, email delivery failures, the freshness of the alerts cron, and the
+ * data integrity checks (listed after the tables as "integrity.<check>";
+ * the detail is the number of violating rows).
  */
 export const getPlatformHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -49,7 +78,8 @@ export const getPlatformHealth = createServerFn({ method: "GET" })
         key: table,
         status: error ? "fail" : latencyMs > 1500 ? "warn" : "ok",
         latencyMs,
-        detail: error ? error.message : `${count ?? 0}`,
+        // A stable code, never the raw database text.
+        detail: error ? (error.code ? `ERROR_${error.code}` : "ERROR") : `${count ?? 0}`,
       });
     }
 
@@ -74,6 +104,17 @@ export const getPlatformHealth = createServerFn({ method: "GET" })
         .limit(1),
     ]);
 
+    const integStarted = Date.now();
+    const integrity = await loadIntegrity();
+    const integLatency = Date.now() - integStarted;
+    if (integrity === null) {
+      checks.push({ key: "integrity", status: "fail", latencyMs: integLatency, detail: "INTEGRITY_REPORT_UNAVAILABLE" });
+    } else {
+      for (const c of integrity) {
+        checks.push({ key: `integrity.${c.key}`, status: c.ok ? "ok" : "fail", latencyMs: integLatency, detail: `${c.violations}` });
+      }
+    }
+
     const failedCount = failed.count ?? 0;
     const sentCount = sent.count ?? 0;
     const lastTriggered = triggered.data?.[0]?.triggered_at ?? null;
@@ -89,5 +130,9 @@ export const getPlatformHealth = createServerFn({ method: "GET" })
         status: failedCount === 0 ? "ok" : failedCount > 5 ? "fail" : "warn",
       },
       alerts: { active: alerts.count ?? 0, lastTriggeredAt: lastTriggered },
+      integrity: {
+        status: integrity === null ? ("fail" as const) : integrity.every((c) => c.ok) ? ("ok" as const) : ("fail" as const),
+        checks: integrity ?? [],
+      },
     };
   });

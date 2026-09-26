@@ -9,7 +9,12 @@ import { useMyRoles } from "@/hooks/use-my-roles";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
 import { renderEmailPreview } from "@/lib/admin/email-preview.functions";
-import { ArrowClockwise, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { ArrowClockwise, EnvelopeSimple, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { Num } from "@/components/num";
+import { formatDateTime } from "@/components/market-data";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
   Dialog,
@@ -18,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type Key } from "@/lib/i18n";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/email-log")({
@@ -57,7 +62,7 @@ function loadFilters(): Filters {
 
 function AdminEmailLogPage() {
   const { isAdmin, isLoading } = useMyRoles();
-  if (isLoading) return <AppShell><div className="p-10 text-center text-muted-foreground">…</div></AppShell>;
+  if (isLoading) return <AppShell><LuxurySkeleton lines={6} /></AppShell>;
   if (!isAdmin) return <AppShell><AccessDenied /></AppShell>;
   return <EmailLogContent />;
 }
@@ -77,8 +82,7 @@ function statusBadge(s: string) {
 
 function EmailLogContent() {
   const qc = useQueryClient();
-  const { lang } = useI18n();
-  const ar = lang === "ar";
+  const { t, lang } = useI18n();
   const errorMessage = useErrorMessage();
   const list = useServerFn(listEmailLog);
   const templates = useServerFn(listEmailTemplates);
@@ -125,7 +129,7 @@ function EmailLogContent() {
   const retryM = useMutation({
     mutationFn: (messageId: string) => retry({ data: { messageId } }),
     onSuccess: () => {
-      toast.success(ar ? "تم إعادة إرسال الرسالة" : "Message re-sent");
+      toast.success(t("u_elResent"));
       qc.invalidateQueries({ queryKey: ["email-log"] });
     },
     onError: (e: unknown) => toast.error(errorMessage(e)),
@@ -134,10 +138,10 @@ function EmailLogContent() {
   const askRetry = async (row: any) => {
     if (!row.message_id) return;
     const ok = await confirm({
-      title: ar ? "إعادة إرسال الرسالة؟" : "Re-send this message?",
-      description: `${row.template_name} → ${row.recipient_email}`,
-      confirmLabel: ar ? "إعادة الإرسال" : "Re-send",
-      cancelLabel: ar ? "إلغاء" : "Cancel",
+      title: t("u_elResendTitle"),
+      description: `${templateLabel(row.template_name, t)} · ${row.recipient_email}`,
+      confirmLabel: t("u_elResend"),
+      cancelLabel: t("cancel"),
     });
     if (ok) retryM.mutate(row.message_id);
   };
@@ -152,7 +156,7 @@ function EmailLogContent() {
       });
       setPreviewOpen({ html: res.html, subject: res.subject, template: row.template_name });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : ar ? "معاينة غير متاحة لهذا القالب" : "Preview unavailable for this template");
+      toast.error(errorMessage(e, {}, "u_elPreviewUnavailable"));
     }
   };
 
@@ -166,136 +170,145 @@ function EmailLogContent() {
     : rawItems;
   const total = sym ? items.length : logQ.data?.total ?? 0;
 
+  const control =
+    "min-h-11 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground focus:border-[var(--gold-deep)] focus:outline-none sm:min-h-10";
+  const smallBtn =
+    "inline-flex min-h-9 items-center gap-1 rounded-md border border-border px-2.5 text-xs font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-ink disabled:opacity-40";
+
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Admin"
-        title={ar ? "سجل الإرسال" : "Email send log"}
-        description={
-          ar
-            ? "كل رسالة بريد صادرة، حالتها، والقدرة على إعادة إرسال الفاشل."
-            : "Every outbound message, its delivery status, and retry controls."
-        }
+        eyebrow={t("modePlatform")}
+        title={t("nav_emailLog")}
+        description={t("u_elDesc")}
         crumbs={[
-          { label: "Admin", to: "/admin/submissions" },
-          { label: ar ? "سجل الإرسال" : "Email log" },
+          { label: t("modePlatform"), to: "/" },
+          { label: t("nav_emailLog") },
         ]}
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-[auto_auto_1fr]">
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as Status); setPage(0); }}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-        >
-          {(["all", "pending", "sent", "failed", "dlq", "suppressed", "bounced", "complained"] as Status[]).map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <select
-          value={template}
-          onChange={(e) => { setTemplate(e.target.value); setPage(0); }}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-        >
-          <option value="">{ar ? "كل القوالب" : "All templates"}</option>
-          {(tplQ.data ?? []).map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        <div className="relative">
-          <MagnifyingGlass className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
+        <label className="min-w-0">
+          <span className="sr-only">{t("u_status")}</span>
+          <select value={status} onChange={(e) => { setStatus(e.target.value as Status); setPage(0); }} className={control}>
+            {(["all", "pending", "sent", "failed", "dlq", "suppressed", "bounced", "complained"] as Status[]).map((st) => (
+              <option key={st} value={st}>{st === "all" ? t("u_elAllStatuses") : statusLabel(st, t)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-0">
+          <span className="sr-only">{t("u_elTemplate")}</span>
+          <select value={template} onChange={(e) => { setTemplate(e.target.value); setPage(0); }} className={control}>
+            <option value="">{t("u_elAllTemplates")}</option>
+            {(tplQ.data ?? []).map((tpl) => (
+              <option key={tpl} value={tpl}>{templateLabel(tpl, t)}</option>
+            ))}
+          </select>
+        </label>
+        <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
+          <MagnifyingGlass aria-hidden className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
+            type="search"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            placeholder={ar ? "بحث بالبريد…" : "Search by email…"}
-            className="w-full rounded-md border border-border bg-background py-2 pe-3 ps-9 text-sm text-foreground"
+            placeholder={t("u_elSearchEmail")}
+            aria-label={t("u_elSearchEmail")}
+            className={`${control} ps-9`}
           />
         </div>
       </div>
 
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <input
           value={symbol}
           onChange={(e) => { setSymbol(e.target.value); setPage(0); }}
-          placeholder={ar ? "فلترة بالرمز (مثل ARAMCO)…" : "Filter by symbol (e.g. ARAMCO)…"}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono uppercase text-foreground"
+          placeholder={t("u_elFilterSymbol")}
+          aria-label={t("u_elFilterSymbol")}
+          className={`${control} uppercase sm:max-w-xs`}
         />
         <button
           type="button"
           onClick={() => { setStatus("all"); setTemplate(""); setSearch(""); setSymbol(""); setPage(0); }}
-          className="rounded-md border border-border px-3 py-2 text-xs font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
+          className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-card px-4 text-sm font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-ink sm:min-h-10"
         >
-          {ar ? "إعادة تعيين الفلاتر" : "Reset filters"}
+          <X aria-hidden className="me-1.5 h-4 w-4" />
+          {t("u_elResetFilters")}
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
-        <div className="grid grid-cols-[1.4fr_1.6fr_auto_auto_auto] gap-3 border-b border-border/60 bg-secondary/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          <div>{ar ? "القالب" : "Template"}</div>
-          <div>{ar ? "البريد" : "Recipient"}</div>
-          <div>{ar ? "الحالة" : "Status"}</div>
-          <div>{ar ? "الوقت" : "Time"}</div>
-          <div></div>
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
+        <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto_minmax(0,1fr)_auto] gap-3 border-b border-border/70 bg-secondary/40 px-4 py-2.5 text-xs font-medium text-muted-foreground md:grid">
+          <div>{t("u_elTemplate")}</div>
+          <div>{t("u_elRecipient")}</div>
+          <div>{t("u_status")}</div>
+          <div>{t("u_elTime")}</div>
+          <div />
         </div>
-        {logQ.isLoading && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">…</div>
+        {logQ.isLoading && <div className="px-4 py-8"><LuxurySkeleton lines={5} /></div>}
+        {logQ.isError && (
+          <div className="p-4"><ErrorState reset={() => logQ.refetch()} description={errorMessage(logQ.error)} /></div>
         )}
-        {!logQ.isLoading && items.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">{ar ? "لا نتائج." : "No results."}</div>
+        {!logQ.isLoading && !logQ.isError && items.length === 0 && (
+          <div className="p-4">
+            <EmptyState icon={<EnvelopeSimple size={22} weight="duotone" />} title={t("u_elEmptyTitle")} description={t("u_elEmptyDesc")} />
+          </div>
         )}
-        {items.map((r) => (
+        {items.map((r: any) => (
           <div
             key={r.id}
-            className="grid grid-cols-[1.4fr_1.6fr_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto_minmax(0,1fr)_auto]"
           >
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-foreground">{r.template_name}</div>
+              <div className="truncate text-sm font-semibold text-ink">{templateLabel(r.template_name, t)}</div>
+              <code className="block truncate text-[11px] text-muted-foreground" dir="ltr" style={{ textAlign: "start" }}>{r.template_name}</code>
               {r.error_message ? (
-                <div className="mt-0.5 truncate text-[11px] text-[var(--burgundy)]">{r.error_message}</div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--burgundy)]" dir="ltr" style={{ textAlign: "start" }} title={r.error_message}>
+                  {r.error_message}
+                </div>
               ) : null}
             </div>
-            <div className="truncate text-sm text-ink-soft">{r.recipient_email}</div>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadge(r.status)}`}>
-              {r.status}
+            <span className={`justify-self-end whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium md:order-3 md:justify-self-start ${statusBadge(r.status)}`}>
+              {statusLabel(r.status, t)}
             </span>
-            <div className="font-mono text-[11px] text-muted-foreground">
-              {new Date(r.created_at).toLocaleString()}
+            <div className="min-w-0 truncate text-sm text-ink-soft md:order-2" dir="ltr" style={{ textAlign: "start" }}>{r.recipient_email}</div>
+            <div className="text-end text-xs text-muted-foreground md:order-4 md:text-start">
+              {formatDateTime(r.created_at, lang)}
             </div>
-            <div className="flex justify-end gap-1">
-                <button
-                  onClick={() => openPreview(r)}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)]"
-                >
-                  <Eye className="h-3.5 w-3.5" /> {ar ? "معاينة" : "Preview"}
-                </button>
-                <button
-                  onClick={() => askRetry(r)}
-                  disabled={!r.message_id || retryM.isPending || r.status === "sent" || r.status === "pending"}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-ink-soft hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40"
-                >
-                  <ArrowClockwise className="h-3.5 w-3.5" /> {ar ? "إعادة" : "Retry"}
-                </button>
-              </div>
+            <div className="col-span-2 flex justify-end gap-1.5 md:order-5 md:col-span-1">
+              <button type="button" onClick={() => openPreview(r)} className={smallBtn}>
+                <Eye aria-hidden className="h-3.5 w-3.5" /> {t("u_elPreview")}
+              </button>
+              <button
+                type="button"
+                onClick={() => askRetry(r)}
+                disabled={!r.message_id || retryM.isPending || r.status === "sent" || r.status === "pending"}
+                className={smallBtn}
+              >
+                <ArrowClockwise aria-hidden className="h-3.5 w-3.5" /> {t("u_elResend")}
+              </button>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-        <div>{ar ? "الإجمالي" : "Total"}: {total}</div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        <div>{t("u_elTotal")}: <Num value={total} kind="qty" /></div>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-md border border-border bg-card px-4 text-sm disabled:opacity-40 sm:min-h-9"
           >
-            {ar ? "السابق" : "Previous"}
+            {t("u_prev")}
           </button>
           <button
+            type="button"
             onClick={() => setPage((p) => p + 1)}
             disabled={(page + 1) * limit >= total}
-            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
+            className="inline-flex min-h-11 items-center rounded-md border border-border bg-card px-4 text-sm disabled:opacity-40 sm:min-h-9"
           >
-            {ar ? "التالي" : "Next"}
+            {t("u_next")}
           </button>
         </div>
       </div>
@@ -304,19 +317,47 @@ function EmailLogContent() {
         {previewOpen && (
           <DialogContent className="flex h-[85dvh] w-full max-w-4xl flex-col overflow-hidden p-0">
             <DialogHeader className="border-b border-border/60 px-4 py-3 text-start">
-              <DialogDescription className="text-[10px] uppercase tracking-wider">
-                {previewOpen.template}
-              </DialogDescription>
+              <DialogDescription className="text-xs">{templateLabel(previewOpen.template, t)}</DialogDescription>
               <DialogTitle className="truncate text-sm">{previewOpen.subject}</DialogTitle>
             </DialogHeader>
-            <iframe
-              title={ar ? "معاينة البريد" : "Email preview"}
-              srcDoc={previewOpen.html}
-              className="w-full flex-1 bg-ivory"
-            />
+            {/* Sandboxed: the preview is an opaque origin with no script, whatever a template renders. */}
+            <iframe title={t("u_elPreviewTitle")} srcDoc={previewOpen.html} sandbox="allow-popups" referrerPolicy="no-referrer" className="w-full flex-1 bg-ivory" />
           </DialogContent>
         )}
       </Dialog>
     </AppShell>
   );
+}
+
+const STATUS_KEYS: Record<string, Key> = {
+  pending: "u_elStPending",
+  sent: "u_elStSent",
+  failed: "u_elStFailed",
+  dlq: "u_elStDlq",
+  suppressed: "u_elStSuppressed",
+  bounced: "u_elStBounced",
+  complained: "u_elStComplained",
+};
+function statusLabel(s: string, t: (k: Key) => string): string {
+  return STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : s;
+}
+
+const TEMPLATE_KEYS: Record<string, Key> = {
+  invitation: "u_elTplInvitation",
+  "price-alert": "u_elTplPriceAlert",
+  "shariah-decision": "u_elTplShariahDecision",
+  "position-update": "u_elTplPositionUpdate",
+  "ops-alert": "u_elTplOpsAlert",
+  "access-request-received": "u_elTplAccessReceived",
+  "access-request-decision": "u_elTplAccessDecision",
+  signup: "u_elTplSignup",
+  recovery: "u_elTplRecovery",
+  invite: "u_elTplInvite",
+  magiclink: "u_elTplMagicLink",
+  email_change: "u_elTplEmailChange",
+  "email-change": "u_elTplEmailChange",
+  reauthentication: "u_elTplReauth",
+};
+function templateLabel(name: string, t: (k: Key) => string): string {
+  return TEMPLATE_KEYS[name] ? t(TEMPLATE_KEYS[name]) : name;
 }

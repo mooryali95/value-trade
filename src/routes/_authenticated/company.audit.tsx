@@ -1,8 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ClipboardText } from "@phosphor-icons/react";
+import { AppShell } from "@/components/app-shell";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { LuxurySkeleton } from "@/components/luxury-skeleton";
+import { formatDateTime, sectorLabel } from "@/components/market-data";
+import { Num } from "@/components/num";
+import { auditDetailItems, humanizeKey, type AuditItem, type AuditValue } from "@/lib/audit/audit-details";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { useI18n } from "@/lib/i18n";
+import { useCallback, useMemo, useState } from "react";
+import { useI18n, type Key } from "@/lib/i18n";
+import { ar } from "@/lib/i18n/ar";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { AccessDenied } from "@/components/access-denied";
@@ -28,8 +37,8 @@ export const Route = createFileRoute("/_authenticated/company/audit")({
 
 function CompanyAuditPage() {
   const { t, lang } = useI18n();
-  const { active } = useActiveCompany();
-  const { companyRole } = useMyRoles();
+  const { active, isLoading: coLoading } = useActiveCompany();
+  const { companyRole, isLoading: rolesLoading } = useMyRoles();
   const listFn = useServerFn(listAuditLog);
   const myRole = active ? companyRole(active.id) : undefined;
   const isOwner = myRole === "owner";
@@ -41,15 +50,117 @@ function CompanyAuditPage() {
     staleTime: 30_000,
   });
 
-  if (!active) return <div className="p-8 text-sm text-ink-soft">—</div>;
-  if (!isOwner) return <div className="p-8"><AccessDenied backTo="/company/settings" /></div>;
+  if (coLoading || (active && rolesLoading)) {
+    return (
+      <AppShell>
+        <LuxurySkeleton lines={6} />
+      </AppShell>
+    );
+  }
+  if (!active) {
+    return (
+      <AppShell>
+        <PageHeader title={t("auditLog")} description={t("auditLogDesc")} />
+        <EmptyState
+          icon={<ClipboardText size={22} weight="duotone" />}
+          title={t("u_wsNoCompanyTitle")}
+          description={t("u_auditNoCompanyDesc")}
+          action={
+            <Link to="/invitations" className="inline-flex min-h-11 items-center rounded-md gold-gradient px-5 text-sm font-semibold text-ink">
+              {t("incomingInvitations")}
+            </Link>
+          }
+        />
+      </AppShell>
+    );
+  }
+  if (!isOwner) return <AppShell><div className="py-16"><AccessDenied backTo="/company/settings" /></div></AppShell>;
 
   const rows = q.data ?? [];
 
-  return <AuditContent rows={rows} isLoading={q.isLoading} companyName={lang === "ar" ? active.name_ar : active.name_en} />;
+  return (
+    <AppShell>
+      <AuditContent rows={rows} isLoading={q.isLoading} isError={q.isError} onRetry={() => q.refetch()} companyName={lang === "ar" ? active.name_ar : active.name_en} />
+    </AppShell>
+  );
 }
 
-function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLoading: boolean; companyName: string }) {
+/** Label key of an audit action or entity ("brand.publish" -> fx3_auditAct_brand_publish), if one exists. */
+function auditKey(prefix: "fx3_auditAct_" | "fx3_auditEnt_", raw: string): Key | null {
+  const key = `${prefix}${raw.replace(/[^a-z0-9]+/gi, "_")}`;
+  return Object.prototype.hasOwnProperty.call(ar, key) ? (key as Key) : null;
+}
+
+/**
+ * Audit details as labelled items in the page's language: known keys and
+ * values translated, numbers and identifiers isolated left to right, text in
+ * its own direction (the raw metadata stays in the CSV export).
+ */
+function AuditDetails({ metadata }: { metadata: unknown }) {
+  const items = auditDetailItems(metadata);
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
+  return <AuditItems items={items} />;
+}
+
+function AuditItems({ items }: { items: AuditItem[] }) {
+  const { t } = useI18n();
+  return (
+    <dl className="space-y-0.5 text-[11px]">
+      {items.map((it, i) => (
+        <div key={`${it.key}:${i}`} className="flex flex-wrap gap-x-1.5">
+          {it.key && <dt className="text-muted-foreground">{it.label ? t(it.label) : humanizeKey(it.key)}:</dt>}
+          <dd className="min-w-0 break-words text-ink-soft">
+            <AuditValueView value={it.value} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function AuditValueView({ value }: { value: AuditValue }) {
+  const { t } = useI18n();
+  switch (value.type) {
+    case "empty":
+      return <span>—</span>;
+    case "label":
+      return <span>{t(value.key)}</span>;
+    case "number":
+      return <Num value={value.value} kind={value.kind} />;
+    case "id":
+      return (
+        <bdi dir="ltr" className="font-mono" title={value.id}>
+          {value.id.slice(0, 8)}
+        </bdi>
+      );
+    case "ltr":
+      return <bdi dir="ltr" className="break-all">{value.text}</bdi>;
+    case "sector":
+      return <bdi dir="auto">{sectorLabel(value.sector, t)}</bdi>;
+    case "group":
+      return (
+        <div className="ms-2 border-s border-border/60 ps-2">
+          <AuditItems items={value.items} />
+        </div>
+      );
+    default:
+      return <bdi dir="auto">{value.text}</bdi>;
+  }
+}
+
+function AuditContent({
+  rows,
+  isLoading,
+  isError,
+  onRetry,
+  companyName,
+}: {
+  rows: AuditRow[];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  companyName: string;
+}) {
   const { t, lang } = useI18n();
   const [actionFilter, setActionFilter] = useState<string>("");
   const [entityFilter, setEntityFilter] = useState<string>("");
@@ -57,6 +168,24 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
 
   const actions = useMemo(() => Array.from(new Set(rows.map((r) => r.action))).sort(), [rows]);
   const entities = useMemo(() => Array.from(new Set(rows.map((r) => r.entity))).sort(), [rows]);
+  const actionLabel = useCallback((a: string) => {
+    const k = auditKey("fx3_auditAct_", a);
+    return k ? t(k) : a;
+  }, [t]);
+  const entityLabel = useCallback((e: string) => {
+    const k = auditKey("fx3_auditEnt_", e);
+    return k ? t(k) : e;
+  }, [t]);
+  const actorLabel = (r: AuditRow) =>
+    r.actor.kind === "member"
+      ? r.actor.email ?? t("fx3_auditActorOther")
+      : r.actor.kind === "admin"
+        ? t("fx3_auditActorAdmin")
+        : r.actor.kind === "reviewer"
+          ? t("fx3_auditActorReviewer")
+          : r.actor.kind === "system"
+            ? t("fx3_auditActorSystem")
+            : t("fx3_auditActorOther");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,12 +193,12 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
       if (actionFilter && r.action !== actionFilter) return false;
       if (entityFilter && r.entity !== entityFilter) return false;
       if (q) {
-        const hay = `${r.action} ${r.entity} ${r.entity_id ?? ""} ${r.actor_id} ${JSON.stringify(r.metadata)}`.toLowerCase();
+        const hay = `${r.action} ${actionLabel(r.action)} ${r.entity} ${entityLabel(r.entity)} ${r.entity_id ?? ""} ${r.actor.email ?? ""} ${JSON.stringify(r.metadata)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, actionFilter, entityFilter, search]);
+  }, [rows, actionFilter, entityFilter, search, actionLabel, entityLabel]);
 
   function exportCsv() {
     const header = ["created_at", "action", "entity", "entity_id", "actor_id", "company_id", "metadata"];
@@ -94,7 +223,7 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div>
       <PageHeader
         eyebrow={companyName}
         title={t("auditLog")}
@@ -112,28 +241,36 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("auditSearchPlaceholder")}
-          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+          aria-label={t("auditSearchPlaceholder")}
+          className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-ink outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
         />
         <select
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
-          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+          aria-label={t("auditFilterAction")}
+          className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-ink outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
         >
           <option value="">{t("auditFilterAction")} — {t("auditAll")}</option>
-          {actions.map((a) => (<option key={a} value={a}>{a}</option>))}
+          {actions.map((a) => (<option key={a} value={a}>{actionLabel(a)}</option>))}
         </select>
         <select
           value={entityFilter}
           onChange={(e) => setEntityFilter(e.target.value)}
-          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-ink outline-none focus:border-[var(--gold-deep)]"
+          aria-label={t("auditFilterEntity")}
+          className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-ink outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
         >
           <option value="">{t("auditFilterEntity")} — {t("auditAll")}</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
+          {entities.map((a) => (<option key={a} value={a}>{entityLabel(a)}</option>))}
         </select>
       </div>
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-        <table className="w-full text-start text-sm">
-          <thead className="bg-secondary/40 text-[11px] uppercase tracking-[0.14em] text-ink-soft">
+      {isError && (
+        <div className="mb-4">
+          <ErrorState reset={onRetry} />
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-card">
+        <table className="w-full min-w-[640px] text-start text-sm">
+          <thead className="bg-secondary/40 text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2 text-start">{t("auditWhen")}</th>
               <th className="px-4 py-2 text-start">{t("auditAction")}</th>
@@ -146,20 +283,20 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-xs text-ink-soft">
-                  {isLoading ? "…" : rows.length === 0 ? t("auditEmpty") : t("auditNoMatches")}
+                  {isLoading ? t("loading") : rows.length === 0 ? t("auditEmpty") : t("auditNoMatches")}
                 </td>
               </tr>
             ) : (
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border/40">
-                  <td className="px-4 py-2 text-xs text-ink-soft">
-                    {new Date(r.created_at).toLocaleString(lang === "ar" ? "ar" : "en")}
+                  <td className="whitespace-nowrap px-4 py-2.5 text-xs text-ink-soft">{formatDateTime(r.created_at, lang)}</td>
+                  <td className="px-4 py-2.5 text-xs font-medium text-ink">{actionLabel(r.action)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-soft">{entityLabel(r.entity)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-soft">
+                    <span dir={r.actor.kind === "member" && r.actor.email ? "ltr" : undefined} className="break-all">{actorLabel(r)}</span>
                   </td>
-                  <td className="px-4 py-2 font-medium text-ink">{r.action}</td>
-                  <td className="px-4 py-2 text-xs text-ink-soft">{r.entity}{r.entity_id ? ` · ${r.entity_id.slice(0, 8)}` : ""}</td>
-                  <td className="px-4 py-2 text-xs text-ink-soft">{r.actor_id.slice(0, 8)}</td>
-                  <td className="px-4 py-2 text-xs text-ink-soft">
-                    <code className="rounded bg-secondary/50 px-2 py-0.5 text-[10px]">{JSON.stringify(r.metadata)}</code>
+                  <td className="max-w-[360px] px-4 py-2.5 text-xs text-ink-soft">
+                    <AuditDetails metadata={r.metadata} />
                   </td>
                 </tr>
               ))
@@ -173,8 +310,10 @@ function AuditContent({ rows, isLoading, companyName }: { rows: AuditRow[]; isLo
 function AuditFallback({ kind }: { kind: "error" | "notFound" }) {
   const { t } = useI18n();
   return (
-    <div className="p-8 text-sm text-ink-soft">
-      {kind === "error" ? t("loadFailed") : t("notFoundTitle")}
-    </div>
+    <AppShell>
+      <div className="py-16">
+        {kind === "error" ? <ErrorState /> : <EmptyState title={t("notFoundTitle")} />}
+      </div>
+    </AppShell>
   );
 }

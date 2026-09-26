@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n";
+import { BrandMark } from "@/components/brand-mark";
 
 type State =
   | { kind: "loading" }
@@ -21,17 +23,18 @@ export const Route = createFileRoute("/unsubscribe")({
 });
 
 function UnsubscribePage() {
+  const { t, dir } = useI18n();
   const [state, setState] = useState<State>({ kind: "loading" });
   const [token, setToken] = useState<string>("");
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("token") ?? "";
-    setToken(t);
-    if (!t) {
+    const tok = new URLSearchParams(window.location.search).get("token") ?? "";
+    setToken(tok);
+    if (!tok) {
       setState({ kind: "invalid" });
       return;
     }
-    fetch(`/email/unsubscribe?token=${encodeURIComponent(t)}`)
+    fetch(`/email/unsubscribe?token=${encodeURIComponent(tok)}`)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
         if (!r.ok) return setState({ kind: "invalid" });
@@ -40,7 +43,7 @@ function UnsubscribePage() {
         if (body.valid) return setState({ kind: "valid" });
         setState({ kind: "invalid" });
       })
-      .catch(() => setState({ kind: "error", message: "تعذّر الاتصال بالخادم." }));
+      .catch(() => setState({ kind: "error", message: "network" }));
   }, []);
 
   async function confirm() {
@@ -54,65 +57,52 @@ function UnsubscribePage() {
       const body = await res.json().catch(() => ({}));
       if (body.success) return setState({ kind: "done" });
       if (body.reason === "already_unsubscribed") return setState({ kind: "already" });
-      setState({ kind: "error", message: body.error ?? "حدث خطأ." });
+      setState({ kind: "error", message: "failed" });
     } catch {
-      setState({ kind: "error", message: "تعذّر الاتصال بالخادم." });
+      setState({ kind: "error", message: "network" });
     }
   }
 
   return (
-    <div dir="rtl" className="mx-auto flex min-h-dvh max-w-lg items-center px-6 py-16">
-      <div className="w-full rounded-2xl border border-border/60 bg-card p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 h-px w-16 hairline-gold" />
-        <p className="text-[11px] uppercase tracking-[0.28em] text-[var(--gold-deep)]">Value · Unit</p>
-        <h1 className="mt-2 text-2xl font-semibold text-ink">إلغاء الاشتراك</h1>
-        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">Unsubscribe</p>
-        <div className="mt-6 text-sm leading-7 text-ink">
-          {state.kind === "loading" && <p>جارٍ التحقّق من الرابط…</p>}
-          {state.kind === "invalid" && (
-            <p className="text-[color:var(--burgundy)]">
-              الرابط غير صالح أو منتهي الصلاحية.
-              <br />
-              <span className="text-xs text-ink-soft">This link is invalid or has expired.</span>
-            </p>
-          )}
-          {state.kind === "already" && (
-            <p>
-              تم إلغاء اشتراكك من قبل. لن تصلك رسائل تسويقية أو تنبيهات بعد الآن.
-              <br />
-              <span className="text-xs text-ink-soft">You are already unsubscribed.</span>
-            </p>
-          )}
+    <div dir={dir} className="mx-auto flex min-h-dvh max-w-lg items-center px-4 py-16 sm:px-6">
+      <div className="w-full rounded-2xl border border-border/70 bg-card p-6 text-center shadow-card sm:p-8">
+        <div className="flex justify-center">
+          <BrandMark size={34} />
+        </div>
+        <div className="mx-auto my-5 h-px w-16 hairline-gold" />
+        <h1 className="text-2xl font-bold text-ink">{t("u_unsubTitle")}</h1>
+        <div className="mt-5 text-sm leading-7 text-ink" role="status" aria-live="polite" aria-atomic="true">
+          {state.kind === "loading" && <p>{t("u_unsubChecking")}</p>}
+          {state.kind === "invalid" && <p className="text-[color:var(--burgundy)]">{t("u_unsubInvalid")}</p>}
+          {state.kind === "already" && <p>{t("u_unsubAlready")}</p>}
           {state.kind === "valid" && (
             <>
-              <p>
-                هل تودّ إلغاء الاشتراك من بريد وحدة القيمة؟
-                <br />
-                <span className="text-xs text-ink-soft">
-                  Confirm to stop receiving emails from Value Unit.
-                </span>
-              </p>
+              <p>{t("u_unsubConfirmQ")}</p>
               <button
+                type="button"
                 onClick={confirm}
-                className="mt-6 inline-flex items-center rounded-md border border-[var(--gold-deep)] bg-ink px-6 py-2.5 text-xs font-semibold tracking-[0.08em] text-ivory transition hover:opacity-90"
+                className="mt-6 inline-flex min-h-11 items-center rounded-md gold-gradient px-6 text-sm font-semibold text-ink transition hover:brightness-105"
               >
-                تأكيد إلغاء الاشتراك · Confirm
+                {t("u_unsubConfirm")}
               </button>
             </>
           )}
-          {state.kind === "submitting" && <p>جارٍ التنفيذ…</p>}
-          {state.kind === "done" && (
-            <p>
-              تم إلغاء اشتراكك بنجاح.
-              <br />
-              <span className="text-xs text-ink-soft">You have been unsubscribed.</span>
+          {state.kind === "submitting" && <p>{t("u_unsubWorking")}</p>}
+          {state.kind === "done" && <p>{t("u_unsubDone")}</p>}
+          {state.kind === "error" && (
+            <p className="text-[color:var(--burgundy)]">
+              {state.message === "network" ? t("u_unsubNetwork") : t("u_unsubFailed")}
             </p>
           )}
-          {state.kind === "error" && (
-            <p className="text-[color:var(--burgundy)]">{state.message}</p>
-          )}
         </div>
-        <p className="mt-8 text-[10px] uppercase tracking-[0.24em] text-[var(--gold-deep)]">Value Unit</p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+          <Link to="/" className="inline-flex min-h-9 items-center text-[var(--gold-ink)] underline-offset-4 hover:underline">
+            {t("backHome")}
+          </Link>
+          <Link to="/legal/privacy" className="inline-flex min-h-9 items-center text-ink-soft underline-offset-4 hover:underline">
+            {t("legalPrivacy")}
+          </Link>
+        </div>
       </div>
     </div>
   );

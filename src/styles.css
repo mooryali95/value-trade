@@ -6,6 +6,10 @@
 @import "@fontsource/tajawal/500.css";
 @import "@fontsource/tajawal/700.css";
 @import "@fontsource/tajawal/900.css";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/700.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
 
@@ -66,9 +70,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Tajawal", system-ui, -apple-system, sans-serif;
-  --font-display: "Tajawal", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /*
+   * Body: IBM Plex Sans Arabic (Arabic + Latin, clear at small sizes).
+   * Display: Tajawal (brand headings). Figures: Plex with tabular numerals,
+   * so price and quantity columns align without a "terminal" monospace look;
+   * real code (ids, JSON, kbd) uses --font-code.
+   */
+  --font-sans: "IBM Plex Sans Arabic", "Tajawal", system-ui, -apple-system, sans-serif;
+  --font-display: "Tajawal", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Sans Arabic", "Tajawal", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, monospace;
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
   --color-gold-deep: var(--gold-deep);
@@ -203,18 +214,44 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "kern", "liga";
+    font-feature-settings: "kern", "liga";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  html[dir="rtl"] body {
-    font-family: "Tajawal", system-ui, sans-serif;
+  body {
+    line-height: 1.6;
   }
 
-  html[dir="ltr"] body {
-    font-family: "Tajawal", system-ui, sans-serif;
+  /* Headings use the display face; Arabic needs a little more leading. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+  html[dir="rtl"] h1,
+  html[dir="rtl"] h2 {
+    line-height: 1.35;
+  }
+
+  /* Figures: tabular numerals wherever the (former) mono face was used. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-code);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  select:not(:disabled) {
+    cursor: pointer;
   }
 
   .tabular {
@@ -436,4 +473,20 @@
     color: CanvasText;
     border: 1px solid CanvasText;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Arabic typography guards (unlayered on purpose: they must win over the
+ * tracking-* / text-[10px] utilities).
+ * - Arabic is a joined script: letter-spacing breaks the joins, so tracking
+ *   applies to Latin runs only (elements marked dir="ltr" or lang="en").
+ * - Arabic glyphs below 11px lose their dots and marks: floor tiny text.
+ * ------------------------------------------------------------------------ */
+html[dir="rtl"] [class*="tracking-"]:not([dir="ltr"]):not(:lang(en)),
+html[dir="rtl"] .text-label:not([dir="ltr"]) {
+  letter-spacing: 0;
+}
+html[dir="rtl"] .text-\[9px\],
+html[dir="rtl"] .text-\[10px\] {
+  font-size: 11px;
 }

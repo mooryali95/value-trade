@@ -1,13 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { computeRealized, summarize, type FilledOrder } from "./realized";
+import { computeRealizedFills, filterFills, summarize, type FilledOrder } from "./realized";
 
+/** Days are Asia/Riyadh calendar days (YYYY-MM-DD); empty means unbounded. */
+const DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const Input = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: DAY.optional(),
+  to: DAY.optional(),
   symbol: z.string().max(32).optional(),
 });
+
+function parseInput(input: unknown) {
+  const parsed = Input.safeParse(input ?? {});
+  if (!parsed.success) throw new Error("INVALID_INPUT");
+  return parsed.data;
+}
 
 /** PostgREST returns at most this many rows per request. */
 const TRADES_PAGE = 1000;
@@ -59,8 +67,9 @@ async function allMyFills(userId: string): Promise<MyFill[]> {
 
 /**
  * Realized results for the signed-in trader. The full fill history is always
- * replayed (cost basis depends on every earlier buy), then the resulting
- * trades are filtered to the requested window.
+ * replayed (cost basis depends on every earlier buy), then the sell fills are
+ * filtered to the requested Asia/Riyadh days and symbol and grouped into
+ * closed exits (one per sell order).
  *
  * Fills come from the executed trades (so partial fills, and market orders
  * whose unfilled remainder was cancelled, count exactly), primary unit
@@ -69,7 +78,7 @@ async function allMyFills(userId: string): Promise<MyFill[]> {
  */
 export const getRealizedPnl = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Input.parse(input ?? {}))
+  .inputValidator((input: unknown) => parseInput(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const [trades, { data: orders, error: ordersErr }, { data: issuances, error: issuancesErr }] = await Promise.all([
@@ -96,7 +105,9 @@ export const getRealizedPnl = createServerFn({ method: "GET" })
 
     const tradedOrderIds = new Set(trades.map((t) => t.order_id));
     const fills: FilledOrder[] = [
-      ...(orders ?? []).filter((o) => !tradedOrderIds.has(o.id)),
+      ...(orders ?? [])
+        .filter((o) => !tradedOrderIds.has(o.id))
+        .map((o) => ({ ...o, source: "order" as const, fill_id: o.id })),
       ...(issuances ?? []).map((i) => ({
         id: i.id,
         symbol: i.symbol,
@@ -106,6 +117,8 @@ export const getRealizedPnl = createServerFn({ method: "GET" })
         filled_price: i.price,
         filled_at: i.created_at,
         created_at: i.created_at,
+        source: "issuance" as const,
+        fill_id: i.id,
       })),
       ...trades.map((t) => ({
         id: t.order_id ?? t.id,
@@ -116,15 +129,15 @@ export const getRealizedPnl = createServerFn({ method: "GET" })
         filled_price: t.price,
         filled_at: t.created_at,
         created_at: t.created_at,
+        source: "trade" as const,
+        fill_id: t.id,
       })),
     ];
 
-    const all = computeRealized(fills);
-    const filtered = all.trades.filter((tr) => {
-      if (data.from && tr.at < data.from) return false;
-      if (data.to && tr.at > `${data.to}T23:59:59.999Z`) return false;
-      if (data.symbol && tr.symbol.toUpperCase() !== data.symbol.toUpperCase()) return false;
-      return true;
+    const sells = filterFills(computeRealizedFills(fills), {
+      from: data.from,
+      to: data.to,
+      symbol: data.symbol,
     });
-    return summarize(filtered);
+    return summarize(sells);
   });

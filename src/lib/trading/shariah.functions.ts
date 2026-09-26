@@ -3,15 +3,24 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeAudit } from "@/lib/audit/audit.server";
 
+/** Validation failures reach the browser as a stable code, not a zod dump. */
+function parseOr<T>(schema: z.ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) throw new Error("INVALID_INPUT");
+  return parsed.data;
+}
+
 const Input = z.object({
   symbol: z.string().min(1).max(32),
   status: z.enum(["halal", "non_halal", "reviewing"]),
   reason: z.string().max(600).optional(),
+  /** Required when the new ruling changes the status of the ruling in force. */
+  changeReason: z.string().max(600).optional(),
 });
 
 export const recordShariahDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => Input.parse(input))
+  .inputValidator((input: unknown) => parseOr(Input, input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: isReviewer } = await supabase.rpc("has_role", {
@@ -24,6 +33,35 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
     // normalized value is used for the audit row and the notification, whose
     // recipient lookups (positions, watchers, alerts) match it exactly.
     const symbol = data.symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9._-]{1,32}$/.test(symbol)) throw new Error("INSTRUMENT_NOT_FOUND");
+
+    // A ruling is recorded for an existing instrument only, listed or not
+    // (unlisted ones are ruled on before a platform admin lists them).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: brand, error: brandErr } = await supabaseAdmin
+      .from("brands")
+      .select("id")
+      .eq("symbol", symbol)
+      .maybeSingle();
+    if (brandErr) {
+      console.error("[shariah] instrument lookup failed", brandErr.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!brand) throw new Error("INSTRUMENT_NOT_FOUND");
+
+    // A new ruling that changes the status of the ruling in force needs a
+    // written change reason, as an edit does (the database enforces the same
+    // rule: trg_shariah_supersede_reason).
+    const changeReason = data.changeReason?.trim() || null;
+    const { data: current, error: currentErr } = await supabaseAdmin.rpc("current_shariah_status" as never, {
+      _symbol: symbol,
+    } as never);
+    if (currentErr) {
+      console.error("[shariah] ruling in force lookup failed", (currentErr as { code?: string }).code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    const inForce = typeof current === "string" ? current : null;
+    if (inForce && inForce !== data.status && !changeReason) throw new Error("RULING_CHANGE_REASON_REQUIRED");
 
     // reviewer_id / updated_by are stamped from the session by the database.
     // A non_halal ruling cancels every resting buy on the symbol in the same
@@ -34,16 +72,21 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
         symbol,
         status: data.status,
         reason: data.reason ?? null,
+        change_reason: changeReason,
       })
-      .select("*")
+      // Not "*": reviewer_id / updated_by are not readable by API users.
+      .select("id, symbol, status, reason, created_at, updated_at, effective_at")
       .single();
     if (error) {
+      if ((error.message ?? "").trim() === "RULING_CHANGE_REASON_REQUIRED") throw new Error("RULING_CHANGE_REASON_REQUIRED");
       console.error("[shariah] insert failed", error.code ?? "", error.message);
       throw new Error(error.code === "42501" ? "FORBIDDEN" : "INTERNAL_ERROR");
     }
     await writeAudit(supabase, {
       actorId: userId, action: "shariah.decision.create", entity: "shariah_decisions", entityId: row.id,
-      metadata: { symbol, status: data.status },
+      metadata: changeReason
+        ? { symbol, status: data.status, previousStatus: inForce, changeReason }
+        : { symbol, status: data.status },
     });
     try {
       const { notifyShariahDecision } = await import("./shariah-notify.server");
@@ -59,21 +102,37 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
     return row;
   });
 
-export const listShariahDecisions = createServerFn({ method: "GET" }).handler(async () => {
-  const { createClient } = await import("@supabase/supabase-js");
-  const client = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-  const { data } = await client
-    .from("shariah_decisions")
-    .select("id, symbol, status, reason, created_at, updated_at, effective_at")
-    // Most recent change first: the first row per symbol is the ruling in force.
-    .order("effective_at", { ascending: false })
-    .limit(100);
-  return data ?? [];
-});
+/**
+ * Every recorded ruling, newest change first (at most 100), for the Shariah
+ * review console: Shariah board members and platform admins only (the
+ * database shows other users the rulings of listed instruments only; the
+ * public pages use getPublicShariahRulings).
+ */
+export const listShariahDecisions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const [board, admin] = await Promise.all([
+      supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" }),
+      supabase.rpc("has_role", { _user_id: userId, _role: "platform_admin" }),
+    ]);
+    if (board.error || admin.error) {
+      console.error("[shariah] has_role failed", board.error?.code ?? admin.error?.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!board.data && !admin.data) throw new Error("FORBIDDEN");
+    const { data, error } = await supabase
+      .from("shariah_decisions")
+      .select("id, symbol, status, reason, created_at, updated_at, effective_at")
+      // Most recent change first: the first row per symbol is the ruling in force.
+      .order("effective_at", { ascending: false })
+      .limit(100);
+    if (error) {
+      console.error("[shariah] list failed", error.code || "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    return data ?? [];
+  });
 
 const UpdateInput = z.object({
   id: z.string().uuid(),
@@ -83,41 +142,36 @@ const UpdateInput = z.object({
 });
 export const updateShariahDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => UpdateInput.parse(input))
+  .inputValidator((input: unknown) => parseOr(UpdateInput, input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: isReviewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" });
     if (!isReviewer) throw new Error("FORBIDDEN");
 
-    const { data: updated, error } = await supabase.from("shariah_decisions").update({
-      status: data.status,
-      reason: data.reason ?? null,
-    }).eq("id", data.id).select("id, symbol");
-    if (error) {
-      console.error("[shariah] update failed", error.code ?? "", error.message);
-      throw new Error(error.code === "42501" ? "FORBIDDEN" : "INTERNAL_ERROR");
-    }
-    if (!updated || updated.length === 0) throw new Error("DECISION_NOT_FOUND");
-
-    // Attach change_reason to the audit row this update just wrote (the
-    // trigger records changed_by = the session user). The audit table is
-    // not user-writable, so this goes through the service role.
+    // update_shariah_decision re-checks the role, takes the engine's symbol
+    // lock (a non_halal ruling cancels resting buys) and records the change
+    // with its reason in shariah_decision_audit, in one transaction. API
+    // users cannot UPDATE shariah_decisions directly.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: latest } = await supabaseAdmin
-      .from("shariah_decision_audit")
-      .select("id")
-      .eq("decision_id", data.id)
-      .eq("changed_by", userId)
-      .order("changed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latest?.id) {
-      const { error: reasonErr } = await supabaseAdmin
-        .from("shariah_decision_audit")
-        .update({ change_reason: data.changeReason })
-        .eq("id", latest.id);
-      if (reasonErr) console.error("[shariah] change_reason update failed", reasonErr.code ?? "", reasonErr.message);
+    const { data: rows, error } = await supabaseAdmin.rpc("update_shariah_decision" as never, {
+      _decision_id: data.id,
+      _actor_id: userId,
+      _status: data.status,
+      _reason: data.reason ?? null,
+      _change_reason: data.changeReason,
+    } as never);
+    if (error) {
+      const err = error as { message?: string; code?: string };
+      const code = (err.message ?? "").trim();
+      if (["FORBIDDEN", "DECISION_NOT_FOUND", "RULING_CHANGE_REASON_REQUIRED", "INVALID_INPUT"].includes(code)) {
+        throw new Error(code);
+      }
+      console.error("[shariah] update_shariah_decision failed", err.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
     }
+    const updated = (Array.isArray(rows) ? rows : rows ? [rows] : []) as Array<{ decision_id: string; symbol: string }>;
+    if (updated.length === 0) throw new Error("DECISION_NOT_FOUND");
+
     await writeAudit(supabase, {
       actorId: userId, action: "shariah.decision.update", entity: "shariah_decisions", entityId: data.id,
       metadata: { status: data.status, changeReason: data.changeReason },
@@ -125,7 +179,9 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
     try {
       const { notifyShariahDecision } = await import("./shariah-notify.server");
       await notifyShariahDecision({
-        decisionId: data.id,
+        // Each change of a ruling is its own notification (the idempotency
+        // key must differ from the one of the ruling's creation).
+        decisionId: `${data.id}:change:${Date.now()}`,
         symbol: updated[0]?.symbol ?? "",
         status: data.status,
         reason: data.reason ?? null,
@@ -138,7 +194,7 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
 
 export const listDecisionAudit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ decisionId: z.string().uuid() }).parse(input))
+  .inputValidator((input: unknown) => parseOr(z.object({ decisionId: z.string().uuid() }), input))
   .handler(async ({ data, context }) => {
     const { data: rows } = await context.supabase
       .from("shariah_decision_audit")
@@ -146,4 +202,58 @@ export const listDecisionAudit = createServerFn({ method: "GET" })
       .eq("decision_id", data.decisionId)
       .order("changed_at", { ascending: false });
     return rows ?? [];
+  });
+export type ReviewInstrument = {
+  symbol: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  sector: string | null;
+  assetClass: string;
+  published: boolean;
+  hasCompany: boolean;
+  /** Status of the product submission that created it, if any. */
+  submissionStatus: string | null;
+  shariahStatus: "halal" | "non_halal" | "reviewing" | null;
+  rulingEffectiveAt: string | null;
+};
+
+/**
+ * Every instrument a Shariah reviewer can rule on, listed or not, with the
+ * ruling in force (reviewer_instruments re-checks the role in SQL). Shariah
+ * board members and platform admins only.
+ */
+export const listReviewInstruments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ReviewInstrument[]> => {
+    const { supabase, userId } = context;
+    const [board, admin] = await Promise.all([
+      supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" }),
+      supabase.rpc("has_role", { _user_id: userId, _role: "platform_admin" }),
+    ]);
+    if (board.error || admin.error) {
+      console.error("[shariah] has_role failed", board.error?.code ?? admin.error?.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    if (!board.data && !admin.data) throw new Error("FORBIDDEN");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.rpc("reviewer_instruments" as never, { _actor_id: userId } as never);
+    if (error) {
+      console.error("[shariah] reviewer_instruments failed", (error as { code?: string }).code ?? "unknown");
+      throw new Error((error as { message?: string }).message === "FORBIDDEN" ? "FORBIDDEN" : "INTERNAL_ERROR");
+    }
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      symbol: String(r.symbol),
+      slug: String(r.slug),
+      nameAr: String(r.name_ar),
+      nameEn: String(r.name_en),
+      sector: (r.sector as string | null) ?? null,
+      assetClass: String(r.asset_class),
+      published: r.published === true,
+      hasCompany: r.has_company === true,
+      submissionStatus: (r.submission_status as string | null) ?? null,
+      shariahStatus: (r.shariah_status as ReviewInstrument["shariahStatus"]) ?? null,
+      rulingEffectiveAt: (r.ruling_effective_at as string | null) ?? null,
+    }));
   });

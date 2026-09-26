@@ -12,11 +12,15 @@ import { useErrorMessage } from "@/hooks/use-error-message";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
+import { Badge } from "@/components/badge";
+import { COMPANY_ROLES, INVITABLE_ROLES, companyRoleHintKey, companyRoleKey } from "@/lib/tenants/role-labels";
+import { formatDay } from "@/lib/account/dates";
+import { BRAND_CAP, companyBrandRows } from "@/lib/tenants/company-brands";
+import { Num } from "@/components/num";
 import {
   listMyCompanies,
   createCompany,
   getCompanyDetails,
-  addCompanyMember,
   removeCompanyMember,
   updateCompanyMemberRole,
   addCompanyBrand,
@@ -34,8 +38,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/company/settings")({
   head: () => ({
     meta: [
-      { title: "إعدادات الشركة — وحدة القيمة" },
-      { name: "description", content: "أدر أعضاء شركتك وبرانداتها وطروحاتها." },
+      { title: "إعدادات الشركة — وحدة القيمة | Company settings — Value Unit" },
+      { name: "description", content: "أدر أعضاء شركتك وعلاماتها التجارية ودعواتها. · Manage your company's members, brands and invitations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -53,13 +57,16 @@ export const Route = createFileRoute("/_authenticated/company/settings")({
 
 function CompanySettings() {
   const { t, lang } = useI18n();
+  const roleLabel = (r: string) => {
+    const k = companyRoleKey(r);
+    return k ? t(k) : r;
+  };
   const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const listFn = useServerFn(listMyCompanies);
   const createFn = useServerFn(createCompany);
   const detailsFn = useServerFn(getCompanyDetails);
-  const addMemberFn = useServerFn(addCompanyMember);
   const removeMemberFn = useServerFn(removeCompanyMember);
   const updateMemberRoleFn = useServerFn(updateCompanyMemberRole);
   const addBrandFn = useServerFn(addCompanyBrand);
@@ -85,9 +92,10 @@ function CompanySettings() {
     queryFn: () => detailsFn({ data: { companyId: activeId! } }),
     enabled: !!activeId,
   });
+  // Roster and owned instruments, as the workspace and the brand cap count them.
+  const brandRows = companyBrandRows(details.data?.brands ?? [], details.data?.instruments ?? []);
 
   const [newCo, setNewCo] = useState({ slug: "", name_ar: "", name_en: "" });
-  const [newMember, setNewMember] = useState({ userId: "", role: "viewer" as const });
   const [newBrand, setNewBrand] = useState("");
   const [newInvite, setNewInvite] = useState({
     email: "",
@@ -111,8 +119,9 @@ function CompanySettings() {
           origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       }),
-    onSuccess: (row: { notification?: { sent: boolean; reason?: string } }) => {
-      toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured"));
+    onSuccess: (res) => {
+      if (res.notification.sent) toast.success(t("inviteEmailSent"));
+      else toast.warning(t("inviteEmailNotConfigured"));
       invalidateInvites();
       setNewInvite({ email: "", role: "viewer" });
     },
@@ -140,15 +149,12 @@ function CompanySettings() {
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const resendMut = useMutation({
-    mutationFn: (invitationId: string) =>
-      resendInviteFn({
-        data: {
-          invitationId,
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-      }),
-    onSuccess: (row: { notification?: { sent: boolean } }) =>
-      toast.success(row?.notification?.sent ? t("inviteEmailSent") : t("inviteEmailNotConfigured")),
+    mutationFn: (v: { invitationId: string; reissue: boolean }) => resendInviteFn({ data: v }),
+    onSuccess: (res) => {
+      if (res.notification.sent) toast.success(res.reissued ? t("r_inviteReissued") : t("r_inviteResent"));
+      else toast.warning(t("r_inviteEmailFailed"));
+      invalidateInvites();
+    },
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
@@ -164,18 +170,6 @@ function CompanySettings() {
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
   const invalidateDetails = () => qc.invalidateQueries({ queryKey: ["company-details", activeId] });
-  const memberMut = useMutation({
-    mutationFn: (v: {
-      userId: string;
-      role: "owner" | "finance" | "shariah" | "trader" | "viewer";
-    }) => addMemberFn({ data: { companyId: activeId!, userId: v.userId, role: v.role } }),
-    onSuccess: () => {
-      toast.success(t("memberAdded"));
-      invalidateDetails();
-      setNewMember({ userId: "", role: "viewer" });
-    },
-    onError: (e: unknown) => toast.error(errorMessage(e)),
-  });
   const removeMemberMut = useMutation({
     mutationFn: (memberId: string) => removeMemberFn({ data: { memberId } }),
     onSuccess: () => {
@@ -256,7 +250,7 @@ function CompanySettings() {
                           {lang === "ar" ? m.company.name_ar : m.company.name_en}
                         </span>
                         <span className="text-[10px] uppercase text-muted-foreground">
-                          {t(`${m.role}Role` as never)}
+                          {roleLabel(m.role)}
                         </span>
                       </button>
                     </li>
@@ -307,7 +301,8 @@ function CompanySettings() {
                 <p className="mb-3 text-xs text-muted-foreground">{t("wantNewCompanyDesc")}</p>
                 <Link
                   to="/request-access"
-                  className="inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
+                  search={{ kind: "new" }}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
                 >
                   {t("requestAccess")}
                 </Link>
@@ -330,14 +325,15 @@ function CompanySettings() {
                     <div className="text-lg font-semibold text-ink">
                       {lang === "ar" ? details.data.company.name_ar : details.data.company.name_en}
                     </div>
-                    <div className="text-[11px] uppercase text-muted-foreground">
-                      {details.data.company.slug} · {details.data.company.plan}
+                    {/* The company's address on the platform; plan tiers are not offered yet. */}
+                    <div className="font-mono text-[11px] text-muted-foreground" dir="ltr">
+                      {details.data.company.slug}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {myRole && (
                       <span className="rounded-full border border-[var(--gold-deep)]/40 bg-[var(--gold-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--gold-deep)]">
-                        {t("yourRoleHere")}: {t(`${myRole}Role` as never)}
+                        {t("yourRoleHere")}: {roleLabel(myRole)}
                       </span>
                     )}
                     {canManageBrands && (
@@ -379,34 +375,9 @@ function CompanySettings() {
                     )}
                   </div>
                   {canManageMembers && (
-                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
-                      <input
-                        value={newMember.userId}
-                        onChange={(e) => setNewMember({ ...newMember, userId: e.target.value })}
-                        placeholder={t("memberUserId")}
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-                      />
-                      <select
-                        value={newMember.role}
-                        onChange={(e) =>
-                          setNewMember({ ...newMember, role: e.target.value as never })
-                        }
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                      >
-                        {(["owner", "finance", "shariah", "trader", "viewer"] as const).map((r) => (
-                          <option key={r} value={r}>
-                            {t(`${r}Role` as never)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        disabled={memberMut.isPending || !newMember.userId}
-                        onClick={() => memberMut.mutate(newMember)}
-                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                      >
-                        {t("addMember")}
-                      </button>
-                    </div>
+                    <p className="border-b border-border/40 px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                      {t("r_membersJoinByInvite")}
+                    </p>
                   )}
                   <ul>
                     {details.data.members.map((m) => (
@@ -414,7 +385,9 @@ function CompanySettings() {
                         key={m.id}
                         className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
                       >
-                        <span className="truncate font-mono text-ink-soft">{m.user_id}</span>
+                        <span className="min-w-0 truncate text-ink-soft" dir="ltr" title={m.user_id}>
+                          {m.email ?? <span className="font-mono">{m.user_id}</span>}
+                        </span>
                         {canManageMembers ? (
                           <select
                             aria-label={t("memberRole")}
@@ -428,17 +401,17 @@ function CompanySettings() {
                             }
                             className="rounded-md border border-border bg-background px-2 py-0.5 text-[10px] uppercase"
                           >
-                            {(["owner", "finance", "shariah", "trader", "viewer"] as const).map(
+                            {COMPANY_ROLES.map(
                               (r) => (
                                 <option key={r} value={r}>
-                                  {t(`${r}Role` as never)}
+                                  {roleLabel(r)}
                                 </option>
                               ),
                             )}
                           </select>
                         ) : (
                           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase">
-                            {t(`${m.role}Role` as never)}
+                            {roleLabel(m.role)}
                           </span>
                         )}
                         {canManageMembers ? (
@@ -470,7 +443,9 @@ function CompanySettings() {
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("companyBrands")}</h2>
                     <span className="text-[10px] uppercase text-muted-foreground">
-                      {details.data.brands.length}/30 · {t("brandCap")}
+                      {/* Counted as the database counts them against the cap (roster
+                          and owned instruments), the same list as the workspace. */}
+                      <Num value={brandRows.length} kind="qty" />/<Num value={BRAND_CAP} kind="qty" /> · {t("brandCap")}
                       {!canManageBrands && <> · {t("permBrandsOwnerFinance")}</>}
                     </span>
                   </div>
@@ -484,7 +459,9 @@ function CompanySettings() {
                       />
                       <button
                         disabled={
-                          brandMut.isPending || !newBrand || details.data.brands.length >= 30
+                          brandMut.isPending ||
+                          !newBrand ||
+                          (brandRows.length >= BRAND_CAP && !brandRows.some((r) => r.owned && r.symbol === newBrand.trim()))
                         }
                         onClick={() => brandMut.mutate(newBrand)}
                         className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
@@ -494,26 +471,26 @@ function CompanySettings() {
                     </div>
                   )}
                   <ul>
-                    {details.data.brands.map((b) => (
+                    {brandRows.map((b) => (
                       <li
-                        key={b.id}
+                        key={b.id ?? `owned:${b.symbol}`}
                         className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
                       >
-                        <span className="font-mono font-semibold text-ink">{b.brand_symbol}</span>
+                        <span className="font-mono font-semibold text-ink" dir="ltr" style={{ textAlign: "start" }}>{b.symbol}</span>
                         <span className="text-muted-foreground">
-                          {new Date(b.added_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}
+                          {b.owned ? t("fl_ownedInstrument") : formatDay(b.addedAt, lang)}
                         </span>
-                        {canManageBrands ? (
+                        {canManageBrands && b.removable && b.id ? (
                           <button
                             onClick={async () => {
                               const ok = await confirm({
                                 title: t("confirmRemoveBrandTitle"),
-                                description: `${t("confirmRemoveBrandDesc")} · ${b.brand_symbol}`,
+                                description: `${t("confirmRemoveBrandDesc")} · ${b.symbol}`,
                                 confirmLabel: t("removeMember"),
                                 cancelLabel: t("cancel"),
                                 tone: "danger",
                               });
-                              if (ok) removeBrandMut.mutate(b.id);
+                              if (ok && b.id) removeBrandMut.mutate(b.id);
                             }}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
                           >
@@ -538,108 +515,148 @@ function CompanySettings() {
                     )}
                   </div>
                   {canManageInvites && (
-                    <div className="grid gap-2 border-b border-border/40 p-4 sm:grid-cols-[1fr_140px_auto]">
-                      <input
-                        type="email"
-                        value={newInvite.email}
-                        onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
-                        placeholder={t("inviteEmail")}
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-                      />
-                      <select
-                        value={newInvite.role}
-                        onChange={(e) =>
-                          setNewInvite({ ...newInvite, role: e.target.value as never })
-                        }
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                      >
-                        {(["finance", "shariah", "trader", "viewer"] as const).map((r) => (
-                          <option key={r} value={r}>
-                            {t(`${r}Role` as never)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        disabled={
-                          inviteMut.isPending || !newInvite.email || newInvite.role === "owner"
-                        }
-                        onClick={() =>
-                          inviteMut.mutate({
-                            email: newInvite.email,
-                            role: newInvite.role as "finance" | "shariah" | "trader" | "viewer",
-                          })
-                        }
-                        className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
-                      >
-                        {t("inviteMember")}
-                      </button>
-                    </div>
+                    <form
+                      className="border-b border-border/40 p-4"
+                      noValidate
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!newInvite.email.trim() || newInvite.role === "owner" || inviteMut.isPending) return;
+                        inviteMut.mutate({
+                          email: newInvite.email.trim(),
+                          role: newInvite.role as "finance" | "shariah" | "trader" | "viewer",
+                        });
+                      }}
+                    >
+                      <div className="grid gap-2 sm:grid-cols-[1fr_170px_auto]">
+                        <input
+                          type="email"
+                          dir="ltr"
+                          value={newInvite.email}
+                          maxLength={320}
+                          onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
+                          placeholder={t("inviteEmail")}
+                          aria-label={t("inviteEmail")}
+                          className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                        />
+                        <select
+                          value={newInvite.role}
+                          aria-label={t("r_arRoleLabel")}
+                          onChange={(e) =>
+                            setNewInvite({ ...newInvite, role: e.target.value as never })
+                          }
+                          className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                        >
+                          {INVITABLE_ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {roleLabel(r)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          disabled={
+                            inviteMut.isPending || !newInvite.email.trim() || newInvite.role === "owner"
+                          }
+                          className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+                        >
+                          {t("inviteMember")}
+                        </button>
+                      </div>
+                      {companyRoleHintKey(newInvite.role) && (
+                        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                          {t(companyRoleHintKey(newInvite.role)!)}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("r_roleTradingNote")}</p>
+                    </form>
                   )}
                   <ul>
                     {(invitesQ.data ?? [])
-                      .filter((i) => i.status === "pending")
+                      .filter((i) => i.status === "pending" || i.status === "expired")
                       .map((inv) => {
-                        const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invitations?token=${inv.token}`;
+                        const expired = inv.status === "expired";
                         return (
                           <li
                             key={inv.id}
-                            className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
+                            className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-4 py-2.5 text-xs last:border-b-0"
                           >
                             <div className="min-w-0">
-                              <div className="truncate text-ink">{inv.email}</div>
-                              <div className="text-[10px] uppercase text-muted-foreground">
-                                {t(`${inv.role}Role` as never)} · {t("inviteExpires")}{" "}
-                                {new Date(inv.expires_at).toLocaleDateString(
-                                  lang === "ar" ? "ar" : "en-US",
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="truncate text-ink" dir="ltr">{inv.email}</span>
+                                <Badge variant={expired ? "bear" : "gold"}>
+                                  {expired ? t("r_statusExpired") : t("r_statusAwaitingAcceptance")}
+                                </Badge>
+                              </div>
+                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                {roleLabel(inv.role)} ·{" "}
+                                {(expired ? t("r_inviteExpiredOn") : t("r_inviteValidUntil")).replace(
+                                  "{date}",
+                                  formatDay(inv.expiresAt, lang),
                                 )}
                               </div>
                             </div>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard?.writeText(link);
-                                toast.success(t("inviteLinkCopied"));
-                              }}
-                              className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
-                            >
-                              {t("inviteCopyLink")}
-                            </button>
                             {canManageInvites && (
-                              <button
-                                disabled={resendMut.isPending}
-                                onClick={() => resendMut.mutate(inv.id)}
-                                className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
-                              >
-                                {t("inviteResendEmail")}
-                              </button>
+                              <div className="flex flex-wrap gap-1.5">
+                                {inv.inviteUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard
+                                        ?.writeText(inv.inviteUrl!)
+                                        .then(() => toast.success(t("inviteLinkCopied")))
+                                        .catch(() => undefined);
+                                    }}
+                                    className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
+                                  >
+                                    {t("inviteCopyLink")}
+                                  </button>
+                                )}
+                                {!expired && (
+                                  <button
+                                    type="button"
+                                    disabled={resendMut.isPending}
+                                    onClick={() => resendMut.mutate({ invitationId: inv.id, reissue: false })}
+                                    className="rounded border border-border px-2 py-0.5 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                                  >
+                                    {t("inviteResendEmail")}
+                                  </button>
+                                )}
+                                {expired && (
+                                  <button
+                                    type="button"
+                                    disabled={resendMut.isPending}
+                                    onClick={() => resendMut.mutate({ invitationId: inv.id, reissue: true })}
+                                    className="rounded border border-[var(--gold-deep)]/40 px-2 py-0.5 text-[10px] font-semibold text-[var(--gold-deep)] disabled:opacity-50"
+                                  >
+                                    {t("r_inviteReissue")}
+                                  </button>
+                                )}
+                                {!expired && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const ok = await confirm({
+                                        title: t("confirmRevokeInviteTitle"),
+                                        description: `${t("confirmRevokeInviteDesc")} · ${inv.email}`,
+                                        confirmLabel: t("revoke"),
+                                        cancelLabel: t("cancel"),
+                                        tone: "danger",
+                                      });
+                                      if (ok) revokeInviteMut.mutate(inv.id);
+                                    }}
+                                    className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
+                                  >
+                                    {t("revoke")}
+                                  </button>
+                                )}
+                              </div>
                             )}
-                            {canManageInvites && (
-                              <button
-                                onClick={async () => {
-                                  const ok = await confirm({
-                                    title: t("confirmRevokeInviteTitle"),
-                                    description: `${t("confirmRevokeInviteDesc")} · ${inv.email}`,
-                                    confirmLabel: t("revoke"),
-                                    cancelLabel: t("cancel"),
-                                    tone: "danger",
-                                  });
-                                  if (ok) revokeInviteMut.mutate(inv.id);
-                                }}
-                                className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
-                              >
-                                {t("revoke")}
-                              </button>
-                            )}
-                            <span className="text-[10px] text-muted-foreground">
-                              {new Date(inv.created_at).toLocaleDateString(
-                                lang === "ar" ? "ar" : "en-US",
-                              )}
-                            </span>
                           </li>
                         );
                       })}
-                    {(invitesQ.data ?? []).filter((i) => i.status === "pending").length === 0 && (
+                    {(invitesQ.data ?? []).filter((i) => i.status === "pending" || i.status === "expired").length === 0 && (
                       <li className="px-4 py-3 text-xs text-muted-foreground">
-                        {t("noIncomingInvitations")}
+                        {t("r_noOutgoingInvitations")}
                       </li>
                     )}
                   </ul>

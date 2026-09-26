@@ -16,7 +16,7 @@ interface Props {
 const OpsAlertEmail = ({
   job = 'smoke',
   severity = 'fail',
-  headline = 'فشل متكرر في اختبار الدخان',
+  headline = 'فشل متكرر في الفحص السريع بعد النشر',
   detail = '—',
   metricLabel = 'التفاصيل',
   metricValue = '—',
@@ -55,7 +55,7 @@ export const template: TemplateEntry = {
   previewData: {
     job: 'smoke',
     severity: 'fail',
-    headline: 'فشل متكرر في اختبار الدخان',
+    headline: 'فشل متكرر في الفحص السريع بعد النشر',
     detail: '2 فشل متتاليان',
     metricLabel: 'الفشل المتتالي',
     metricValue: '2',

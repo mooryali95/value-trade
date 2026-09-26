@@ -16,13 +16,18 @@ ones that fired, and enqueues a `price-alert` email to each alert owner
 list).
 
 **Price source** — for each symbol with an active alert: the latest trade price
-in `public.trades` (by `created_at`), else `public.brands.reference_price`.
-Symbols with neither are skipped for that run (their alerts stay active).
+in `public.trades` (by `created_at`), for instruments listed on the market
+(`brands.published`) only. A reference price is not a traded price and never
+fires an alert; symbols without a trade, or not listed, are skipped for that
+run (their alerts stay active). Active alerts are read page by page, so no
+API row limit truncates the scan.
 
 **Auth** — either:
 
-- HMAC-SHA256 over the raw request body using `CRON_ALERTS_SECRET`,
-  hex-encoded, in the `x-signature` header (external schedulers and the
+- `x-timestamp: <Unix time in seconds>` and `x-signature: <hex
+  HMAC-SHA256 of "<x-timestamp>.<raw body>" with CRON_ALERTS_SECRET>`. The
+  request is refused more than 300 s before or after its timestamp, so a
+  captured request cannot be replayed later (external schedulers and the
   admin smoke suite), or
 - `Authorization: Bearer <service-role key>` (the in-database pg_cron job,
   which reads the key from Vault).
@@ -37,7 +42,8 @@ itself errors, the request gets `429`.
 
 ```
 POST /api/public/cron-alerts
-x-signature: <hex hmac of body>
+x-timestamp: <unix seconds>
+x-signature: <hex hmac of "<x-timestamp>.<body>">
 content-type: application/json
 
 {}
@@ -63,7 +69,10 @@ alert is only notified by the run that flips it from `active = true` to
 select cron.schedule('scan-price-alerts', '* * * * *', $$
   select net.http_post(
     url := 'https://project--25e304b6-2628-4d2b-8228-c4b3a042ef30.lovable.app/api/public/cron-alerts',
-    headers := jsonb_build_object('content-type','application/json','x-signature', <hmac>),
+    -- The service-role key read from Vault (an HMAC signature would have to
+    -- be computed per call, with the current x-timestamp).
+    headers := jsonb_build_object('content-type','application/json',
+                                  'authorization', 'Bearer ' || <service-role key from vault>),
     body := '{}'::jsonb
   );
 $$);

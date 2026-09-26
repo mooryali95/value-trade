@@ -36,8 +36,36 @@ const AdjustInput = z.object({
   note: z.string().max(280).optional(),
 });
 
-/** Codes post_cash_movement raises that are safe to show to the admin. */
-const CASH_ERROR_CODES = new Set(["INSUFFICIENT_CASH", "INVALID_AMOUNT", "INVALID_KIND", "PORTFOLIO_UNAVAILABLE"]);
+/**
+ * The amount is a positive number of whole cents; the direction comes from
+ * the kind (a withdrawal is posted negative). Malformed input is a stable
+ * code, never a validation dump.
+ */
+export function parseAdjustInput(input: unknown): z.infer<typeof AdjustInput> {
+  const parsed = AdjustInput.safeParse(input);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    if (field === "amount") throw new Error("INVALID_AMOUNT");
+    if (field === "userId") throw new Error("USER_NOT_FOUND");
+    throw new Error("INVALID_INPUT");
+  }
+  const cents = Math.round(parsed.data.amount * 100);
+  if (!Number.isSafeInteger(cents) || cents / 100 !== parsed.data.amount) throw new Error("INVALID_AMOUNT");
+  return parsed.data;
+}
+
+/**
+ * Codes post_cash_movement raises that are safe to show to the admin.
+ * CASH_RESERVED: the withdrawal would take the balance below what the
+ * investor's resting buy orders reserve (cancel those orders first).
+ */
+const CASH_ERROR_CODES = new Set([
+  "INSUFFICIENT_CASH",
+  "CASH_RESERVED",
+  "INVALID_AMOUNT",
+  "INVALID_KIND",
+  "PORTFOLIO_UNAVAILABLE",
+]);
 
 /**
  * Deposits/withdrawals are a platform-admin operation, never self-service.
@@ -45,7 +73,7 @@ const CASH_ERROR_CODES = new Set(["INSUFFICIENT_CASH", "INVALID_AMOUNT", "INVALI
  */
 export const adjustCash = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => AdjustInput.parse(input))
+  .inputValidator((input: unknown) => parseAdjustInput(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: isAdmin } = await supabase.rpc("has_role", {

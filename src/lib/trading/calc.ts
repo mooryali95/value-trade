@@ -1,5 +1,15 @@
 // Trading calculation helpers — pure functions, no side effects.
 import { z } from "zod";
+import {
+  centsToNumber,
+  mulCents,
+  prorataCents,
+  qty4ToNumber,
+  roundDivHalfAway,
+  toCents,
+  toQty4,
+  toScaled,
+} from "./money";
 
 export type Side = "buy" | "sell";
 
@@ -134,36 +144,127 @@ export function toEngineResult(rows: unknown): EngineResult | null {
 
 export type PositionInput = {
   qty: number;
+  /** Exact cost of the units held (positions.cost_basis), to the cent. */
+  costBasis: number;
+};
+
+export type PositionState = PositionInput & {
+  /** costBasis / qty to 4 decimals (positions.avg_price), for display. */
   avgPrice: number;
 };
 
 /**
- * Apply a fill to an existing position and return the next position.
- * Buy: weighted-average avg_price. Sell: qty decreases, avg_price stays.
- * Selling more than held is clamped to 0 by the caller-side validation.
+ * Applies a fill to a position exactly as public.apply_trade_position does:
+ * a buy adds round(qty * price, 2) to the cost basis (the ledger debit); a
+ * sell removes round(costBasis * sold / held, 2), or all of it when the
+ * position is closed. Selling more than held closes the position (the
+ * engine refuses such an order before it gets here).
  */
-export function applyFill(pos: PositionInput, side: Side, qty: number, price: number): PositionInput {
-  if (qty <= 0) return pos;
-  if (side === "buy") {
-    const total = pos.qty + qty;
-    const avg = total === 0 ? 0 : (pos.qty * pos.avgPrice + qty * price) / total;
-    return { qty: total, avgPrice: round(avg, 4) };
+export function applyFill(pos: PositionInput, side: Side, qty: number, price: number): PositionState {
+  const avg = (q: bigint, c: bigint) => (q > 0n ? Number(roundDivHalfAway(c * 1_000_000n, q)) / 10000 : 0);
+  const heldQ = toQty4(pos.qty) ?? 0n;
+  const heldC = toCents(pos.costBasis) ?? 0n;
+  const fillQ = toQty4(qty) ?? 0n;
+  if (!(fillQ > 0n) || !(price > 0)) {
+    return { qty: pos.qty, costBasis: pos.costBasis, avgPrice: avg(heldQ, heldC) };
   }
-  const nextQty = Math.max(0, pos.qty - qty);
-  return { qty: nextQty, avgPrice: nextQty === 0 ? 0 : pos.avgPrice };
+  if (side === "buy") {
+    const q = heldQ + fillQ;
+    const c = heldC + mulCents(qty, price);
+    return { qty: qty4ToNumber(q), costBasis: centsToNumber(c), avgPrice: avg(q, c) };
+  }
+  if (fillQ >= heldQ) return { qty: 0, costBasis: 0, avgPrice: 0 };
+  const c = heldC - prorataCents(heldC, fillQ, heldQ);
+  const q = heldQ - fillQ;
+  return { qty: qty4ToNumber(q), costBasis: centsToNumber(c), avgPrice: avg(q, c) };
 }
 
+/** Market value round(qty * price, 2), computed exactly. */
 export function positionValue(qty: number, lastPrice: number): number {
-  return round(qty * lastPrice, 2);
+  return centsToNumber(mulCents(qty, lastPrice));
 }
 
+/** round(qty * (last - avg), 2), computed exactly. Prefer unrealizedFromCost with the exact cost basis. */
 export function unrealizedPnl(qty: number, avgPrice: number, lastPrice: number): number {
-  return round(qty * (lastPrice - avgPrice), 2);
+  const q = toQty4(qty);
+  const a = toScaled(avgPrice, 4);
+  const l = toScaled(lastPrice, 4);
+  if (q == null || a == null || l == null) return 0;
+  return centsToNumber(roundDivHalfAway(q * (l - a), 1_000_000n));
+}
+
+/**
+ * Unrealized P/L from the exact cost basis: market value minus cost, both to
+ * the cent, so realized + unrealized reconciles with the cash ledger.
+ */
+export function unrealizedFromCost(qty: number, costBasis: number, lastPrice: number): number {
+  const cost = toCents(costBasis) ?? 0n;
+  return centsToNumber(mulCents(qty, lastPrice) - cost);
+}
+
+/** A P/L as a percentage of its cost basis (12.5 = 12.5%); null when the cost is 0 or less. */
+export function pnlPct(pnl: number, costBasis: number): number | null {
+  if (!Number.isFinite(pnl) || !Number.isFinite(costBasis) || costBasis <= 0) return null;
+  return (pnl / costBasis) * 100;
 }
 
 export function weight(value: number, total: number): number {
   if (total <= 0) return 0;
   return round((value / total) * 100, 2);
+}
+
+/** Lowest listing reference price: its ±20% band then spans more than one 0.01 tick (0.04–0.06). */
+export const MIN_REFERENCE_PRICE = 0.05;
+export const MAX_PRICE = 1_000_000_000;
+
+/** A listing reference price: on the 0.01 tick, from 0.05 to 1,000,000,000 (as the database enforces). */
+export function isValidReferencePrice(price: unknown): price is number {
+  return isValidLimitPrice(price) && price >= MIN_REFERENCE_PRICE && price <= MAX_PRICE;
+}
+
+/**
+ * Cash a buy order commits, as the engine checks it: qty x limit for a limit
+ * order, qty x the top of today's band (on the tick) for a market order,
+ * the worst price it can fill at. In currency units, exact to the cent.
+ */
+export function orderCashCommitment(qty: number, type: "limit" | "market", limitPrice: number | null, bandHigh: number): number {
+  const unit = type === "limit" ? limitPrice : bandHigh;
+  if (unit == null || !(unit > 0) || !(qty > 0)) return 0;
+  return centsToNumber(mulCents(qty, unit));
+}
+
+export type BookLevelInput = { price: number; qty: number };
+
+/**
+ * What a market order would execute against the visible book right now:
+ * levels inside today's band only (the engine never crosses outside it),
+ * best price first. Returns the executable quantity and its amount; a
+ * market order's unfilled remainder is cancelled by the engine.
+ */
+export function estimateMarketFill(
+  side: Side,
+  qty: number,
+  book: { bids: BookLevelInput[]; asks: BookLevelInput[] },
+  band: { low: number; high: number },
+): { filledQty: number; amount: number; avgPrice: number | null } {
+  const levels = side === "buy"
+    ? book.asks.filter((l) => l.price <= band.high).slice().sort((a, b) => a.price - b.price)
+    : book.bids.filter((l) => l.price >= band.low).slice().sort((a, b) => b.price - a.price);
+  let left = Math.max(0, Math.floor(qty));
+  let filled = 0;
+  let cents = 0n;
+  for (const l of levels) {
+    if (left <= 0) break;
+    const take = Math.min(left, Math.floor(l.qty));
+    if (take <= 0) continue;
+    // Execution stays inside the band (a stale level outside it trades at the edge).
+    const px = side === "buy" ? Math.max(l.price, band.low) : Math.min(l.price, band.high);
+    cents += mulCents(take, px);
+    filled += take;
+    left -= take;
+  }
+  const amount = centsToNumber(cents);
+  return { filledQty: filled, amount, avgPrice: filled > 0 ? amount / filled : null };
 }
 
 /**

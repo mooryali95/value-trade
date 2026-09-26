@@ -2,6 +2,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { toBrowserError } from "@/lib/security/browser-error";
 
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // /lovable/* routes self-authenticate; bypass any custom logic here.
@@ -23,7 +24,18 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+// Every server function: a failure reaches the browser as a stable code
+// (NOT_AUTHENTICATED, INVALID_INPUT, INTERNAL_ERROR, or the function's own
+// code), never as raw validator, middleware or library text.
+const stableErrorMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  try {
+    return await next();
+  } catch (error) {
+    throw toBrowserError(error);
+  }
+});
+
 export const startInstance = createStart(() => ({
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [attachSupabaseAuth, stableErrorMiddleware],
   requestMiddleware: [errorMiddleware],
 }));

@@ -1,67 +1,39 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-
-/** A listed (published) instrument as the public trade page shows it. */
-export type TradeInstrument = {
-  symbol: string;
-  slug: string;
-  nameAr: string;
-  nameEn: string;
-  sector: string | null;
-  assetClass: string;
-  referencePrice: number;
-  /** Anchor of today's ±20% band: the previous close, else the listing reference. */
-  bandReference: number | null;
-  lastPrice: number | null;
-  /** Ruling in force: halal | non_halal | reviewing, or null when none. */
-  shariah: string | null;
-};
-
-const Input = z.object({ symbol: z.string().min(1).max(64) });
+import type { PublicInstrumentDetail, ShariahStatus } from "@/lib/market/public-market.functions";
+import { parseSlugInput } from "@/lib/market/public-market.mappers";
 
 /**
- * Resolves the trade page's instrument from public.brands (published rows
- * only), so a brand unit listed through a submission approval can be opened
- * and traded. Everything returned is public market data. Resolves to null
- * for an unknown, unpublished or malformed symbol.
+ * A listed (published) instrument as the trade page shows it: the public
+ * instrument (getPublicInstrument) plus two fields kept for existing
+ * callers.
+ */
+export type TradeInstrument = PublicInstrumentDetail & {
+  /** Anchor of today's ±20% band: the previous close, else the listing reference. */
+  bandReference: number | null;
+  /** Same value as `shariahStatus` (ruling in force), kept for existing callers. */
+  shariah: ShariahStatus | null;
+};
+
+const Input = z.object({ symbol: z.string().trim().min(1).max(64) });
+
+/**
+ * Thin alias of getPublicInstrument for the trade page: the same loader
+ * (loadPublicInstrument, publishable key, public_instrument()), so there is
+ * one way to load an instrument. Resolves to null for an unknown,
+ * unpublished or malformed symbol/slug.
  */
 export const getTradeInstrument = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => {
+  .inputValidator((input: { symbol: string }) => {
     const parsed = Input.safeParse(input);
     return parsed.success ? parsed.data : { symbol: "" };
   })
   .handler(async ({ data }): Promise<TradeInstrument | null> => {
     if (!data.symbol) return null;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { getInstrument } = await import("./instrument.server");
-    let inst: Awaited<ReturnType<typeof getInstrument>>;
-    try {
-      inst = await getInstrument(supabaseAdmin, data.symbol);
-    } catch {
-      throw new Error("INTERNAL_ERROR");
-    }
-    if (!inst || !inst.published) return null;
-
-    const [band, last, ruling] = await Promise.all([
-      supabaseAdmin.rpc("band_reference_price", { _symbol: inst.symbol }),
-      supabaseAdmin.rpc("get_symbol_last_trade", { _symbol: inst.symbol }),
-      supabaseAdmin.rpc("current_shariah_status", { _symbol: inst.symbol }),
-    ]);
-    for (const r of [band, last, ruling]) {
-      if (r.error) console.error("[trade-instrument] market data lookup failed", r.error.code ?? "");
-    }
-    const lastRow = Array.isArray(last.data) ? last.data[0] : last.data;
-    const bandReference = band.data == null ? null : Number(band.data);
-    return {
-      symbol: inst.symbol,
-      slug: inst.slug,
-      nameAr: inst.nameAr,
-      nameEn: inst.nameEn,
-      sector: inst.sector,
-      assetClass: inst.assetClass,
-      referencePrice: inst.referencePrice,
-      bandReference: bandReference != null && Number.isFinite(bandReference) && bandReference > 0 ? bandReference : null,
-      lastPrice: lastRow?.last_price == null ? null : Number(lastRow.last_price),
-      shariah: typeof ruling.data === "string" ? ruling.data : null,
-    };
+    const { slug } = parseSlugInput({ slug: data.symbol });
+    if (!slug) return null;
+    const { loadPublicInstrument } = await import("@/lib/market/public-market.server");
+    const res = await loadPublicInstrument(slug);
+    if (!res) return null;
+    return { ...res.instrument, bandReference: res.bandReference, shariah: res.instrument.shariahStatus };
   });

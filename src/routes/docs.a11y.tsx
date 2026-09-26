@@ -170,13 +170,14 @@ function DropdownDemo() {
   );
 }
 
+// Obviously fictional sample rows: no real issuer, no real price.
 const ROWS = [
-  { symbol: "ARAMCO", price: 28.4, change: 1.2 },
-  { symbol: "SABIC", price: 74.1, change: -0.8 },
-  { symbol: "ALRAJHI", price: 91.6, change: 0.4 },
-  { symbol: "STC", price: 42.2, change: -1.6 },
-  { symbol: "MAADEN", price: 55.9, change: 2.1 },
-  { symbol: "ALINMA", price: 33.7, change: 0.9 },
+  { symbol: "DEMO-ALPHA", price: 91.6, change: 1.2 },
+  { symbol: "DEMO-BETA", price: 28.4, change: -0.8 },
+  { symbol: "DEMO-DELTA", price: 74.1, change: 0.4 },
+  { symbol: "DEMO-GAMMA", price: 33.7, change: -1.6 },
+  { symbol: "DEMO-OMEGA", price: 42.2, change: 2.1 },
+  { symbol: "DEMO-SIGMA", price: 55.9, change: 0.9 },
 ];
 
 function DataTableDemo() {
@@ -323,7 +324,7 @@ function SubmitDemo() {
       >
         <dl>
           <dt className="inline">Estimated total:&nbsp;</dt>
-          <dd className="inline font-semibold text-ink">{(qty * price).toFixed(2)} SAR</dd>
+          <dd className="inline font-semibold text-ink">{(qty * price).toFixed(2)}</dd>
         </dl>
       </div>
       <button type="submit" className="min-h-11 rounded-md gold-gradient px-4 text-xs font-semibold text-ink">
@@ -349,7 +350,7 @@ function A11yDocsPage() {
             ? "أمثلة حيّة للمكونات الأساسية مع سيناريوهات لوحة المفاتيح ومناطق aria-live. تُستخدم أيضاً كهدف لاختبارات CI."
             : "Live examples of the core components with keyboard scenarios and aria-live regions. Also the target of the CI a11y suites."
         }
-        crumbs={[{ label: lang === "ar" ? "الرئيسية" : "Home", to: "/" }, { label: "A11y" }]}
+        crumbs={[{ label: lang === "ar" ? "الرئيسية" : "Home", to: "/" }, { label: lang === "ar" ? "إتاحة الوصول" : "Accessibility" }]}
       />
       <div className="grid gap-4 pb-10">
         <Section id="dialog" title="Dialog / AlertDialog" keyboard={["Tab", "Shift+Tab", "Enter", "Escape"]}>

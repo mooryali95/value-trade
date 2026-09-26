@@ -19,7 +19,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL, VIEWPORTS  # noqa: E402
+from pages import BASE_URL, VIEWPORTS, launch_options  # noqa: E402
 
 REPORTS = Path(__file__).parent / "reports" / "theme-motion"
 FAILURES: list[str] = []
@@ -123,6 +123,14 @@ async def run_mode(browser, device, mode, results):
 
         text = (await retry(main_text)) or ""
         if "empty" in name or "not-found" in name or "states" in name:
+            # Empty and error states arrive after the data request settles;
+            # wait for real copy instead of reading the page heading alone.
+            async def settled_text():
+                t = await main_text()
+                return t if len(t.strip()) > 30 else ""
+
+            text = (await retry(settled_text, attempts=8)) or text
+
             async def cta_count():
                 return await page.locator("main a, main button").count()
 
@@ -169,7 +177,7 @@ async def main():
     REPORTS.mkdir(parents=True, exist_ok=True)
     results: dict = {}
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         for device in DEVICES:
             for mode in MODES:
                 await run_mode(browser, device, mode, results)

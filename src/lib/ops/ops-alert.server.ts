@@ -110,7 +110,7 @@ export async function maybeAlertAdmins(job: "smoke" | "cron-alerts"): Promise<vo
       const sent = await notifyAdmins({
         job,
         severity: "fail",
-        headline: "فشل متكرر في اختبار الدخان بعد النشر",
+        headline: "فشل متكرر في الفحص السريع بعد النشر",
         detail: newest.detail ?? "—",
         metricLabel: "فشل متتالٍ",
         metricValue: String(consecutive),

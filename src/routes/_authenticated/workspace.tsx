@@ -10,8 +10,18 @@ import { EmptyState } from "@/components/empty-state";
 import { PermissionHint } from "@/components/permission-hint";
 import { useI18n, pick } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
-import { getBrand } from "@/lib/mock-data";
-import { formatCurrency, formatPct, formatInt } from "@/lib/format";
+import { Num } from "@/components/num";
+import {
+  ChangeText,
+  MarketDataError,
+  Monogram,
+  PriceText,
+  ShariahPill,
+  indexBySymbol,
+  markOf,
+  sectorLabel,
+  useMarketOverview,
+} from "@/components/market-data";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -21,8 +31,9 @@ import {
   removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
 import { createInvitation } from "@/lib/tenants/invitations.functions";
+import { BRAND_CAP, companyBrandRows } from "@/lib/tenants/company-brands";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
-import { Building2, Users, TrendingUp, Plus, Send, FileText } from "lucide-react";
+import { Building2, Users, Store, Plus, Send, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
@@ -54,6 +65,7 @@ function WorkspacePage() {
   const removeBrandFn = useServerFn(removeCompanyBrand);
   const inviteFn = useServerFn(createInvitation);
 
+  const market = useMarketOverview();
   const details = useQuery({
     queryKey: ["company-details", activeId],
     queryFn: () => detailsFn({ data: { companyId: activeId! } }),
@@ -100,14 +112,25 @@ function WorkspacePage() {
   if (!activeId || !active) {
     return (
       <AppShell>
-        <div className="py-16">
+        <PageHeader title={t("ws_workspace")} />
+        <div className="py-6">
           <EmptyState
-            title={t("ws_workspace")}
-            description={t("wsNoCompany")}
+            icon={<Building2 className="h-5 w-5" />}
+            title={t("u_wsNoCompanyTitle")}
+            description={t("u_wsNoCompanyDesc")}
             action={
-              <Link to="/company/settings" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)]">
-                {t("companySettings")}
-              </Link>
+              <div className="flex flex-col justify-center gap-2 sm:flex-row">
+                <Link to="/invitations" className="inline-flex min-h-11 items-center justify-center rounded-md gold-gradient px-5 text-sm font-semibold text-ink">
+                  {t("incomingInvitations")}
+                </Link>
+                <Link
+                  to="/request-access"
+                  search={{ kind: "new" }}
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-card px-5 text-sm font-semibold text-ink hover:border-[var(--gold-deep)]"
+                >
+                  {t("u_ctaCompany")}
+                </Link>
+              </div>
             }
           />
         </div>
@@ -115,95 +138,145 @@ function WorkspacePage() {
     );
   }
 
-  const brandRows = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => {
-    const b = getBrand(row.brand_symbol.toLowerCase());
-    return { id: row.id, symbol: row.brand_symbol, brand: b ?? null };
-  });
-  const totalCap = brandRows.reduce((s, r) => s + (r.brand?.marketCap ?? 0), 0);
-  const totalVol = brandRows.reduce((s, r) => s + (r.brand?.volume24h ?? 0), 0);
+  // The company's brands: its roster (company_brands) together with the
+  // instruments it owns (brands.company_id, e.g. listed through a product
+  // submission), counted once each, as the database counts them against the
+  // 30-brand cap (companyBrandRows, shared with the company settings). An
+  // instrument the company owns stays on its list: only roster entries can
+  // be removed here. A brand is "listed" only when it is published; its price
+  // is the last trade or the listing reference price, both from the database.
+  const listed = indexBySymbol(market.data?.instruments);
+  const brandRows = companyBrandRows(details.data?.brands ?? [], details.data?.instruments ?? []).map((r) => ({
+    ...r,
+    instrument: listed.get(r.symbol) ?? null,
+  }));
+  const listedCount = brandRows.filter((r) => r.instrument).length;
+  const totalValue24h = brandRows.reduce((s, r) => s + (r.instrument?.volume24hValue ?? 0), 0);
   const membersCount = details.data?.members?.length ?? 0;
   const pendingSubs = (subs.data ?? []).filter((s: { status: string }) => s.status === "pending").length;
 
   return (
     <AppShell>
       <PageHeader
-        eyebrow={`${active.plan ?? "—"} · Tenant`}
+        eyebrow={t("ws_workspace")}
         title={pick(lang, active.name_ar, active.name_en)}
         crumbs={[{ label: t("companies"), to: "/company/settings" }, { label: t("ws_workspace") }]}
+        actions={
+          <>
+            {canManageBrands && (
+              <Link
+                to="/company/submit"
+                search={{ companyId: activeId }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md gold-gradient px-4 text-sm font-semibold text-ink sm:min-h-10"
+              >
+                <Plus className="h-4 w-4" aria-hidden /> {t("submitProduct")}
+              </Link>
+            )}
+            <Link
+              to="/company/submissions"
+              search={{ companyId: activeId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc" as const, page: 1, pageSize: 25 }}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-semibold text-ink hover:border-[var(--gold-deep)] sm:min-h-10"
+            >
+              <FileText className="h-4 w-4" aria-hidden /> {t("submissionsIn")}
+            </Link>
+          </>
+        }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-4">
-        <KPI label={t("brandsCount")} value={`${brandRows.length}/30`} icon={Building2} />
-        <KPI label={t("marketCap")} value={formatCurrency(totalCap, true, lang)} icon={TrendingUp} />
-        <KPI label={t("wsPendingSubmissions")} value={String(pendingSubs)} icon={FileText} />
-        <KPI label={t("members")} value={String(membersCount)} icon={Users} />
-      </div>
+      <dl className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KPI label={t("brandsCount")} value={<><Num value={brandRows.length} kind="qty" /> <span className="text-sm font-medium text-muted-foreground">/ <Num value={BRAND_CAP} kind="qty" /></span></>} icon={Building2} />
+        <KPI label={t("e2_listedOnMarket")} value={<><Num value={listedCount} kind="qty" /> <span className="text-sm font-medium text-muted-foreground">/ <Num value={brandRows.length} kind="qty" /></span></>} icon={Store} />
+        <KPI label={t("wsPendingSubmissions")} value={<Num value={pendingSubs} kind="qty" />} icon={FileText} />
+        <KPI label={t("members")} value={<Num value={membersCount} kind="qty" />} icon={Users} />
+      </dl>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">{t("companyBrands")}</h2>
-            <span className="num text-xs text-muted-foreground">{formatInt(totalVol, true)} · {t("volume24h")}</span>
+            <h2 className="text-[15px] font-bold text-ink">{t("companyBrands")}</h2>
+            {listedCount > 0 && (
+              <span className="text-xs text-muted-foreground">{t("e2_value24h")}: <Num value={totalValue24h} kind="currency" /></span>
+            )}
           </div>
           <div className="mb-3 flex gap-2">
             <input
               value={newBrand}
               onChange={(e) => setNewBrand(e.target.value.toUpperCase())}
-              placeholder="AAPL"
+              placeholder={t("brandSymbol")}
+              aria-label={t("brandSymbol")}
               disabled={!canManageBrands}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-primary/50 focus:outline-none disabled:opacity-50"
+              dir="ltr"
+              className="min-h-11 w-full rounded-md border border-border bg-card px-3 text-sm focus:border-[var(--gold-deep)] focus:outline-none disabled:opacity-50 sm:min-h-10"
             />
             <button
+              type="button"
               disabled={!canManageBrands || !newBrand || addBrandMut.isPending}
               onClick={() => addBrandMut.mutate(newBrand)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)] disabled:opacity-50"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50 sm:min-h-10"
             >
               <Plus className="h-3.5 w-3.5" /> {t("ws_addBrand")}
             </button>
           </div>
+          {market.isError && !market.data && (
+            <div className="mb-3">
+              <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+            </div>
+          )}
           {brandRows.length === 0 ? (
-            <div className="rounded-xl border border-border/60 bg-card/60 p-6 text-center text-xs text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
               {t("wsNoBrands")}
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/60 bg-card/60">
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
               {brandRows.map((r) => (
-                <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
+                <div key={r.id ?? `owned:${r.symbol}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[10px] font-bold text-ivory" style={{ background: r.brand?.color ?? "var(--gold-deep)" }}>{r.symbol.slice(0, 3)}</div>
+                    <Monogram symbol={r.symbol} className="h-10 w-10" />
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-foreground">
-                        {r.brand ? pick(lang, r.brand.nameAr, r.brand.nameEn) : r.symbol}
+                      <div className="truncate text-sm font-semibold text-ink">
+                        {r.instrument ? pick(lang, r.instrument.nameAr, r.instrument.nameEn) : r.symbol}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{r.symbol}{r.brand ? ` · ${r.brand.sector}` : ""}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        <span><span dir="ltr">{r.symbol}</span>{r.instrument?.sector ? ` · ${sectorLabel(r.instrument.sector, t)}` : ""}</span>
+                        {r.instrument ? (
+                          <ShariahPill status={r.instrument.shariahStatus} />
+                        ) : (
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[11px]">{t("e2_notListed")}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="num text-xs text-foreground">{r.brand ? r.brand.price.toFixed(2) : "—"}</div>
-                  <div className={`hidden num text-xs sm:block ${(r.brand?.change24h ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                    {r.brand ? formatPct(r.brand.change24h) : "—"}
+                  <div className="text-end text-sm font-semibold text-ink">
+                    {r.instrument ? <PriceText mark={markOf(r.instrument)} /> : <Num value={null} />}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {r.brand && (
-                      <Link to="/market/$slug" params={{ slug: r.brand.slug }} className="rounded border border-border px-2 py-1 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary">
+                  <div className="hidden text-xs sm:block">
+                    <ChangeText pct={r.instrument?.change24hPct ?? null} />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
+                    {r.instrument && (
+                      <Link to="/market/$slug" params={{ slug: r.instrument.slug }} className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs text-ink-soft hover:border-[var(--gold-deep)] hover:text-ink">
                         {t("overview")}
                       </Link>
                     )}
+                    {r.removable && r.id && (
                     <button
                       disabled={!canManageBrands}
                       onClick={async () => {
                         const ok = await confirm({
-                          title: t("brandRemoved"),
-                          description: r.symbol,
+                          title: t("confirmRemoveBrandTitle"),
+                          description: `${r.symbol} — ${t("confirmRemoveBrandDesc")}`,
                           confirmLabel: t("wsRemove"),
                           cancelLabel: t("cancel"),
                           tone: "danger",
                         });
-                        if (ok) removeBrandMut.mutate(r.id);
+                        if (ok && r.id) removeBrandMut.mutate(r.id);
                       }}
-                      className="rounded border border-[var(--bear)]/40 px-2 py-1 text-[10px] text-[var(--bear)] disabled:opacity-40"
+                      type="button"
+                      className="inline-flex min-h-9 items-center rounded-md border border-[var(--bear)]/40 px-3 text-xs text-[var(--bear)] disabled:opacity-40"
                     >
                       {t("wsRemove")}
                     </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -212,18 +285,20 @@ function WorkspacePage() {
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("ws_inviteBrandManager")}</h3>
-            <p className="mb-3 text-xs text-muted-foreground">
+          <div className="rounded-xl border border-border/70 bg-card p-5 shadow-card">
+            <h3 className="mb-2 text-[15px] font-bold text-ink">{t("ws_inviteBrandManager")}</h3>
+            <p className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
               {t("ws_inviteDesc")}
             </p>
             <input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               type="email"
-              placeholder="brand@company.com"
+              placeholder="name@company.com"
+              aria-label={t("email")}
+              dir="ltr"
               disabled={!canInvite}
-              className="mb-2 w-full rounded-md border border-border bg-background px-3 py-2 text-xs focus:border-primary/50 focus:outline-none disabled:opacity-50"
+              className="mb-2 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus:border-[var(--gold-deep)] focus:outline-none disabled:opacity-50 sm:min-h-10"
             />
             <PermissionHint allowed={canInvite} reason={t("ownerRequired")}>
               <button
@@ -237,26 +312,27 @@ function WorkspacePage() {
                   });
                   if (ok) inviteMut.mutate(inviteEmail);
                 }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md gold-gradient py-2 text-xs font-semibold text-[oklch(0.16_0.04_260)] disabled:opacity-50"
+                type="button"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md gold-gradient text-sm font-semibold text-ink disabled:opacity-50 sm:min-h-10"
               >
                 <Send className="h-3.5 w-3.5" /> {t("ws_sendInvite")}
               </button>
             </PermissionHint>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-card/60 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">{t("ws_publishPublic")}</h3>
-            <p className="text-xs text-muted-foreground">
+          <div className="rounded-xl border border-border/70 bg-card p-5 shadow-card">
+            <h3 className="mb-2 text-[15px] font-bold text-ink">{t("ws_publishPublic")}</h3>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               {t("ws_publishDesc")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
               <div className="rounded border border-border/50 bg-secondary/30 py-2">
-                <div className="text-lg font-bold text-foreground">{brandRows.filter((r) => r.brand?.shariah === "halal").length}</div>
-                <div className="text-[10px] text-muted-foreground">{t("halal")}</div>
+                <div className="text-lg font-bold text-ink"><Num value={market.data ? listedCount : null} kind="qty" /></div>
+                <div className="text-xs text-muted-foreground">{t("e2_listed")}</div>
               </div>
               <div className="rounded border border-border/50 bg-secondary/30 py-2">
-                <div className="text-lg font-bold text-foreground">{brandRows.filter((r) => r.brand?.shariah !== "halal").length}</div>
-                <div className="text-[10px] text-muted-foreground">{t("reviewing")}</div>
+                <div className="text-lg font-bold text-ink"><Num value={market.data ? brandRows.length - listedCount : null} kind="qty" /></div>
+                <div className="text-xs text-muted-foreground">{t("e2_notListed")}</div>
               </div>
             </div>
           </div>
@@ -266,14 +342,14 @@ function WorkspacePage() {
   );
 }
 
-function KPI({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+function KPI({ label, value, icon: Icon }: { label: string; value: React.ReactNode; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/60 p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
-        <Icon className="h-3.5 w-3.5 text-primary" />
+    <div className="min-w-0 rounded-xl border border-border/70 bg-card p-4 shadow-card">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <dt className="truncate text-xs font-medium text-muted-foreground">{label}</dt>
+        <Icon className="h-4 w-4 shrink-0 text-[var(--gold-deep)]" aria-hidden />
       </div>
-      <div className="font-mono text-lg font-semibold text-foreground">{value}</div>
+      <dd className="text-xl font-semibold text-ink">{value}</dd>
     </div>
   );
 }

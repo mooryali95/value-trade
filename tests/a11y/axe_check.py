@@ -13,7 +13,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL, PUBLIC_PAGES, AUTHED_PAGES  # noqa: E402
+from pages import BASE_URL, PUBLIC_PAGES, AUTHED_PAGES, launch_options  # noqa: E402
 from session import restore_session  # noqa: E402
 
 AXE_CDN = "https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js"
@@ -23,7 +23,12 @@ REPORTS = Path(__file__).parent / "reports"
 async def audit(page, name, path, base_url, results):
     await page.goto(base_url + path, wait_until="domcontentloaded")
     await page.wait_for_timeout(700)
-    await page.add_script_tag(url=AXE_CDN)
+    local_axe = os.environ.get("A11Y_AXE_SCRIPT")
+    if local_axe:
+        # For sandboxes where the browser cannot reach the CDN directly.
+        await page.add_script_tag(path=local_axe)
+    else:
+        await page.add_script_tag(url=AXE_CDN)
     raw = await page.evaluate(
         "async () => { const r = await window.axe.run(document, "
         "{ runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'] } }); "
@@ -43,7 +48,7 @@ async def main():
     results = {}
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         context = await browser.new_context(viewport={"width": 1280, "height": 1800})
         page = await context.new_page()
 

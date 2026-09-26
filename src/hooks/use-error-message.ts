@@ -46,13 +46,65 @@ const CODE_TO_KEY: Record<string, Key> = {
   INVITATION_EMAIL_MISMATCH: "errInvitationEmailMismatch",
   LAST_OWNER_PROTECTED: "lastOwnerProtected",
   BRAND_CAP_REACHED: "brandCapReached",
+  SHARIAH_RULING_REQUIRED: "fx_publishNeedsRuling",
   // Legacy codes still emitted by older server builds during rollout.
   ORDER_NOT_FOUND: "errOrderNotOpen",
   ORDER_NOT_PENDING: "errOrderNotOpen",
   ORDER_NOT_CANCELLED: "errOrderNotOpen",
   SYMBOL_NOT_FOUND: "errInstrumentNotFound",
   SYMBOL_NOT_TRADABLE: "errInstrumentNotFound",
+  // ---- R codes (phase 3): onboarding and Supabase Auth ----
+  ALREADY_MEMBER: "r_errAlreadyMember",
+  EMAIL_NOT_CONFIRMED: "r_errEmailNotConfirmed",
+  EMAIL_SEND_FAILED: "r_errEmailSendFailed",
+  INVITATION_NOT_REVOKED: "r_errInvitationNotRevoked",
+  MEMBER_NOT_FOUND: "r_errMemberNotFound",
+  NOT_AUTHENTICATED: "r_authSessionMissing",
+  AUTH_INVALID_CREDENTIALS: "r_authInvalidCredentials",
+  AUTH_EMAIL_NOT_CONFIRMED: "r_authEmailNotConfirmed",
+  AUTH_WEAK_PASSWORD: "r_authWeakPassword",
+  AUTH_LEAKED_PASSWORD: "r_authLeakedPassword",
+  AUTH_SAME_PASSWORD: "r_authSamePassword",
+  AUTH_RATE_LIMITED: "errRateLimited",
+  AUTH_USER_EXISTS: "r_authUserExists",
+  AUTH_LINK_EXPIRED: "r_authLinkExpired",
+  AUTH_OAUTH_CANCELLED: "r_authOAuthCancelled",
+  AUTH_POPUP_BLOCKED: "r_authPopupBlocked",
+  AUTH_OAUTH_NEW_TAB: "r_authOAuthNewTab",
+  AUTH_OAUTH_FAILED: "r_authOAuthFailed",
+  AUTH_SESSION_MISSING: "r_authSessionMissing",
+  AUTH_SIGNUP_DISABLED: "r_authSignupDisabled",
+  AUTH_EMAIL_INVALID: "r_authEmailInvalid",
+  AUTH_REAUTH_NEEDED: "r_authReauthNeeded",
+  AUTH_USER_BANNED: "r_authUserBanned",
+  AUTH_NETWORK: "r_authNetwork",
+  AUTH_FAILED: "r_authFailed",
+  PASSWORD_TOO_SHORT: "r_pwTooShort",
+  PASSWORD_TOO_LONG: "r_pwTooLong",
+  PASSWORD_NEEDS_LETTER_AND_DIGIT: "r_pwNeedsLetterDigit",
+  PASSWORD_HAS_SPACES_AT_ENDS: "r_pwSpacesAtEnds",
+  PASSWORD_MISMATCH: "r_pwMismatch",
+  // ---- Fixer (phase 3): codes the database raises that had no message ----
+  CASH_RESERVED: "m_errCashReserved",
+  SHARIAH_RULING_CONFLICT: "d_errRulingConflict",
+  SUBMISSION_NOT_APPROVED: "d_errNotApproved",
+  SHARIAH_NOT_HALAL: "d_errNotHalal",
+  SUBMISSION_TRANSITION_FORBIDDEN: "d_errTransition",
+  RULING_CHANGE_REASON_REQUIRED: "fx3_errChangeReason",
+  INVALID_SIDE: "errInvalidInput",
+  INVALID_TYPE: "errInvalidInput",
+  INVALID_FILE_PATH: "errInvalidInput",
+  ASSET_CLASS_NOT_SUPPORTED: "fx3_errAssetClass",
+  INSTRUMENT_HAS_HISTORY: "fx3_errInstrumentHistory",
+  BRAND_NOT_LISTED: "errInstrumentNotFound",
+  ALERT_LIMIT_REACHED: "fx3_errAlertLimit",
+  WATCHLIST_LIMIT_REACHED: "fx3_errWatchLimit",
 };
+
+/** i18n key of a stable error code, or undefined when it has no message. */
+export function errorMessageKey(code: string): Key | undefined {
+  return Object.prototype.hasOwnProperty.call(CODE_TO_KEY, code) ? CODE_TO_KEY[code] : undefined;
+}
 
 export function errorCode(e: unknown): string {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";

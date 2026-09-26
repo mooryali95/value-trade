@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, User, Briefcase } from "lucide-react";
+import { LogOut, Briefcase, Mail, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { useQueryClient } from "@tanstack/react-query";
+import { clearPostAuthRedirect, consumePostAuthRedirect } from "@/lib/security/redirect";
 
 type SessionUser = { id: string; email: string | null; name: string | null; avatarUrl: string | null };
 
@@ -25,8 +26,22 @@ export function UserMenu() {
 
   useEffect(() => {
     let mounted = true;
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+      // A recovery link that landed on another page (e.g. the site root when
+      // the redirect URL was not allow-listed) still has to set a password.
+      if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/auth/update-password") {
+        navigate({ to: "/auth/update-password", search: { flow: "recovery" }, replace: true });
+      } else if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
+        // Back from Google sign-in: continue where the user started
+        // (e.g. an invitation page). The client may have read the tokens
+        // from the URL before this menu subscribed, in which case only
+        // INITIAL_SESSION arrives. Consumed once; stale entries expire.
+        const next = consumePostAuthRedirect();
+        if (next && next !== `${window.location.pathname}${window.location.search}`) {
+          navigate({ href: next, replace: true });
+        }
+      }
       const u = session?.user;
       setUser(
         u
@@ -58,6 +73,7 @@ export function UserMenu() {
       mounted = false;
       sub.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!ready) {
@@ -68,7 +84,7 @@ export function UserMenu() {
     return (
       <Link
         to="/auth"
-        className="inline-flex items-center rounded-md gold-gradient px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:brightness-105"
+        className="inline-flex min-h-10 items-center rounded-md gold-gradient px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:brightness-105"
       >
         {t("signin")}
       </Link>
@@ -78,6 +94,7 @@ export function UserMenu() {
   const initial = (user.name || user.email || "U").trim().charAt(0).toUpperCase();
 
   async function handleSignOut() {
+    clearPostAuthRedirect();
     await queryClient.cancelQueries();
     queryClient.clear();
     await supabase.auth.signOut();
@@ -105,13 +122,25 @@ export function UserMenu() {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="grid gap-0.5">
           <span className="truncate text-xs font-semibold text-ink">{user.name || t("account")}</span>
-          <span className="truncate text-[10px] font-normal text-muted-foreground">{user.email}</span>
+          <span dir="ltr" className="truncate text-start text-[10px] font-normal text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/workspace" className="flex items-center gap-2 text-xs">
             <Briefcase className="h-3.5 w-3.5 text-[var(--gold-deep)]" aria-hidden />
             {t("nav_workspace")}
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/invitations" className="flex items-center gap-2 text-xs">
+            <Mail className="h-3.5 w-3.5 text-[var(--gold-deep)]" aria-hidden />
+            {t("incomingInvitations")}
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/auth/update-password" className="flex items-center gap-2 text-xs">
+            <KeyRound className="h-3.5 w-3.5 text-[var(--gold-deep)]" aria-hidden />
+            {t("r_menuChangePassword")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

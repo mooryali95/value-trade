@@ -18,7 +18,7 @@ export function PageHeader({
   actions?: ReactNode;
   eyebrow?: string;
 }) {
-  const { dir } = useI18n();
+  const { dir, t } = useI18n();
   const Sep = () => (
     <CaretRight
       size={12}
@@ -37,8 +37,8 @@ export function PageHeader({
     <header className="mb-6 border-b border-border/60 pb-5">
       {trail.length > 0 && (
         <nav
-          aria-label="breadcrumb"
-          className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-medium uppercase tracking-[0.16em] text-ink-soft"
+          aria-label={t("e2_breadcrumb")}
+          className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-ink-soft"
         >
           {trail.map((c, i) => {
             const isLast = i === trail.length - 1;
@@ -51,7 +51,7 @@ export function PageHeader({
               >
                 {i > 0 && <Sep />}
                 {c.to && !isLast ? (
-                  <Link to={c.to} className="transition hover:text-[var(--gold-deep)]">
+                  <Link to={c.to} className="inline-flex min-h-6 items-center underline-offset-4 transition hover:text-[var(--gold-ink)] hover:underline">
                     {c.label}
                   </Link>
                 ) : (
@@ -67,15 +67,15 @@ export function PageHeader({
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <div className="min-w-0">
           {showEyebrow && (
-            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-[var(--gold-deep)]">
+            <div className="mb-1.5 text-xs font-semibold tracking-[0.08em] text-[var(--gold-ink)]">
               {eyebrow}
             </div>
           )}
-          <h1 className="truncate font-display text-2xl font-bold text-ink md:text-3xl">
+          <h1 className="break-words font-display text-2xl font-bold leading-tight text-ink md:text-3xl">
             {title}
           </h1>
           {description && (
-            <p className="mt-1.5 max-w-2xl text-sm text-ink-soft">{description}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">{description}</p>
           )}
         </div>
         {actions && (
@@ -95,13 +95,13 @@ const variantClasses: Record<Variant, string> = {
   primary:
     "gold-gradient text-ink shadow-sm hover:shadow-md disabled:opacity-50",
   secondary:
-    "border border-border bg-background text-ink hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] disabled:opacity-40",
+    "border border-border bg-card text-ink hover:border-[var(--gold-deep)] hover:text-[var(--gold-ink)] disabled:opacity-40",
   ghost:
     "text-ink-soft hover:text-[var(--gold-deep)] disabled:opacity-40",
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition whitespace-nowrap";
+  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-semibold transition sm:min-h-10";
 
 export function HeaderAction({
   variant = "secondary",

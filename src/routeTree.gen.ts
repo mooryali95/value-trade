@@ -19,12 +19,14 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TradeSymbolRouteImport } from './routes/trade.$symbol'
-import { Route as MarketSlugRouteImport } from './routes/market.$slug'
+import { Route as MarketSlugRouteImport } from './routes/market_.$slug'
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
 import { Route as LegalShariahDisclosuresRouteImport } from './routes/legal.shariah-disclosures'
+import { Route as LegalRiskRouteImport } from './routes/legal.risk'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as DocsStatesRouteImport } from './routes/docs.states'
 import { Route as DocsA11yRouteImport } from './routes/docs.a11y'
@@ -106,9 +108,9 @@ const TradeSymbolRoute = TradeSymbolRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketSlugRoute = MarketSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => MarketRoute,
+  id: '/market_/$slug',
+  path: '/market/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const LegalTermsRoute = LegalTermsRouteImport.update({
   id: '/legal/terms',
@@ -118,6 +120,11 @@ const LegalTermsRoute = LegalTermsRouteImport.update({
 const LegalShariahDisclosuresRoute = LegalShariahDisclosuresRouteImport.update({
   id: '/legal/shariah-disclosures',
   path: '/legal/shariah-disclosures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalRiskRoute = LegalRiskRouteImport.update({
+  id: '/legal/risk',
+  path: '/legal/risk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
@@ -133,6 +140,11 @@ const LegalCookiesRoute = LegalCookiesRouteImport.update({
 const JoinSlugRoute = JoinSlugRouteImport.update({
   id: '/join/$slug',
   path: '/join/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
@@ -306,7 +318,7 @@ const AuthenticatedAdminOpsIdRoute = AuthenticatedAdminOpsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/market': typeof MarketRouteWithChildren
+  '/market': typeof MarketRoute
   '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
@@ -321,9 +333,11 @@ export interface FileRoutesByFullPath {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
@@ -353,7 +367,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/market': typeof MarketRouteWithChildren
+  '/market': typeof MarketRoute
   '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
@@ -368,9 +382,11 @@ export interface FileRoutesByTo {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
   '/market/$slug': typeof MarketSlugRoute
@@ -402,7 +418,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/market': typeof MarketRouteWithChildren
+  '/market': typeof MarketRoute
   '/request-access': typeof RequestAccessRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shariah': typeof ShariahRoute
@@ -417,12 +433,14 @@ export interface FileRoutesById {
   '/docs/a11y': typeof DocsA11yRoute
   '/docs/states': typeof DocsStatesRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/risk': typeof LegalRiskRoute
   '/legal/shariah-disclosures': typeof LegalShariahDisclosuresRoute
   '/legal/terms': typeof LegalTermsRoute
-  '/market/$slug': typeof MarketSlugRoute
+  '/market_/$slug': typeof MarketSlugRoute
   '/trade/$symbol': typeof TradeSymbolRoute
   '/_authenticated/admin/companies': typeof AuthenticatedAdminCompaniesRoute
   '/_authenticated/admin/email-log': typeof AuthenticatedAdminEmailLogRoute
@@ -466,9 +484,11 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
     | '/market/$slug'
@@ -513,9 +533,11 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
     | '/market/$slug'
@@ -561,12 +583,14 @@ export interface FileRouteTypes {
     | '/docs/a11y'
     | '/docs/states'
     | '/email/unsubscribe'
+    | '/invite/$token'
     | '/join/$slug'
     | '/legal/cookies'
     | '/legal/privacy'
+    | '/legal/risk'
     | '/legal/shariah-disclosures'
     | '/legal/terms'
-    | '/market/$slug'
+    | '/market_/$slug'
     | '/trade/$symbol'
     | '/_authenticated/admin/companies'
     | '/_authenticated/admin/email-log'
@@ -595,7 +619,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  MarketRoute: typeof MarketRouteWithChildren
+  MarketRoute: typeof MarketRoute
   RequestAccessRoute: typeof RequestAccessRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShariahRoute: typeof ShariahRoute
@@ -606,11 +630,14 @@ export interface RootRouteChildren {
   DocsA11yRoute: typeof DocsA11yRoute
   DocsStatesRoute: typeof DocsStatesRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   JoinSlugRoute: typeof JoinSlugRoute
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalRiskRoute: typeof LegalRiskRoute
   LegalShariahDisclosuresRoute: typeof LegalShariahDisclosuresRoute
   LegalTermsRoute: typeof LegalTermsRoute
+  MarketSlugRoute: typeof MarketSlugRoute
   TradeSymbolRoute: typeof TradeSymbolRoute
   ApiPublicCronAlertsRoute: typeof ApiPublicCronAlertsRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -693,12 +720,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TradeSymbolRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/market/$slug': {
-      id: '/market/$slug'
-      path: '/$slug'
+    '/market_/$slug': {
+      id: '/market_/$slug'
+      path: '/market/$slug'
       fullPath: '/market/$slug'
       preLoaderRoute: typeof MarketSlugRouteImport
-      parentRoute: typeof MarketRoute
+      parentRoute: typeof rootRouteImport
     }
     '/legal/terms': {
       id: '/legal/terms'
@@ -712,6 +739,13 @@ declare module '@tanstack/react-router' {
       path: '/legal/shariah-disclosures'
       fullPath: '/legal/shariah-disclosures'
       preLoaderRoute: typeof LegalShariahDisclosuresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/risk': {
+      id: '/legal/risk'
+      path: '/legal/risk'
+      fullPath: '/legal/risk'
+      preLoaderRoute: typeof LegalRiskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/privacy': {
@@ -733,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$slug'
       fullPath: '/join/$slug'
       preLoaderRoute: typeof JoinSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
@@ -994,22 +1035,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
-interface MarketRouteChildren {
-  MarketSlugRoute: typeof MarketSlugRoute
-}
-
-const MarketRouteChildren: MarketRouteChildren = {
-  MarketSlugRoute: MarketSlugRoute,
-}
-
-const MarketRouteWithChildren =
-  MarketRoute._addFileChildren(MarketRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  MarketRoute: MarketRouteWithChildren,
+  MarketRoute: MarketRoute,
   RequestAccessRoute: RequestAccessRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShariahRoute: ShariahRoute,
@@ -1020,11 +1050,14 @@ const rootRouteChildren: RootRouteChildren = {
   DocsA11yRoute: DocsA11yRoute,
   DocsStatesRoute: DocsStatesRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  InviteTokenRoute: InviteTokenRoute,
   JoinSlugRoute: JoinSlugRoute,
   LegalCookiesRoute: LegalCookiesRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalRiskRoute: LegalRiskRoute,
   LegalShariahDisclosuresRoute: LegalShariahDisclosuresRoute,
   LegalTermsRoute: LegalTermsRoute,
+  MarketSlugRoute: MarketSlugRoute,
   TradeSymbolRoute: TradeSymbolRoute,
   ApiPublicCronAlertsRoute: ApiPublicCronAlertsRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,

@@ -57,7 +57,40 @@ export const getCompanyDetails = createServerFn({ method: "GET" })
       supabase.from("company_members").select("id, user_id, role, joined_at").eq("company_id", data.companyId),
       supabase.from("company_brands").select("id, brand_symbol, added_at").eq("company_id", data.companyId).order("added_at", { ascending: false }),
     ]);
-    return { company, members: members ?? [], brands: brands ?? [] };
+    // Members are listed by e-mail address, not by user id. Only rows RLS
+    // already returned to this caller (a member of the company) are resolved.
+    const emails = new Map<string, string | null>();
+    const visible = (members ?? []).slice(0, 200);
+    if (visible.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await Promise.all(
+        visible.map(async (m) => {
+          const { data: u } = await supabaseAdmin.auth.admin.getUserById(m.user_id);
+          emails.set(m.user_id, u?.user?.email ?? null);
+        }),
+      );
+    }
+    // The instruments the company owns (brands.company_id: listed through a
+    // product submission or assigned by an admin), listed or not. Read with
+    // the service role only once RLS has shown the caller the company.
+    let instruments: Array<{ symbol: string; published: boolean }> = [];
+    if (company) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: owned, error: ownedErr } = await supabaseAdmin
+        .from("brands")
+        .select("symbol, published")
+        .eq("company_id", data.companyId)
+        .order("symbol", { ascending: true })
+        .limit(200);
+      if (ownedErr) console.error("[company] owned instruments lookup failed", ownedErr.code ?? "unknown");
+      instruments = (owned ?? []).map((b) => ({ symbol: b.symbol, published: b.published }));
+    }
+    return {
+      company,
+      members: (members ?? []).map((m) => ({ ...m, email: emails.get(m.user_id) ?? null })),
+      brands: brands ?? [],
+      instruments,
+    };
   });
 
 const AddMemberInput = z.object({
@@ -65,16 +98,25 @@ const AddMemberInput = z.object({
   userId: z.string().uuid(),
   role: z.enum(["owner", "finance", "shariah", "trader", "viewer"]),
 });
+/**
+ * People join a company by accepting an invitation (their consent, from a
+ * confirmed address). Adding an account directly is a platform-admin repair
+ * tool only; API users have no insert path (20260926100300).
+ */
 export const addCompanyMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => AddMemberInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    const { isPlatformAdmin } = await import("./invitations.server");
+    if (!(await isPlatformAdmin(userId))) throw new Error("FORBIDDEN");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
       .from("company_members")
       .insert({ company_id: data.companyId, user_id: data.userId, role: data.role, invited_by: userId })
       .select("*")
       .single();
+    if (error?.code === "23505") throw new Error("ALREADY_MEMBER");
     if (error) throw companyError("company.member.add", error);
     await writeAudit(supabase, {
       actorId: userId, companyId: data.companyId, action: "member.add", entity: "company_members", entityId: row.id,

@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/market",
   "/shariah",
   "/legal/terms",
+  "/legal/risk",
   "/legal/privacy",
   "/legal/shariah-disclosures",
   "/legal/cookies",

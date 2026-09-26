@@ -14,7 +14,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL, PUBLIC_PAGES, AUTHED_PAGES, VIEWPORTS  # noqa: E402
+from pages import BASE_URL, PUBLIC_PAGES, AUTHED_PAGES, VIEWPORTS, launch_options  # noqa: E402
 from session import restore_session  # noqa: E402
 
 ROOT = Path(__file__).parent / "reports"
@@ -28,7 +28,7 @@ async def main():
     index = {}
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         for device, vp in VIEWPORTS.items():
             context = await browser.new_context(viewport=vp)
             page = await context.new_page()

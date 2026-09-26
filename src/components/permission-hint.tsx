@@ -12,11 +12,18 @@ export function PermissionHint({
   reason,
   children,
   showUpgradeLink = true,
+  showRoleLabel = true,
+  action,
 }: {
   allowed: boolean;
   reason: string;
   children: ReactNode;
+  /** Link to the company settings (company roles only). */
   showUpgradeLink?: boolean;
+  /** Prefix the reason with "Role required:" (company roles only). */
+  showRoleLabel?: boolean;
+  /** Replaces the company settings link, e.g. a link to request access. */
+  action?: ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -26,13 +33,15 @@ export function PermissionHint({
         <p className="mt-2 flex flex-wrap items-center gap-1.5 text-caption text-ink-soft">
           <LockSimple size={12} weight="bold" className="shrink-0 text-[var(--state-pending,currentColor)]" />
           <span>
-            <span className="font-semibold">{t("roleRequiredLabel")}:</span> {reason}
+            {showRoleLabel && <span className="font-semibold">{t("roleRequiredLabel")}: </span>}
+            {reason}
           </span>
-          {showUpgradeLink && (
-            <Link to="/company/settings" className="underline hover:text-[var(--gold-deep)]">
-              {t("requestUpgradeCta")}
-            </Link>
-          )}
+          {action ??
+            (showUpgradeLink && (
+              <Link to="/company/settings" className="underline hover:text-[var(--gold-deep)]">
+                {t("requestUpgradeCta")}
+              </Link>
+            ))}
         </p>
       )}
     </div>

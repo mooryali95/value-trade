@@ -17,7 +17,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pages import BASE_URL  # noqa: E402
+from pages import BASE_URL, launch_options  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -55,6 +55,7 @@ async def test_skip_link(page, base):
 
 async def test_tab_order_reversible(page, base):
     await page.goto(base + "/market", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")
     await page.wait_for_timeout(600)
     forward = await tab_sequence(page, 6)
     backward = await tab_sequence(page, 5, shift=True)
@@ -68,20 +69,27 @@ async def test_tab_order_reversible(page, base):
 
 
 async def test_no_focus_traps_outside_dialogs(page, base):
-    await page.goto(base + "/trade/ARAMCO", wait_until="domcontentloaded")
-    await page.wait_for_timeout(800)
+    """A real form page (exists without any market data): Tab never gets stuck."""
+    await page.goto(base + "/request-access", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")
+    await page.wait_for_timeout(600)
+    # Identify each focused element uniquely (several inputs may share an
+    # empty text label), so a repeat really means focus cycled back.
     seen = set()
     stuck = False
     for _ in range(40):
         await page.keyboard.press("Tab")
-        f = await focused(page)
-        key = f and (f["tag"], f["label"])
+        key = await page.evaluate(
+            "() => { const a = document.activeElement; if (!a || a === document.body) return null;"
+            " if (!a.dataset.a11yStop) a.dataset.a11yStop = String((window.__a11yStops = (window.__a11yStops || 0) + 1));"
+            " return a.dataset.a11yStop; }"
+        )
         if key and key in seen and len(seen) < 5:
             stuck = True
             break
         if key:
             seen.add(key)
-    check(not stuck and len(seen) > 8, "trade: focus moves freely across the order form", f"{len(seen)} stops")
+    check(not stuck and len(seen) > 6, "request-access: focus moves freely across the form", f"{len(seen)} stops")
 
 
 async def test_form_reachable(page, base):
@@ -102,30 +110,41 @@ async def test_form_reachable(page, base):
     check(len(reached) >= min(2, len(inputs)), "auth: fields reachable by Tab only", str(reached))
 
 
+QUICK_SEARCH_LABELS = ("Quick search", "بحث سريع")
+
+
 async def test_dialog_focus(page, base):
-    """Escape closes an open dialog and focus returns to the invoking control."""
-    await page.goto(base + "/trade/ARAMCO", wait_until="domcontentloaded")
-    await page.wait_for_timeout(800)
+    """App shell quick search: Enter opens the dialog, focus is trapped, Escape restores focus."""
+    await page.goto(base + "/market", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")
+    await page.wait_for_timeout(600)
 
     trigger = None
-    for _ in range(60):
-        await page.keyboard.press("Tab")
-        f = await focused(page)
-        if f and f["tag"] == "button" and f["label"]:
-            trigger = f["label"]
+    for label in QUICK_SEARCH_LABELS:
+        loc = page.locator(f'button[aria-label^="{label}"]')
+        if await loc.count() and await loc.first.is_visible():
+            trigger = loc.first
             break
-    if not trigger:
-        check(False, "trade: a keyboard-focusable action button exists")
+    if trigger is None:
+        check(False, "market: the quick search trigger is keyboard reachable")
         return
 
-    await page.keyboard.press("Enter")
-    await page.wait_for_timeout(600)
-    overlay = await page.evaluate(
-        "() => Array.from(document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu]'))"
-        ".some(el => el.checkVisibility ? el.checkVisibility() : !!el.offsetParent)"
-    )
+    # The trigger only works once React has hydrated; a dev-server cold start
+    # can finish network activity before that, so retry the key press.
+    overlay = False
+    for _ in range(6):
+        await trigger.focus()
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(600)
+        overlay = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu]'))"
+            ".some(el => el.checkVisibility ? el.checkVisibility() : !!el.offsetParent)"
+        )
+        if overlay:
+            break
+        await page.wait_for_timeout(1000)
+    check(overlay, "quick search: Enter opens the dialog")
     if not overlay:
-        print("SKIP  trade: focused control opened no dialog (guest mode)")
         return
 
     f = await focused(page)
@@ -145,9 +164,33 @@ async def test_dialog_focus(page, base):
     check(bool(after) and after["tag"] == "button", "dialog: focus restored to a control", str(after))
 
 
+async def test_unlisted_instrument_state(page, base):
+    """An unknown symbol renders the designed not-listed state with keyboard-reachable exits."""
+    for path in ("/trade/A11YNONE", "/market/a11y-unlisted-instrument"):
+        await page.goto(base + path, wait_until="domcontentloaded")
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(500)
+        links = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('main a[href]'))"
+            ".map(a => a.getAttribute('href'))"
+        )
+        check(bool(links), f"{path}: not-listed state offers a link out", str(links))
+        reached = False
+        for _ in range(60):
+            await page.keyboard.press("Tab")
+            inside = await page.evaluate(
+                "() => { const a = document.activeElement; return !!(a && a.closest('main') && a.matches('a[href],button')); }"
+            )
+            if inside:
+                reached = True
+                break
+        check(reached, f"{path}: the state's action is reachable by Tab")
+
+
 async def test_table_keyboard_navigation(page, base):
     """Sortable headers, filters and pagination are all operable by keyboard only."""
     await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")  # hydrated (slow dev-server cold starts)
     await page.wait_for_timeout(700)
 
     header = page.get_by_role("button", name="Price")
@@ -184,6 +227,7 @@ async def test_table_keyboard_navigation(page, base):
 async def test_dialog_escape_restores_focus(page, base):
     """The documented Dialog closes on Escape and restores focus to its trigger."""
     await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")  # hydrated (slow dev-server cold starts)
     await page.wait_for_timeout(700)
 
     trigger = page.get_by_role("button", name="Open dialog")
@@ -211,6 +255,7 @@ async def test_dialog_escape_restores_focus(page, base):
 async def test_alert_dialog_escape_cancels(page, base):
     """Destructive confirm: Escape cancels, focus returns, and the outcome is announced."""
     await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")  # hydrated (slow dev-server cold starts)
     await page.wait_for_timeout(700)
 
     trigger = page.get_by_role("button", name="Destructive confirm")
@@ -231,6 +276,7 @@ async def test_alert_dialog_escape_cancels(page, base):
 async def test_dropdown_keyboard_and_escape(page, base):
     """Dropdown: Enter opens, arrows move, Escape closes and restores trigger focus."""
     await page.goto(base + "/docs/a11y", wait_until="domcontentloaded")
+    await page.wait_for_load_state("networkidle")  # hydrated (slow dev-server cold starts)
     await page.wait_for_timeout(700)
 
     trigger = page.get_by_role("button", name="Row actions")
@@ -263,7 +309,7 @@ async def test_dropdown_keyboard_and_escape(page, base):
 async def main():
     base = os.environ.get("A11Y_BASE_URL", BASE_URL)
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(**launch_options())
         context = await browser.new_context(viewport={"width": 1280, "height": 1800})
         page = await context.new_page()
         for test in (
@@ -272,6 +318,7 @@ async def main():
             test_no_focus_traps_outside_dialogs,
             test_form_reachable,
             test_dialog_focus,
+            test_unlisted_instrument_state,
             test_table_keyboard_navigation,
             test_dialog_escape_restores_focus,
             test_alert_dialog_escape_cancels,

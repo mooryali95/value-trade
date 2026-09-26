@@ -9,25 +9,37 @@ const state = {
   adminRpc: { data: null as unknown, error: null as null | { message: string; code?: string } },
   userRows: {} as Record<string, unknown[]>,
   adminRows: {} as Record<string, unknown[]>,
+  userErrors: {} as Record<string, { code: string; message: string }>,
 };
-const adminCalls: { rpc: { name: string; args: Record<string, unknown> }[]; tables: string[]; writes: string[] } = {
+type Write = { op: string; table: string; payload: unknown };
+const adminCalls: { rpc: { name: string; args: Record<string, unknown> }[]; tables: string[]; writes: string[]; payloads: Write[] } = {
   rpc: [],
   tables: [],
   writes: [],
+  payloads: [],
 };
+const userCalls: { writes: string[]; payloads: Write[] } = { writes: [], payloads: [] };
 
-function query(rows: unknown[], writes?: string[], table?: string) {
+function query(
+  rows: unknown[],
+  writes?: string[],
+  table?: string,
+  payloads?: Write[],
+  error: { code: string; message: string } | null = null,
+) {
   const q: Record<string, unknown> = {};
   for (const m of ["select", "eq", "in", "is", "order", "limit", "range", "or"]) q[m] = () => q;
   for (const m of ["insert", "update", "upsert", "delete"]) {
-    q[m] = () => {
+    q[m] = (payload?: unknown) => {
       writes?.push(`${m}:${table}`);
+      payloads?.push({ op: m, table: table ?? "", payload });
       return q;
     };
   }
-  q.maybeSingle = async () => ({ data: rows[0] ?? null, error: null });
-  q.single = async () => ({ data: rows[0] ?? null, error: null });
-  q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) => Promise.resolve(resolve({ data: rows, error: null }));
+  q.maybeSingle = async () => ({ data: rows[0] ?? null, error });
+  q.single = async () => ({ data: rows[0] ?? null, error });
+  q.then = (resolve: (v: { data: unknown[] | null; error: unknown }) => unknown) =>
+    Promise.resolve(resolve({ data: error ? null : rows, error }));
   return q;
 }
 
@@ -36,7 +48,8 @@ const supabaseMock = {
     if (name === "has_role") return { data: args._role === "platform_admin" ? state.isAdmin : state.isReviewer, error: null };
     throw new Error(`unexpected user rpc ${name}`);
   }),
-  from: (table: string) => query(state.userRows[table] ?? []),
+  from: (table: string) =>
+    query(state.userRows[table] ?? [], userCalls.writes, table, userCalls.payloads, state.userErrors[table] ?? null),
 };
 
 const supabaseAdmin = {
@@ -46,9 +59,9 @@ const supabaseAdmin = {
   }),
   from: (table: string) => {
     adminCalls.tables.push(table);
-    return query(state.adminRows[table] ?? [], adminCalls.writes, table);
+    return query(state.adminRows[table] ?? [], adminCalls.writes, table, adminCalls.payloads);
   },
-  auth: { admin: { getUserById: async (id: string) => ({ data: { user: { id } }, error: null }) } },
+  auth: { admin: { getUserById: async (id: string) => ({ data: { user: { id, email: "invitee@example.com", email_confirmed_at: "2026-01-01T00:00:00Z" } }, error: null }) } },
 };
 
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
@@ -76,8 +89,16 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 import { setTraderRole } from "./investors.functions";
-import { issueUnits, parseIssueUnitsInput, parseReferencePriceInput, setReferencePrice } from "./listing.functions";
-import { listPendingSubmissions, parseSubmitInput } from "@/lib/submissions/submissions.functions";
+import {
+  issueUnits,
+  parseIssueUnitsInput,
+  parseReferencePriceInput,
+  setInstrumentPublished,
+  setReferencePrice,
+} from "./listing.functions";
+import { listPendingSubmissions, parseSubmitInput, reviewSubmission } from "@/lib/submissions/submissions.functions";
+import { listShariahDecisions } from "@/lib/trading/shariah.functions";
+import { writeAudit } from "@/lib/audit/audit.server";
 import { listMyInvitations } from "@/lib/tenants/invitations.functions";
 
 const USER = "3f1d6a5e-2b1c-4c8e-9a47-0c2f5d8e1b7a";
@@ -89,9 +110,14 @@ beforeEach(() => {
   state.adminRpc = { data: null, error: null };
   state.userRows = {};
   state.adminRows = {};
+  state.userErrors = {};
   adminCalls.rpc.length = 0;
   adminCalls.tables.length = 0;
   adminCalls.writes.length = 0;
+  adminCalls.payloads.length = 0;
+  userCalls.writes.length = 0;
+  userCalls.payloads.length = 0;
+  vi.mocked(writeAudit).mockClear();
 });
 
 describe("setTraderRole", () => {
@@ -147,20 +173,31 @@ describe("listing tools", () => {
     await expect(call(issueUnits, { userId: USER, symbol: "ACM", qty: 1, price: 1 })).rejects.toThrow(/^INTERNAL_ERROR$/);
   });
 
-  it("setReferencePrice needs a platform admin and an existing instrument", async () => {
+  it("setReferencePrice needs a platform admin and goes through set_reference_price (audited in SQL)", async () => {
     state.isAdmin = false;
     await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^FORBIDDEN_ADMIN_REQUIRED$/);
+    expect(adminCalls.rpc).toHaveLength(0);
     state.isAdmin = true;
+    state.adminRpc = { data: null, error: { message: "INSTRUMENT_NOT_FOUND" } };
     await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INSTRUMENT_NOT_FOUND$/);
-    state.adminRows.brands = [{ id: "b-1", reference_price: 100, company_id: null }];
+    state.adminRpc = { data: null, error: { message: "INVALID_PRICE" } };
+    await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INVALID_PRICE$/);
+    state.adminRpc = { data: null, error: { message: 'permission denied for table brands', code: "42501" } };
+    await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INTERNAL_ERROR$/);
+    state.adminRpc = { data: [{ brand_id: "b-1", symbol: "ACM", previous_price: 100, reference_price: 10, changed: true }], error: null };
+    adminCalls.rpc.length = 0;
     await expect(call(setReferencePrice, { symbol: "acm", price: 10 })).resolves.toEqual({ symbol: "ACM", referencePrice: 10 });
-    expect(adminCalls.writes).toContain("update:brands");
+    expect(adminCalls.rpc[0]).toMatchObject({ name: "set_reference_price", args: { _symbol: "ACM", _price: 10, _actor_id: "admin-1" } });
+    // No direct table write, and the audit row is written by the SQL function.
+    expect(adminCalls.writes).not.toContain("update:brands");
+    expect(vi.mocked(writeAudit)).not.toHaveBeenCalled();
   });
 });
 
 describe("queues that cross company boundaries", () => {
   it("reviewer queue keeps submissions of companies the reviewer is not a member of", async () => {
-    state.userRows.product_submissions = [
+    // Read with the service role after the reviewer / admin check.
+    state.adminRows.product_submissions = [
       { id: "s-1", company_id: "co-1", symbol: "ACM", status: "pending" },
       { id: "s-2", company_id: "co-2", symbol: "BRV", status: "pending" },
     ];
@@ -172,7 +209,10 @@ describe("queues that cross company boundaries", () => {
   });
 
   it("invitee sees an invitation to a company they cannot read yet", async () => {
-    state.userRows.company_invitations = [{ id: "i-1", role: "owner", token: "t", status: "pending", company_id: "co-9" }];
+    // Read with the service role for the caller's own confirmed address (not the JWT email claim).
+    state.adminRows.company_invitations = [
+      { id: "i-1", role: "owner", token: "t", status: "pending", company_id: "co-9", expires_at: "2999-01-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z" },
+    ];
     state.adminRows.companies = [{ id: "co-9", name_ar: "ج", name_en: "NewCo", slug: "newco" }];
     const rows = (await call(listMyInvitations)) as { id: string; companies: { slug: string } | null }[];
     expect(rows).toHaveLength(1);
@@ -184,5 +224,74 @@ describe("queues that cross company boundaries", () => {
     expect(parseSubmitInput(base).symbol).toBe("ACM");
     expect(() => parseSubmitInput({ ...base, symbol: "AC M" })).toThrow(/^INVALID_SYMBOL$/);
     expect(() => parseSubmitInput({ ...base, name_en: "" })).toThrow(/^INVALID_INPUT$/);
+  });
+});
+
+describe("listing truth: approval, publishing, rulings", () => {
+  const SUB_ID = "7a1d6a5e-2b1c-4c8e-9a47-0c2f5d8e1b7a";
+
+  it("approval is one database call (instrument, ruling and status together), with the verified reviewer id", async () => {
+    state.adminRpc = {
+      data: [{ submission_id: SUB_ID, status: "approved", symbol: "ACM", brand_id: "b-1", ruling_id: "d-1", ruling_recorded: true, previous_ruling: null }],
+      error: null,
+    };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).resolves.toEqual({
+      ok: true,
+      status: "approved",
+      symbol: "ACM",
+      rulingRecorded: true,
+    });
+    expect(adminCalls.rpc).toEqual([
+      {
+        name: "review_submission",
+        args: { _submission_id: SUB_ID, _reviewer_id: "admin-1", _decision: "approved", _reason: null, _replace_ruling: false },
+      },
+    ]);
+    // No separate brand, ruling or status writes that could half-apply.
+    expect(adminCalls.writes).toEqual([]);
+    expect(userCalls.writes).toEqual([]);
+  });
+
+  it("an existing non-compliant ruling is never overridden silently", async () => {
+    state.adminRpc = { data: null, error: { message: "SHARIAH_RULING_CONFLICT" } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^SHARIAH_RULING_CONFLICT$/);
+    state.adminRpc = { data: null, error: { message: 'duplicate key value violates unique constraint "brands_slug_key"', code: "23505" } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^SYMBOL_TAKEN$/);
+    state.adminRpc = { data: null, error: { message: 'relation "x" does not exist' } };
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "approved" })).rejects.toThrow(/^INTERNAL_ERROR$/);
+  });
+
+  it("a rejection needs a reason, and only a Shariah reviewer decides", async () => {
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "short" })).rejects.toThrow(/^REJECTION_REASON_REQUIRED$/);
+    state.isReviewer = false;
+    await expect(call(reviewSubmission, { submissionId: SUB_ID, status: "rejected", reason: "Documents are incomplete." })).rejects.toThrow(/^FORBIDDEN$/);
+    expect(adminCalls.rpc).toEqual([]);
+  });
+
+  it("publishing is audited by the database function, not by a second best-effort write", async () => {
+    state.adminRpc = {
+      data: [{ brand_id: "b-1", company_id: null, symbol: "ACM", published: true, changed: true, cancelled_orders: 0 }],
+      error: null,
+    };
+    await expect(call(setInstrumentPublished, { symbol: "acm", published: true })).resolves.toEqual({
+      symbol: "ACM",
+      published: true,
+      changed: true,
+      cancelledOrders: 0,
+    });
+    expect(writeAudit).not.toHaveBeenCalled();
+    state.adminRpc = { data: null, error: { message: "SHARIAH_RULING_REQUIRED" } };
+    await expect(call(setInstrumentPublished, { symbol: "ACM", published: true })).rejects.toThrow(/^SHARIAH_RULING_REQUIRED$/);
+  });
+
+  it("the rulings console is for Shariah reviewers and platform admins, and reports database errors", async () => {
+    state.isReviewer = false;
+    state.isAdmin = false;
+    await expect(call(listShariahDecisions)).rejects.toThrow(/^FORBIDDEN$/);
+    state.isAdmin = true;
+    state.userRows.shariah_decisions = [{ id: "d-1", symbol: "ACM", status: "halal" }];
+    await expect(call(listShariahDecisions)).resolves.toHaveLength(1);
+    state.userErrors.shariah_decisions = { code: "57014", message: "canceling statement due to statement timeout" };
+    await expect(call(listShariahDecisions)).rejects.toThrow(/^INTERNAL_ERROR$/);
   });
 });
