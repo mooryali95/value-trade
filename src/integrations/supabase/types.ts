@@ -949,6 +949,7 @@ export type Database = {
       }
       shariah_decisions: {
         Row: {
+          change_reason: string | null
           created_at: string
           effective_at: string
           id: string
@@ -960,6 +961,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -971,6 +973,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string

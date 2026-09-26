@@ -128,6 +128,7 @@ export function mapInstrumentRow(row: OverviewRow | InstrumentRow): PublicInstru
   const slug = text(row.slug);
   const referencePrice = toNumber(row.reference_price);
   if (!symbol || !slug || referencePrice == null || referencePrice <= 0) return null;
+  const trades24h = toNumber(row.trades_24h) ?? 0;
   return {
     symbol,
     slug,
@@ -140,10 +141,13 @@ export function mapInstrumentRow(row: OverviewRow | InstrumentRow): PublicInstru
     companyNameEn: text(row.company_name_en),
     referencePrice,
     lastPrice: toNumber(row.last_price),
-    change24hPct: toNumber(row.change_24h_pct),
+    // No trade in the last 24 hours: there is no 24-hour change to show
+    // ("—"), not a 0.00% move (the database compares the last trade with
+    // itself then).
+    change24hPct: trades24h > 0 ? toNumber(row.change_24h_pct) : null,
     volume24hUnits: toNumber(row.volume_24h_units) ?? 0,
     volume24hValue: toNumber(row.volume_24h_value) ?? 0,
-    trades24h: toNumber(row.trades_24h) ?? 0,
+    trades24h,
     lastTradeAt: toIso(row.last_trade_at),
     shariahStatus: toShariahStatus(row.shariah_status),
   };

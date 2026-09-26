@@ -142,8 +142,8 @@ slightly between Lovable versions).
 
 ## 4. Database update: the launch bundle
 
-**The file:** `supabase/ops/launch_bundle.sql`. It contains 31 migrations, from
-`20260924100000` to `20260926101700`, in order, inside **one transaction**.
+**The file:** `supabase/ops/launch_bundle.sql`. It contains 32 migrations, from
+`20260924100000` to `20260926101800`, in order, inside **one transaction**.
 **Discard any earlier bundle file you received before**: only the latest file
 from the repository is valid. The file's header lists the first and the last
 migration.
@@ -180,7 +180,7 @@ migration.
 2. Open `supabase/ops/launch_bundle.sql`, copy the **whole** file, paste it and
    run it **once**.
 3. Expected result: the notice
-   `LAUNCH_BUNDLE_DONE files=31 first=20260924100000 last=20260926101700`.
+   `LAUNCH_BUNDLE_DONE files=32 first=20260924100000 last=20260926101800`.
 4. If an error appears, **nothing was changed** (one transaction). Send the
    error text to the developer, do not edit the file, and run it again once the
    cause is fixed.
@@ -372,7 +372,7 @@ entered by the developer once the owner confirms them.
 
 | # | Input | Where it goes |
 | --- | --- | --- |
-| 20 | Company plans (Founding, Growth, Enterprise) and their prices: are they real offers? The database enforces only a cap of 30 brands per company, and the tiers currently list different features while the subtitle says all plans have the same features. Either keep a single "custom terms" card or list the real differences. | Landing page texts (`src/lib/i18n`) |
+| 20 | Company plans (Founding, Growth, Enterprise) and their prices: are they real offers? The texts now say what the platform does: all three plans include the same platform features (up to 30 brands per company, the only limit the database enforces; all company roles and the audit log; Shariah review of every listing submission) and differ only in price and contract terms. Confirm the tiers and prices, or keep a single "custom terms" card. | Landing page texts (`src/lib/i18n`) |
 | 21 | Should brands a company has listed appear on its workspace brand roster automatically? The roster is currently maintained separately. | Decision for the developer |
 | 22 | Keep the "Trade" link out of the main menu (trading starts from each instrument page)? | Confirmation |
 | 23 | Approve the social preview image `public/og-image.png` (brand name and tagline, no numbers) | Confirmation, or a replacement image |
@@ -429,39 +429,16 @@ entered by the developer once the owner confirms them.
 
 ### 8.2 Known product limitations
 
-1. A Shariah reviewer can still change the ruling in force on an instrument
-   that already has one by recording a new decision, without a change reason
-   (through the review console or the API). The change is recorded in the
-   audit trail. Recommended fix: require a reason, or use the edit dialog
-   only, once a ruling exists.
-2. Rejecting an access request also rejects the other pending requests from
-   the same address. Because anyone can submit a request under any address, a
-   genuine request can be closed together with a spam one. Before rejecting,
-   check whether the same address has other requests.
-3. Company settings shows the number of brands on the roster only (e.g. 0/30),
-   while the workspace also counts the company's listed instruments (e.g.
-   2/30).
-4. Dates in the Shariah review console can render out of order in Arabic
-   (the day number moves to the end). A display issue only.
-5. The trade page shows a 24-hour change of "0.00%" when there were no trades
-   in the last 24 hours, instead of "—". The details column of the company
-   audit log shows raw technical keys (such as `symbol`, `changed`).
-6. The company plans texts are not consistent (checklist item 20).
-7. No script content security policy (CSP), because the pages use inline
+1. No script content security policy (CSP), because the pages use inline
    hydration scripts. The other security headers are in place.
-8. When the database cannot be reached, the instrument, trade and company
+2. When the database cannot be reached, the instrument, trade and company
    pages show a designed error page, but the server answers with code 500
    instead of 503 with a retry time.
-9. Generated test report files are still tracked in git under
-   `tests/a11y/reports` and `tests/a11y/__pycache__`. They should be removed
-   from version control (a developer task, no effect on users).
 
 ### 8.3 Recommended next steps (in order)
 
 1. Complete sections 2 to 6 and the checklist in section 7.
-2. Fix items 1 and 2 of section 8.2 before opening access requests to the
-   public.
-3. Engage a law firm for the licensing question and the legal page texts.
-4. Put a written KYC/AML procedure and a funds-handling procedure in place.
-5. Commission an independent penetration test.
-6. Set up external monitoring and a weekly operations review.
+2. Engage a law firm for the licensing question and the legal page texts.
+3. Put a written KYC/AML procedure and a funds-handling procedure in place.
+4. Commission an independent penetration test.
+5. Set up external monitoring and a weekly operations review.

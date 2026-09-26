@@ -164,8 +164,10 @@ su_eq "approving an investor request closes its pending duplicate with the same 
 su_eq "other requests from the same address stay pending" "pending|pending|pending" \
   "SELECT string_agg(status, '|' ORDER BY id) FROM public.access_requests WHERE id IN ('$X_R3','$X_R4','$X_R5');"
 q service "SELECT public.reject_access_request('$X_R3','$X_ADMIN','not now');" >/dev/null
-su_eq "rejecting a join request closes the duplicate for the same company (with the reason)" "rejected|not now" \
-  "SELECT status || '|' || rejection_reason FROM public.access_requests WHERE id='$X_R4';"
+# Anyone can submit under any address: a rejection closes that request only
+# (final low fixes, J5).
+su_eq "rejecting a join request leaves the duplicate for the same company pending" "rejected|pending|" \
+  "SELECT (SELECT status FROM public.access_requests WHERE id='$X_R3') || '|' || status || '|' || coalesce(rejection_reason, '') FROM public.access_requests WHERE id='$X_R4';"
 su_eq "a request for a different thing is untouched" "pending" "SELECT status FROM public.access_requests WHERE id='$X_R5';"
 X_R6=$(q service "INSERT INTO public.access_requests (email, full_name, join_method) VALUES ('x_dup@test.local','Dup Six','investor') RETURNING id;")
 su_eq "a new request after the decision is a new request" "pending" "SELECT status FROM public.access_requests WHERE id='$X_R6';"

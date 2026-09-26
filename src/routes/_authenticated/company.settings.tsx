@@ -15,6 +15,8 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { Badge } from "@/components/badge";
 import { COMPANY_ROLES, INVITABLE_ROLES, companyRoleHintKey, companyRoleKey } from "@/lib/tenants/role-labels";
 import { formatDay } from "@/lib/account/dates";
+import { BRAND_CAP, companyBrandRows } from "@/lib/tenants/company-brands";
+import { Num } from "@/components/num";
 import {
   listMyCompanies,
   createCompany,
@@ -90,6 +92,8 @@ function CompanySettings() {
     queryFn: () => detailsFn({ data: { companyId: activeId! } }),
     enabled: !!activeId,
   });
+  // Roster and owned instruments, as the workspace and the brand cap count them.
+  const brandRows = companyBrandRows(details.data?.brands ?? [], details.data?.instruments ?? []);
 
   const [newCo, setNewCo] = useState({ slug: "", name_ar: "", name_en: "" });
   const [newBrand, setNewBrand] = useState("");
@@ -439,7 +443,9 @@ function CompanySettings() {
                   <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
                     <h2 className="text-sm font-semibold text-ink">{t("companyBrands")}</h2>
                     <span className="text-[10px] uppercase text-muted-foreground">
-                      {details.data.brands.length}/30 · {t("brandCap")}
+                      {/* Counted as the database counts them against the cap (roster
+                          and owned instruments), the same list as the workspace. */}
+                      <Num value={brandRows.length} kind="qty" />/<Num value={BRAND_CAP} kind="qty" /> · {t("brandCap")}
                       {!canManageBrands && <> · {t("permBrandsOwnerFinance")}</>}
                     </span>
                   </div>
@@ -453,7 +459,9 @@ function CompanySettings() {
                       />
                       <button
                         disabled={
-                          brandMut.isPending || !newBrand || details.data.brands.length >= 30
+                          brandMut.isPending ||
+                          !newBrand ||
+                          (brandRows.length >= BRAND_CAP && !brandRows.some((r) => r.owned && r.symbol === newBrand.trim()))
                         }
                         onClick={() => brandMut.mutate(newBrand)}
                         className="rounded-md gold-gradient px-3 py-2 text-xs font-semibold text-ink disabled:opacity-50"
@@ -463,26 +471,26 @@ function CompanySettings() {
                     </div>
                   )}
                   <ul>
-                    {details.data.brands.map((b) => (
+                    {brandRows.map((b) => (
                       <li
-                        key={b.id}
+                        key={b.id ?? `owned:${b.symbol}`}
                         className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border/40 px-4 py-2 text-xs last:border-b-0"
                       >
-                        <span className="font-mono font-semibold text-ink">{b.brand_symbol}</span>
+                        <span className="font-mono font-semibold text-ink" dir="ltr" style={{ textAlign: "start" }}>{b.symbol}</span>
                         <span className="text-muted-foreground">
-                          {formatDay(b.added_at, lang)}
+                          {b.owned ? t("fl_ownedInstrument") : formatDay(b.addedAt, lang)}
                         </span>
-                        {canManageBrands ? (
+                        {canManageBrands && b.removable && b.id ? (
                           <button
                             onClick={async () => {
                               const ok = await confirm({
                                 title: t("confirmRemoveBrandTitle"),
-                                description: `${t("confirmRemoveBrandDesc")} · ${b.brand_symbol}`,
+                                description: `${t("confirmRemoveBrandDesc")} · ${b.symbol}`,
                                 confirmLabel: t("removeMember"),
                                 cancelLabel: t("cancel"),
                                 tone: "danger",
                               });
-                              if (ok) removeBrandMut.mutate(b.id);
+                              if (ok && b.id) removeBrandMut.mutate(b.id);
                             }}
                             className="rounded border border-[var(--bear)]/40 px-2 py-0.5 text-[10px] text-[var(--bear)]"
                           >

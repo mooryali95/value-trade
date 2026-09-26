@@ -4,7 +4,9 @@ import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
-import { formatDateTime } from "@/components/market-data";
+import { formatDateTime, sectorLabel } from "@/components/market-data";
+import { Num } from "@/components/num";
+import { auditDetailItems, humanizeKey, type AuditItem, type AuditValue } from "@/lib/audit/audit-details";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useMemo, useState } from "react";
@@ -89,15 +91,61 @@ function auditKey(prefix: "fx3_auditAct_" | "fx3_auditEnt_", raw: string): Key |
   return Object.prototype.hasOwnProperty.call(ar, key) ? (key as Key) : null;
 }
 
-/** Audit details as short "key: value" pairs (nested values as compact JSON). */
-function detailPairs(metadata: unknown): Array<[string, string]> {
-  if (metadata == null || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return metadata == null ? [] : [["", String(JSON.stringify(metadata))]];
+/**
+ * Audit details as labelled items in the page's language: known keys and
+ * values translated, numbers and identifiers isolated left to right, text in
+ * its own direction (the raw metadata stays in the CSV export).
+ */
+function AuditDetails({ metadata }: { metadata: unknown }) {
+  const items = auditDetailItems(metadata);
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
+  return <AuditItems items={items} />;
+}
+
+function AuditItems({ items }: { items: AuditItem[] }) {
+  const { t } = useI18n();
+  return (
+    <dl className="space-y-0.5 text-[11px]">
+      {items.map((it, i) => (
+        <div key={`${it.key}:${i}`} className="flex flex-wrap gap-x-1.5">
+          {it.key && <dt className="text-muted-foreground">{it.label ? t(it.label) : humanizeKey(it.key)}:</dt>}
+          <dd className="min-w-0 break-words text-ink-soft">
+            <AuditValueView value={it.value} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function AuditValueView({ value }: { value: AuditValue }) {
+  const { t } = useI18n();
+  switch (value.type) {
+    case "empty":
+      return <span>—</span>;
+    case "label":
+      return <span>{t(value.key)}</span>;
+    case "number":
+      return <Num value={value.value} kind={value.kind} />;
+    case "id":
+      return (
+        <bdi dir="ltr" className="font-mono" title={value.id}>
+          {value.id.slice(0, 8)}
+        </bdi>
+      );
+    case "ltr":
+      return <bdi dir="ltr" className="break-all">{value.text}</bdi>;
+    case "sector":
+      return <bdi dir="auto">{sectorLabel(value.sector, t)}</bdi>;
+    case "group":
+      return (
+        <div className="ms-2 border-s border-border/60 ps-2">
+          <AuditItems items={value.items} />
+        </div>
+      );
+    default:
+      return <bdi dir="auto">{value.text}</bdi>;
   }
-  return Object.entries(metadata as Record<string, unknown>).map(([k, v]) => [
-    k,
-    v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v),
-  ]);
 }
 
 function AuditContent({
@@ -248,14 +296,7 @@ function AuditContent({
                     <span dir={r.actor.kind === "member" && r.actor.email ? "ltr" : undefined} className="break-all">{actorLabel(r)}</span>
                   </td>
                   <td className="max-w-[360px] px-4 py-2.5 text-xs text-ink-soft">
-                    <dl className="space-y-0.5 text-[11px]">
-                      {detailPairs(r.metadata).map(([k, v], i) => (
-                        <div key={`${k}:${i}`} className="flex flex-wrap gap-x-1.5" dir="ltr">
-                          {k && <dt className="text-muted-foreground">{k}:</dt>}
-                          <dd className="break-all font-mono text-ink-soft">{v}</dd>
-                        </div>
-                      ))}
-                    </dl>
+                    <AuditDetails metadata={r.metadata} />
                   </td>
                 </tr>
               ))

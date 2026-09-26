@@ -132,6 +132,14 @@ describe("mapInstrumentRow", () => {
     });
   });
 
+  it("no trade in the last 24 hours: no 24h change (null, shown as —), never 0.00%", () => {
+    const m = mapInstrumentRow(
+      overviewRow({ change_24h_pct: "0.00", volume_24h_units: 0, volume_24h_value: 0, trades_24h: 0 }),
+    );
+    expect(m).toMatchObject({ lastPrice: 51, change24hPct: null, trades24h: 0 });
+    expect(mapInstrumentRow(overviewRow({ change_24h_pct: "0.00", trades_24h: "3" }))?.change24hPct).toBe(0);
+  });
+
   it("drops rows it cannot map faithfully", () => {
     expect(mapInstrumentRow(overviewRow({ symbol: "" }))).toBeNull();
     expect(mapInstrumentRow(overviewRow({ slug: null }))).toBeNull();

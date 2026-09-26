@@ -14,6 +14,8 @@ const Input = z.object({
   symbol: z.string().min(1).max(32),
   status: z.enum(["halal", "non_halal", "reviewing"]),
   reason: z.string().max(600).optional(),
+  /** Required when the new ruling changes the status of the ruling in force. */
+  changeReason: z.string().max(600).optional(),
 });
 
 export const recordShariahDecision = createServerFn({ method: "POST" })
@@ -47,6 +49,20 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
     }
     if (!brand) throw new Error("INSTRUMENT_NOT_FOUND");
 
+    // A new ruling that changes the status of the ruling in force needs a
+    // written change reason, as an edit does (the database enforces the same
+    // rule: trg_shariah_supersede_reason).
+    const changeReason = data.changeReason?.trim() || null;
+    const { data: current, error: currentErr } = await supabaseAdmin.rpc("current_shariah_status" as never, {
+      _symbol: symbol,
+    } as never);
+    if (currentErr) {
+      console.error("[shariah] ruling in force lookup failed", (currentErr as { code?: string }).code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
+    }
+    const inForce = typeof current === "string" ? current : null;
+    if (inForce && inForce !== data.status && !changeReason) throw new Error("RULING_CHANGE_REASON_REQUIRED");
+
     // reviewer_id / updated_by are stamped from the session by the database.
     // A non_halal ruling cancels every resting buy on the symbol in the same
     // transaction.
@@ -56,17 +72,21 @@ export const recordShariahDecision = createServerFn({ method: "POST" })
         symbol,
         status: data.status,
         reason: data.reason ?? null,
+        change_reason: changeReason,
       })
       // Not "*": reviewer_id / updated_by are not readable by API users.
       .select("id, symbol, status, reason, created_at, updated_at, effective_at")
       .single();
     if (error) {
+      if ((error.message ?? "").trim() === "RULING_CHANGE_REASON_REQUIRED") throw new Error("RULING_CHANGE_REASON_REQUIRED");
       console.error("[shariah] insert failed", error.code ?? "", error.message);
       throw new Error(error.code === "42501" ? "FORBIDDEN" : "INTERNAL_ERROR");
     }
     await writeAudit(supabase, {
       actorId: userId, action: "shariah.decision.create", entity: "shariah_decisions", entityId: row.id,
-      metadata: { symbol, status: data.status },
+      metadata: changeReason
+        ? { symbol, status: data.status, previousStatus: inForce, changeReason }
+        : { symbol, status: data.status },
     });
     try {
       const { notifyShariahDecision } = await import("./shariah-notify.server");

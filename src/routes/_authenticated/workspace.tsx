@@ -31,6 +31,7 @@ import {
   removeCompanyBrand,
 } from "@/lib/tenants/company.functions";
 import { createInvitation } from "@/lib/tenants/invitations.functions";
+import { BRAND_CAP, companyBrandRows } from "@/lib/tenants/company-brands";
 import { listCompanySubmissions } from "@/lib/submissions/submissions.functions";
 import { Building2, Users, Store, Plus, Send, FileText } from "lucide-react";
 
@@ -140,23 +141,13 @@ function WorkspacePage() {
   // The company's brands: its roster (company_brands) together with the
   // instruments it owns (brands.company_id, e.g. listed through a product
   // submission), counted once each, as the database counts them against the
-  // 30-brand cap. A brand is "listed" only when it is published; its price
+  // 30-brand cap (companyBrandRows, shared with the company settings). An
+  // instrument the company owns stays on its list: only roster entries can
+  // be removed here. A brand is "listed" only when it is published; its price
   // is the last trade or the listing reference price, both from the database.
   const listed = indexBySymbol(market.data?.instruments);
-  const owned = new Set((details.data?.instruments ?? []).map((b: { symbol: string }) => b.symbol.toUpperCase()));
-  const roster = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => ({
-    id: row.id as string | null,
-    symbol: row.brand_symbol.toUpperCase(),
-  }));
-  const inRoster = new Set(roster.map((r) => r.symbol));
-  const brandRows = [
-    ...roster,
-    ...Array.from(owned).filter((sym) => !inRoster.has(sym)).map((sym) => ({ id: null as string | null, symbol: sym })),
-  ].map((r) => ({
+  const brandRows = companyBrandRows(details.data?.brands ?? [], details.data?.instruments ?? []).map((r) => ({
     ...r,
-    // An instrument the company owns stays on its list: only roster entries
-    // can be removed here.
-    removable: r.id !== null && !owned.has(r.symbol),
     instrument: listed.get(r.symbol) ?? null,
   }));
   const listedCount = brandRows.filter((r) => r.instrument).length;
@@ -193,7 +184,7 @@ function WorkspacePage() {
       />
 
       <dl className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KPI label={t("brandsCount")} value={<><Num value={brandRows.length} kind="qty" /> <span className="text-sm font-medium text-muted-foreground">/ <Num value={30} kind="qty" /></span></>} icon={Building2} />
+        <KPI label={t("brandsCount")} value={<><Num value={brandRows.length} kind="qty" /> <span className="text-sm font-medium text-muted-foreground">/ <Num value={BRAND_CAP} kind="qty" /></span></>} icon={Building2} />
         <KPI label={t("e2_listedOnMarket")} value={<><Num value={listedCount} kind="qty" /> <span className="text-sm font-medium text-muted-foreground">/ <Num value={brandRows.length} kind="qty" /></span></>} icon={Store} />
         <KPI label={t("wsPendingSubmissions")} value={<Num value={pendingSubs} kind="qty" />} icon={FileText} />
         <KPI label={t("members")} value={<Num value={membersCount} kind="qty" />} icon={Users} />

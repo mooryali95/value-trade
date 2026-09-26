@@ -22,7 +22,8 @@ section "D lifecycle: setup"
 # product_submissions_guard, set_instrument_published and public_candles
 # (20260925110000). Re-apply the phase 3 data migrations: they must be
 # re-runnable on a live database, and the checks below need their versions.
-for mig in submission_lifecycle public_candles_cost integrity_report; do
+# final_low_fixes redefines review_submission after submission_lifecycle.
+for mig in submission_lifecycle public_candles_cost integrity_report final_low_fixes; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies on the suite's live state"
   else bad "$mig migration re-applies on the suite's live state" "${f:-*_$mig.sql not found} ${out:-}"; fi
@@ -149,7 +150,7 @@ expect_eq "listing without an allocation" service "DCON|true|false" "SELECT symb
 # SHARIAH_NOT_HALAL: the ruling in force changes to 'reviewing' before listing.
 DS7=$(dsub "$D_CO" DREV "$D_OWN")
 q service "SELECT 1 FROM public.review_submission('$DS7', '$D_REV', 'approved', NULL);" >/dev/null
-q "$D_REV2" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('DREV','reviewing','New information received');" >/dev/null
+q "$D_REV2" "INSERT INTO public.shariah_decisions (symbol, status, reason, change_reason) VALUES ('DREV','reviewing','New information received','New information received');" >/dev/null
 expect_err "listing needs the compliant ruling in force" service "SHARIAH_NOT_HALAL" "SELECT * FROM public.approve_listing('$DS7', '$ADMIN', 10);"
 expect_err "declining needs a reason" service "REJECTION_REASON_REQUIRED" "SELECT * FROM public.decline_listing('$DS7', '$ADMIN', 'no');"
 expect_err "declining is for platform admins" service "FORBIDDEN_ADMIN_REQUIRED" "SELECT * FROM public.decline_listing('$DS7', '$D_REV', 'Reviewer cannot decline listings');"

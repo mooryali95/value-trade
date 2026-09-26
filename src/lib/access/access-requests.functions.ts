@@ -523,9 +523,10 @@ export const listRecentAccessDecisions = createServerFn({ method: "GET" })
       const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
       return !!inv && inv.status !== "accepted";
     };
-    // A decision also closes the applicant's pending duplicates (same
-    // address, same request; access_requests_close_siblings): list the
-    // decision once. Rows are newest first, so the first one is kept.
+    // An approval also closes the applicant's pending duplicates (same
+    // address, same request; access_requests_close_siblings; a rejection
+    // closes one request only): list the decision once. Rows are newest
+    // first, so the first one is kept.
     const seen = new Set<string>();
     const once = (r: (typeof list)[number]) => {
       const target =

@@ -147,7 +147,7 @@ if [ -n "$SLMIG" ] && out=$("${PSQL[@]}" -1 -f "$SLMIG" 2>&1 >/dev/null); then o
 else bad "submission lifecycle migration re-applies after it" "${SLMIG:-*_submission_lifecycle.sql not found} ${out:-}"; fi
 # ... and the phase 3 fixer migrations redefine brands_guard,
 # product_submissions_guard and set_instrument_published after that.
-for mig in fixer_security_hardening fixer_market_rules fixer_access_request_siblings fixer_execute_allowlist; do
+for mig in fixer_security_hardening fixer_market_rules fixer_access_request_siblings fixer_execute_allowlist final_low_fixes; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies after it"
   else bad "$mig migration re-applies after it" "${f:-*_$mig.sql not found} ${out:-}"; fi
@@ -403,8 +403,10 @@ expect_err "only a Shariah reviewer changes a ruling" service "FORBIDDEN" "SELEC
 expect_ok "board updates status/reason" service "SELECT * FROM public.update_shariah_decision('$DEC', '$BOARD', 'reviewing', 're-check', 'new evidence to review');"
 su_eq "decision audit changed_by = session user" "$BOARD|non_halal|reviewing" "SELECT changed_by || '|' || previous_status || '|' || new_status FROM public.shariah_decision_audit WHERE decision_id='$DEC';"
 su_eq "decision audit records the change reason" "new evidence to review" "SELECT change_reason FROM public.shariah_decision_audit WHERE decision_id='$DEC';"
-q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','non_halal');" >/dev/null
-q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','halal');" >/dev/null
+# A new ruling that changes the ruling in force carries a change reason
+# (final low fixes, S9; tested in extra/z_final_low_fixes.sh).
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, change_reason) VALUES ('TSTA','non_halal','re-review');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, change_reason) VALUES ('TSTA','halal','cleared');" >/dev/null
 expect_eq "latest ruling wins (non_halal then halal)" service "halal" "SELECT public.current_shariah_status('TSTA');"
 R=$(mo "$DAVE" TSTA buy limit 1 120)
 check "buy allowed again after a later halal ruling" "$(cut -d'|' -f4 <<<"$R")" "open"
@@ -417,11 +419,11 @@ expect_err "buys blocked after the edit" service "SHARIAH_BLOCKED" "SELECT * FRO
 expect_ok "reason-only edit of an older row" service "SELECT * FROM public.update_shariah_decision((SELECT id FROM public.shariah_decisions WHERE symbol='TSTA' AND status='halal' ORDER BY created_at LIMIT 1), '$BOARD', 'halal', 'typo fixed', 'typo');"
 expect_eq "reason-only edit does not change the ruling in force" service "non_halal" "SELECT public.current_shariah_status('TSTA');"
 expect_err "effective_at is not client-writable" "$BOARD" "permission denied" "UPDATE public.shariah_decisions SET effective_at = now() + interval '1 day' WHERE id='$DEC';"
-q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTA','halal');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, change_reason) VALUES ('TSTA','halal','cleared again');" >/dev/null
 expect_eq "a new halal ruling is in force again" service "halal" "SELECT public.current_shariah_status('TSTA');"
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTH','halal');" >/dev/null
 HB=$(mo_id "$GUS" TSTH buy limit 5 100)
-q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('TSTH','non_halal');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, change_reason) VALUES ('TSTH','non_halal','non-compliant revenue');" >/dev/null
 expect_eq "latest ruling wins (halal then non_halal)" service "non_halal" "SELECT public.current_shariah_status('TSTH');"
 su_eq "later non_halal ruling cancels the resting buy" "cancelled" "SELECT status FROM public.orders WHERE id='$HB';"
 expect_err "later non_halal ruling blocks new buys" service "SHARIAH_BLOCKED" "SELECT * FROM public.match_order('$GUS','TSTH','brand','buy','limit',1,100);"
@@ -881,7 +883,7 @@ expect_eq "market board capped at 1000 rows; the summary still counts every list
 su "DELETE FROM public.brands WHERE symbol LIKE 'CAP____';" >/dev/null
 # Shariah: the ruling in force, same pick as the engine.
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('MKTA','halal','compliant');" >/dev/null
-q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('MKTA','reviewing','annual review');" >/dev/null
+q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason, change_reason) VALUES ('MKTA','reviewing','annual review','annual review');" >/dev/null
 q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status, reason) VALUES ('TSTU','halal','unlisted');" >/dev/null
 expect_eq "rulings: the ruling in force with its reason" anon "MKTA|mkt-a|reviewing|annual review" \
   "SELECT symbol || '|' || slug || '|' || status || '|' || reason FROM public.public_shariah_rulings() WHERE symbol='MKTA';"
