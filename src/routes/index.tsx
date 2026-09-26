@@ -710,7 +710,7 @@ function PortfolioKpis({ q, onHold }: { q: UseQueryResult<PortfolioData>; onHold
             <span className={pnlTone}>
               <Num value={summary.unrealizedPnl} kind="currency" signed />
               {summary.unrealizedPct != null && (
-                <span className="ms-1.5 text-xs font-medium">
+                <span className="ms-1.5 inline-block whitespace-nowrap text-xs font-medium">
                   (<Num value={summary.unrealizedPct} kind="pct" signed />)
                 </span>
               )}

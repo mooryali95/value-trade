@@ -228,7 +228,7 @@ function RealizedPage() {
                       <span className="font-mono font-semibold uppercase text-ink">{s.symbol}</span>
                       <span className={`text-end font-mono sm:order-last ${pnlTone(s.realized)}`}>
                         <Num value={s.realized} kind="currency" signed />
-                        {s.returnPct != null && <span className="ms-1 text-[10px]">(<Num value={s.returnPct} kind="pct" signed />)</span>}
+                        {s.returnPct != null && <span className="ms-1 inline-block whitespace-nowrap text-[10px]">(<Num value={s.returnPct} kind="pct" signed />)</span>}
                       </span>
                       <span className="text-ink-soft sm:text-end"><span className="sm:hidden">{t("m_qtyClosed")} </span><Num value={s.qty} kind="qty" className="font-mono" /></span>
                       <span className="text-end text-ink-soft"><span className="sm:hidden">{t("proceeds")} </span><Num value={s.proceeds} kind="currency" className="font-mono" /></span>

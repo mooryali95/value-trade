@@ -90,6 +90,17 @@ function CommandTrigger() {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
   };
   return (
+    <>
+    {/* Compact trigger below 2xl so keyboard and touch users always have a visible entry point. */}
+    <button
+      type="button"
+      onClick={dispatch}
+      title={t("shell_quickSearch")}
+      aria-label={t("shell_quickSearch")}
+      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-card text-ink-soft transition hover:border-[var(--gold-deep)] hover:text-[var(--gold-deep)] lg:min-h-9 lg:min-w-9 2xl:hidden"
+    >
+      <MagnifyingGlass size={15} weight="bold" aria-hidden="true" />
+    </button>
     <button
       type="button"
       onClick={dispatch}
@@ -101,6 +112,7 @@ function CommandTrigger() {
       {t("shell_search")}
       <kbd className="rounded border border-border bg-background px-1 text-[10px]" dir="ltr">⌘K</kbd>
     </button>
+    </>
   );
 }
 

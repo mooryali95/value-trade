@@ -51,7 +51,7 @@ export function Num({
   className?: string;
 }) {
   return (
-    <span dir="ltr" className={cn("tabular-nums", className)} style={{ unicodeBidi: "isolate" }}>
+    <span dir="ltr" className={cn("whitespace-nowrap tabular-nums", className)} style={{ unicodeBidi: "isolate" }}>
       {formatNum(value, kind, { signed, decimals })}
     </span>
   );
