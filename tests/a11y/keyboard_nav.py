@@ -129,13 +129,20 @@ async def test_dialog_focus(page, base):
         check(False, "market: the quick search trigger is keyboard reachable")
         return
 
-    await trigger.focus()
-    await page.keyboard.press("Enter")
-    await page.wait_for_timeout(600)
-    overlay = await page.evaluate(
-        "() => Array.from(document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu]'))"
-        ".some(el => el.checkVisibility ? el.checkVisibility() : !!el.offsetParent)"
-    )
+    # The trigger only works once React has hydrated; a dev-server cold start
+    # can finish network activity before that, so retry the key press.
+    overlay = False
+    for _ in range(6):
+        await trigger.focus()
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(600)
+        overlay = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('[role=dialog],[role=alertdialog],[role=menu]'))"
+            ".some(el => el.checkVisibility ? el.checkVisibility() : !!el.offsetParent)"
+        )
+        if overlay:
+            break
+        await page.wait_for_timeout(1000)
     check(overlay, "quick search: Enter opens the dialog")
     if not overlay:
         return
