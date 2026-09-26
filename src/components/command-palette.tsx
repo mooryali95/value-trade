@@ -80,7 +80,7 @@ export function CommandPalette() {
       { path: "/settings/notifications", label: t("cmd_notifications"), icon: Bell },
       ...(isAdmin ? [{ path: "/admin/investors", label: t("nav_investors"), icon: UsersThree }] : []),
     ],
-    [t, lang, isAdmin],
+    [t, isAdmin],
   );
 
   return (

@@ -431,9 +431,6 @@ entered by the developer once the owner confirms them.
 
 1. No script content security policy (CSP), because the pages use inline
    hydration scripts. The other security headers are in place.
-2. When the database cannot be reached, the instrument, trade and company
-   pages show a designed error page, but the server answers with code 500
-   instead of 503 with a retry time.
 
 ### 8.3 Recommended next steps (in order)
 

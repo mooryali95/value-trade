@@ -1,10 +1,18 @@
 import type { ComponentType } from 'react'
 
+/**
+ * Template data as it reaches a template at runtime: untyped JSON from the
+ * queue, the send route and the admin preview. Every template therefore
+ * declares all of its props optional (with defaults), which is what lets its
+ * component be stored as a `ComponentType<TemplateData>`.
+ */
+export type TemplateData = Record<string, unknown>
+
 export interface TemplateEntry {
-  component: ComponentType<any>
-  subject: string | ((data: Record<string, any>) => string)
+  component: ComponentType<TemplateData>
+  subject: string | ((data: TemplateData) => string)
   displayName?: string
-  previewData?: Record<string, any>
+  previewData?: TemplateData
   /** Fixed recipient — overrides caller-provided recipientEmail when set. */
   to?: string
 }

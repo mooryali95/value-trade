@@ -102,7 +102,7 @@ const InvitationEmail = ({
 
 export const template = {
   component: InvitationEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     `دعوة للانضمام إلى ${d.companyNameAr || d.companyName || d.companyNameEn || 'شركة'} · Invitation to join ${d.companyNameEn || d.companyName || d.companyNameAr || 'a company'} — وحدة القيمة`,
   displayName: 'Company invitation',
   previewData: {

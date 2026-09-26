@@ -12,7 +12,7 @@ import { authErrorCode, authRedirectErrorCode } from "@/lib/security/auth-errors
 import { passwordIssue } from "@/lib/security/password-policy";
 import { consumePostAuthRedirect, safeRedirect, stashPostAuthRedirect } from "@/lib/security/redirect";
 import { requestPasswordReset } from "@/lib/account/password.functions";
-import { Loader2, Mail, KeyRound, User as UserIcon, MailOpen } from "lucide-react";
+import { Loader2, Mail, KeyRound, User as UserIcon, MailOpen, type LucideIcon } from "lucide-react";
 
 const searchSchema = z.object({
   redirect: z.string().max(2048).optional().catch(undefined),
@@ -398,7 +398,7 @@ function Field({
   children,
 }: {
   label: string;
-  icon: any;
+  icon: LucideIcon;
   children: React.ReactNode;
 }) {
   return (

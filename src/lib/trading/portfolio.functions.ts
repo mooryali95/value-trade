@@ -21,7 +21,7 @@ export const getMyPortfolio = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // These functions are newer than the generated types.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
     const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (fn: string, args: Record<string, unknown>) => any;
 
     const [pfRes, ordersRes, snapRes, reserveRes, bpRes] = await Promise.all([

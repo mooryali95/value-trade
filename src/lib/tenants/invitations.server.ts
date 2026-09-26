@@ -37,7 +37,7 @@ export async function adminRpc<T>(
   args: Record<string, unknown>,
 ): Promise<{ data: T | null; error: { message: string; code?: string | null } | null }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- onboarding RPCs are called by name and are newer than the generated Database types
   const { data, error } = await (supabaseAdmin.rpc as any)(name, args);
   return { data: (data ?? null) as T | null, error: error ?? null };
 }

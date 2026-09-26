@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { render } from '@react-email/render'
 import { TEMPLATES } from '@/lib/email-templates/registry'
+import type { Json } from '@/integrations/supabase/types'
 
 const SITE_NAME = 'Value Unit'
 const SENDER_DOMAIN = 'notify.hub.sunkvalue.com'
@@ -66,10 +67,12 @@ export async function enqueueTransactionalEmail(input: {
     recipient_email: normalized,
     status: 'pending',
     metadata: {
-      template_data: data as any,
+      // Template data is plain JSON by contract (it is rendered from queue
+      // payloads and re-sent from this log by the admin retry).
+      template_data: data as Json,
       label: input.label ?? input.templateName,
       idempotency_key: idempotencyKey,
-    } as any,
+    },
   })
 
   const { error } = await supabaseAdmin.rpc('enqueue_email', {

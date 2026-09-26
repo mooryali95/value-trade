@@ -104,8 +104,9 @@ describe("POST /api/public/cron-alerts", () => {
   async function getHandler() {
     const mod = await import("./cron-alerts");
     // Route.options is the object passed to createFileRoute
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (mod.Route as any).options.server.handlers.POST as (ctx: { request: Request }) => Promise<Response>;
+    const handlers = mod.Route.options.server?.handlers;
+    if (!handlers || typeof handlers === "function") throw new Error("cron-alerts route has no static handlers");
+    return handlers.POST as (ctx: { request: Request }) => Promise<Response>;
   }
 
   /** x-timestamp and the HMAC of "<timestamp>.<body>" (default: now). */

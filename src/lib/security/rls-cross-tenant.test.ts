@@ -187,6 +187,5 @@ describeIf("RLS prevents cross-tenant reads and writes", () => {
 });
 
 if (!SUITE_ENABLED) {
-  // eslint-disable-next-line no-console
   console.warn("[rls-cross-tenant] SUPABASE_URL/SERVICE_ROLE_KEY/PUBLISHABLE_KEY not set — suite skipped.");
 }

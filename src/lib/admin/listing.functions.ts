@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 import { writeAudit } from "@/lib/audit/audit.server";
 import { isValidLimitPrice, isValidOrderQty, isValidReferencePrice } from "@/lib/trading/calc";
 
@@ -50,8 +52,7 @@ export type AdminInstrument = {
 
 const SYMBOL_RE = /^[A-Za-z0-9._-]{1,32}$/;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function ensureAdmin(context: { supabase: any; userId: string }) {
+async function ensureAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "platform_admin",

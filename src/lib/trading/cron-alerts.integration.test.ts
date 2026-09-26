@@ -150,8 +150,9 @@ function seed(table: "orders" | "price_alerts", row: Order | Alert) {
 
 async function getCronHandler() {
   const mod = await import("@/routes/api/public/cron-alerts");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (mod.Route as any).options.server.handlers.POST as (ctx: { request: Request }) => Promise<Response>;
+  const handlers = mod.Route.options.server?.handlers;
+  if (!handlers || typeof handlers === "function") throw new Error("cron-alerts route has no static handlers");
+  return handlers.POST as (ctx: { request: Request }) => Promise<Response>;
 }
 
 /** The scheduler's headers: x-timestamp and the HMAC of "<timestamp>.<body>". */
