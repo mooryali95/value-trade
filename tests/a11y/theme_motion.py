@@ -123,6 +123,14 @@ async def run_mode(browser, device, mode, results):
 
         text = (await retry(main_text)) or ""
         if "empty" in name or "not-found" in name or "states" in name:
+            # Empty and error states arrive after the data request settles;
+            # wait for real copy instead of reading the page heading alone.
+            async def settled_text():
+                t = await main_text()
+                return t if len(t.strip()) > 30 else ""
+
+            text = (await retry(settled_text, attempts=8)) or text
+
             async def cta_count():
                 return await page.locator("main a, main button").count()
 
