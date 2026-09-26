@@ -25,6 +25,11 @@ describe("safeRedirect", () => {
     "/%09/evil.example".replace("%09", "\t"),
     "/foo\nbar",
     "/" + "a".repeat(2100),
+    // Dot segments that normalise to a protocol-relative path.
+    "/.//evil.example",
+    "/a/..//evil.example",
+    "/%2e//evil.example",
+    "/././/evil.example/x?y=1",
   ])("rejects %j", (target) => {
     expect(safeRedirect(target)).toBe("/");
   });

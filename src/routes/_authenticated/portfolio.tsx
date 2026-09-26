@@ -18,6 +18,7 @@ import { weight } from "@/lib/trading/calc";
 import { Num } from "@/components/num";
 import { StatusBadge } from "@/components/status-badge";
 import { useMyRoles } from "@/hooks/use-my-roles";
+import { useAccountStatus } from "@/hooks/use-account-status";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { describeOrderOutcome, isWorkingOrder, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
@@ -67,7 +68,10 @@ function csvNum(n: number | null | undefined, decimals: number): string {
 function PortfolioPage() {
   const { t, lang } = useI18n();
   const qc = useQueryClient();
-  const { isTrader } = useMyRoles();
+  const { isTrader, isLoading: rolesLoading } = useMyRoles();
+  const notActivated = !rolesLoading && !isTrader;
+  // A review hold pauses trading: buying power and trade links are not shown.
+  const onHold = useAccountStatus().data?.onHold === true;
   const confirm = useConfirm();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
@@ -364,9 +368,10 @@ function PortfolioPage() {
         />
         <KPI
           label={t("m_buyingPower")}
-          value={<Num value={summary.buyingPower} kind="currency" />}
+          value={onHold ? <Num value={null} /> : <Num value={summary.buyingPower} kind="currency" />}
           hint={
             <>
+              {onHold && <span className="block font-medium text-[var(--bear)]">{t("fx3_onHoldShort")}</span>}
               <span className="block">{t("m_cashBalance")} <Num value={summary.cash} kind="currency" /></span>
               <span className="block">{t("m_reservedByOrders")} <Num value={summary.reserved} kind="currency" /></span>
             </>
@@ -432,8 +437,8 @@ function PortfolioPage() {
         <input
           value={search.q}
           onChange={(e) => updateSearch({ q: e.target.value, page: 1 })}
-          placeholder={t("searchOrders")}
-          aria-label={t("searchOrders")}
+          placeholder={tab === "positions" ? t("fx3_searchPositions") : t("searchOrders")}
+          aria-label={tab === "positions" ? t("fx3_searchPositions") : t("searchOrders")}
           className="min-w-0 flex-1 basis-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none sm:basis-[220px]"
         />
         {tab === "orders" && (
@@ -478,8 +483,14 @@ function PortfolioPage() {
           {sortedPositions.length === 0 ? (
           <EmptyState
             title={t("emptyPositions")}
-            description={t("emptyPositionsDesc")}
-            action={<Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>}
+            description={onHold ? t("fx3_tradeOnHold") : notActivated ? t("fx3_tradeNotActivated") : t("emptyPositionsDesc")}
+            action={
+              !onHold && notActivated ? (
+                <Link to="/request-access" search={{ kind: "invest" }} className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("fx3_tradeNotActivatedCta")}</Link>
+              ) : (
+                <Link to="/market" className="rounded-md gold-gradient px-4 py-2 text-xs font-semibold text-ink">{t("nav_market")}</Link>
+              )
+            }
           />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
@@ -493,7 +504,7 @@ function PortfolioPage() {
             </div>
             {pagedPositions.map((p) => {
               const w = weightOf(p);
-              const trade = p.published && p.slug ? (
+              const trade = p.published && p.slug && !onHold ? (
                 <Link to="/trade/$symbol" params={{ symbol: p.slug }} className="inline-flex min-h-8 items-center rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]">{t("nav_trade")}</Link>
               ) : null;
               return (

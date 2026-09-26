@@ -71,7 +71,7 @@ function UnsubscribePage() {
         </div>
         <div className="mx-auto my-5 h-px w-16 hairline-gold" />
         <h1 className="text-2xl font-bold text-ink">{t("u_unsubTitle")}</h1>
-        <div className="mt-5 text-sm leading-7 text-ink" role="status" aria-live="polite">
+        <div className="mt-5 text-sm leading-7 text-ink" role="status" aria-live="polite" aria-atomic="true">
           {state.kind === "loading" && <p>{t("u_unsubChecking")}</p>}
           {state.kind === "invalid" && <p className="text-[color:var(--burgundy)]">{t("u_unsubInvalid")}</p>}
           {state.kind === "already" && <p>{t("u_unsubAlready")}</p>}

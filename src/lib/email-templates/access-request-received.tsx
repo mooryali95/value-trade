@@ -79,7 +79,7 @@ const AccessRequestReceivedEmail = ({
 
 export const template = {
   component: AccessRequestReceivedEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     `استلمنا طلبك · Request received${d.referenceCode ? ` (${d.referenceCode})` : ''} — وحدة القيمة`,
   displayName: 'Access request received',
   previewData: {

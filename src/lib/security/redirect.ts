@@ -37,6 +37,10 @@ export function safeRedirect(target: unknown, fallback = "/"): string {
     return fallback;
   }
   if (url.origin !== new URL(origin).origin) return fallback;
+  // Dot segments are resolved by the parser: "/.//evil.com" and
+  // "/a/..//evil.com" normalise to "//evil.com", which a browser (or an
+  // <a href>) reads as another host. Re-check the normalised path.
+  if (url.pathname.startsWith("//") || url.pathname.startsWith("/\\")) return fallback;
   const path = `${url.pathname}${url.search}${url.hash}`;
   // Never bounce back into the sign-in page itself.
   if (url.pathname === "/auth") return fallback;

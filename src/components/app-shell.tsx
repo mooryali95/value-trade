@@ -232,8 +232,12 @@ export function AppShell({
     ...(accountGroup.length > 0 ? [{ heading: t("nav_settings"), items: accountGroup }] : []),
   ];
 
+  const matches = (p: string) => (p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(`${p}/`));
+  // The most specific item wins: on /shariah/review only "Shariah review" is
+  // active, not "Shariah governance" (/shariah) as well.
+  const navPaths = [...primary, ...accountGroup].map((n) => n.to);
   const isActive = (p: string) =>
-    p === "/" ? pathname === "/" : pathname === p || pathname.startsWith(`${p}/`);
+    matches(p) && !navPaths.some((q) => q !== p && q.startsWith(`${p}/`) && matches(q));
 
   return (
     <div dir={dir} className="flex min-h-dvh flex-col bg-background text-foreground">

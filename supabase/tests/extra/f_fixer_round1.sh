@@ -17,7 +17,7 @@
 section "fixer: setup"
 # d_lifecycle.sh re-applies older migrations that redefine
 # product_submissions_guard and set_instrument_published: re-apply ours.
-for mig in fixer_security_hardening fixer_market_rules fixer_execute_allowlist; do
+for mig in fixer_security_hardening fixer_market_rules fixer_access_request_siblings fixer_execute_allowlist; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies on the suite's live state"
   else bad "$mig migration re-applies on the suite's live state" "${f:-*_$mig.sql not found} ${out:-}"; fi
@@ -150,3 +150,26 @@ done
 for sig in "user_watch_rows_guard()" "audit_name_change()"; do
   su_eq "trigger only: $sig" "false|false" "SELECT has_function_privilege('anon', 'public.$sig', 'EXECUTE') || '|' || has_function_privilege('authenticated', 'public.$sig', 'EXECUTE');"
 done
+
+section "fixer X9 duplicate access requests"
+X_R1=$(q service "INSERT INTO public.access_requests (email, full_name, join_method) VALUES ('x_dup@test.local','Dup One','investor') RETURNING id;")
+X_R2=$(q service "INSERT INTO public.access_requests (email, full_name, join_method) VALUES (' X_Dup@Test.local ','Dup Two','investor') RETURNING id;")
+X_R3=$(q service "INSERT INTO public.access_requests (email, full_name, join_method, requested_company_id) VALUES ('x_dup@test.local','Dup Three','search','$X_CO') RETURNING id;")
+X_R4=$(q service "INSERT INTO public.access_requests (email, full_name, join_method, requested_company_id) VALUES ('x_dup@test.local','Dup Four','link','$X_CO') RETURNING id;")
+X_R5=$(q service "INSERT INTO public.access_requests (email, full_name, join_method, new_company_name_ar, new_company_name_en) VALUES ('x_dup@test.local','Dup Five','new_company','شركة','Other Co') RETURNING id;")
+check "each submission keeps its own reference code" "$(su "SELECT count(DISTINCT reference_code) FROM public.access_requests WHERE lower(btrim(email))='x_dup@test.local';")" "5"
+q service "SELECT * FROM public.approve_access_request('$X_R1','$X_ADMIN',NULL,NULL,NULL);" >/dev/null
+su_eq "approving an investor request closes its pending duplicate with the same decision" "approved|approved|$X_ADMIN" \
+  "SELECT (SELECT status FROM public.access_requests WHERE id='$X_R1') || '|' || status || '|' || reviewed_by FROM public.access_requests WHERE id='$X_R2';"
+su_eq "other requests from the same address stay pending" "pending|pending|pending" \
+  "SELECT string_agg(status, '|' ORDER BY id) FROM public.access_requests WHERE id IN ('$X_R3','$X_R4','$X_R5');"
+q service "SELECT public.reject_access_request('$X_R3','$X_ADMIN','not now');" >/dev/null
+su_eq "rejecting a join request closes the duplicate for the same company (with the reason)" "rejected|not now" \
+  "SELECT status || '|' || rejection_reason FROM public.access_requests WHERE id='$X_R4';"
+su_eq "a request for a different thing is untouched" "pending" "SELECT status FROM public.access_requests WHERE id='$X_R5';"
+X_R6=$(q service "INSERT INTO public.access_requests (email, full_name, join_method) VALUES ('x_dup@test.local','Dup Six','investor') RETURNING id;")
+su_eq "a new request after the decision is a new request" "pending" "SELECT status FROM public.access_requests WHERE id='$X_R6';"
+expect_err "a closed duplicate cannot be decided again" service "REQUEST_NOT_PENDING" "SELECT * FROM public.approve_access_request('$X_R2','$X_ADMIN',NULL,NULL,NULL);"
+su_eq "trigger only: access_requests_close_siblings()" "false|false" "SELECT has_function_privilege('anon', 'public.access_requests_close_siblings()', 'EXECUTE') || '|' || has_function_privilege('authenticated', 'public.access_requests_close_siblings()', 'EXECUTE');"
+# Later sections count investor requests: leave none of ours behind.
+su "DELETE FROM public.access_requests WHERE lower(btrim(email)) = 'x_dup@test.local';" >/dev/null

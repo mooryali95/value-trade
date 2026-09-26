@@ -14,7 +14,7 @@ import { getOpsRunDetail } from "@/lib/ops/ops.functions";
 export const Route = createFileRoute("/_authenticated/admin/ops_/$id")({
   head: () => ({
     meta: [
-      { title: "تفاصيل تشغيل — وحدة القيمة" },
+      { title: "تفاصيل تشغيل — وحدة القيمة | Run details — Value Unit" },
       { name: "description", content: "سبب الفشل الكامل ومسار التنفيذ خطوة بخطوة ومقاييس التشغيل." },
       { property: "og:title", content: "تفاصيل تشغيل — وحدة القيمة" },
       { property: "og:description", content: "مسار التنفيذ والمقاييس لكل عملية تشغيل." },

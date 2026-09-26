@@ -320,7 +320,8 @@ function EmailLogContent() {
               <DialogDescription className="text-xs">{templateLabel(previewOpen.template, t)}</DialogDescription>
               <DialogTitle className="truncate text-sm">{previewOpen.subject}</DialogTitle>
             </DialogHeader>
-            <iframe title={t("u_elPreviewTitle")} srcDoc={previewOpen.html} className="w-full flex-1 bg-ivory" />
+            {/* Sandboxed: the preview is an opaque origin with no script, whatever a template renders. */}
+            <iframe title={t("u_elPreviewTitle")} srcDoc={previewOpen.html} sandbox="allow-popups" referrerPolicy="no-referrer" className="w-full flex-1 bg-ivory" />
           </DialogContent>
         )}
       </Dialog>

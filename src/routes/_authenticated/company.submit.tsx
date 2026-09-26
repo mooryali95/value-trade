@@ -16,6 +16,7 @@ import { useMyRoles } from "@/hooks/use-my-roles";
 import { listMyCompanies } from "@/lib/tenants/company.functions";
 import { submitProduct } from "@/lib/submissions/submissions.functions";
 import { LifecycleSteps } from "@/lib/submissions/lifecycle";
+import { SECTORS, sectorLabel } from "@/components/market-data";
 import { toast } from "sonner";
 
 const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/company/submit")({
     z.object({ companyId: z.string().uuid().optional() }).parse(s),
   head: () => ({
     meta: [
-      { title: "تقديم طلب إدراج — وحدة القيمة" },
+      { title: "تقديم طلب إدراج — وحدة القيمة | Submit for listing — Value Unit" },
       { name: "description", content: "قدّم منتج شركتك للمراجعة الشرعية ثم الإدراج في السوق." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -50,7 +51,9 @@ function SubmitPage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     companyId: companyId ?? activeId ?? "",
-    asset_class: "stock" as "stock" | "sukuk" | "brand",
+    // The market lists brand units only (Terms of use); the database refuses
+    // any other asset class (ASSET_CLASS_NOT_SUPPORTED).
+    asset_class: "brand" as const,
     symbol: "",
     name_ar: "",
     name_en: "",
@@ -145,11 +148,7 @@ function SubmitPage() {
             </select>
           </Field>
           <Field label={t("g_colClass")}>
-            <select value={form.asset_class} onChange={(e) => setForm({ ...form, asset_class: e.target.value as never })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-              <option value="stock">{t("g_assetStock")}</option>
-              <option value="sukuk">{t("g_assetSukuk")}</option>
-              <option value="brand">{t("g_assetBrand")}</option>
-            </select>
+            <div className="w-full rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm text-ink">{t("g_assetBrand")}</div>
           </Field>
           </>
           )}
@@ -168,7 +167,12 @@ function SubmitPage() {
             </Field>
           </div>
           <Field label={t("sector")}>
-            <input value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            <select value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <option value="">—</option>
+              {SECTORS.map((s) => (
+                <option key={s} value={s}>{sectorLabel(s, t)}</option>
+              ))}
+            </select>
           </Field>
           <Field label={t("prospectusUrl")}>
             <input type="url" value={form.prospectus_url} onChange={(e) => setForm({ ...form, prospectus_url: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" placeholder="https://..." />
@@ -184,7 +188,7 @@ function SubmitPage() {
                 <Row label={t("brandSymbol")} value={form.symbol.toUpperCase() || "—"} />
                 <Row label={t("nameAr")} value={form.name_ar || "—"} />
                 <Row label={t("nameEn")} value={form.name_en || "—"} />
-                <Row label={t("sector")} value={form.sector || "—"} />
+                <Row label={t("sector")} value={sectorLabel(form.sector, t) || "—"} />
                 <Row label={t("prospectusUrl")} value={form.prospectus_url || "—"} />
               </dl>
               <div className="rounded-lg border border-border/60 p-3">

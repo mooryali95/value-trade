@@ -70,7 +70,7 @@ function InvitationsPage() {
       navigate({ to: "/company/settings" });
     },
     onError: (e: unknown) => {
-      toast.error(errorMessage(e, { INVITATION_NOT_PENDING: "inviteNotPending" }));
+      toast.error(errorMessage(e, { INVITATION_NOT_PENDING: "inviteNotPending", ALREADY_MEMBER: "fx3_errAlreadyMemberInvitee" }));
       qc.invalidateQueries({ queryKey: ["my-invitations"] });
     },
   });

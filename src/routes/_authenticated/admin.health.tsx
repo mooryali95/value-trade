@@ -15,7 +15,7 @@ import { getPlatformHealth } from "@/lib/ops/health.functions";
 export const Route = createFileRoute("/_authenticated/admin/health")({
   head: () => ({
     meta: [
-      { title: "الصحة التشغيلية — وحدة القيمة" },
+      { title: "الصحة التشغيلية — وحدة القيمة | Operational health — Value Unit" },
       { name: "description", content: "حالة الجداول والخدمات وزمن الاستجابة وتحذيرات الأخطاء." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -198,7 +198,7 @@ function CheckTable({
           return (
             <div key={c.key} className={`grid ${cols} items-center gap-3 border-b border-border/50 px-4 py-3 text-sm last:border-b-0`}>
               <div className="min-w-0">
-                <div className="truncate font-medium text-ink">{name ?? c.key}</div>
+                <div className="break-words font-medium text-ink">{name ?? c.key}</div>
                 {name && (
                   <code className="block truncate text-[11px] text-muted-foreground" dir="ltr" style={{ textAlign: "start" }}>
                     {c.key}

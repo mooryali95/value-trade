@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/portfolio_/realized")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "الأرباح المحققة — وحدة القيمة" },
+      { title: "الأرباح المحققة — وحدة القيمة | Realized P&L — Value Unit" },
       { name: "description", content: "كشف الأرباح والخسائر المحققة على الإغلاقات حسب الرمز والمدة." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -101,7 +101,7 @@ function RealizedPage() {
         ].map(esc).join(","),
       ),
     ].join("\n");
-    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

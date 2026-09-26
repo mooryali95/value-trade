@@ -173,14 +173,24 @@ describe("listing tools", () => {
     await expect(call(issueUnits, { userId: USER, symbol: "ACM", qty: 1, price: 1 })).rejects.toThrow(/^INTERNAL_ERROR$/);
   });
 
-  it("setReferencePrice needs a platform admin and an existing instrument", async () => {
+  it("setReferencePrice needs a platform admin and goes through set_reference_price (audited in SQL)", async () => {
     state.isAdmin = false;
     await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^FORBIDDEN_ADMIN_REQUIRED$/);
+    expect(adminCalls.rpc).toHaveLength(0);
     state.isAdmin = true;
+    state.adminRpc = { data: null, error: { message: "INSTRUMENT_NOT_FOUND" } };
     await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INSTRUMENT_NOT_FOUND$/);
-    state.adminRows.brands = [{ id: "b-1", reference_price: 100, company_id: null }];
+    state.adminRpc = { data: null, error: { message: "INVALID_PRICE" } };
+    await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INVALID_PRICE$/);
+    state.adminRpc = { data: null, error: { message: 'permission denied for table brands', code: "42501" } };
+    await expect(call(setReferencePrice, { symbol: "ACM", price: 10 })).rejects.toThrow(/^INTERNAL_ERROR$/);
+    state.adminRpc = { data: [{ brand_id: "b-1", symbol: "ACM", previous_price: 100, reference_price: 10, changed: true }], error: null };
+    adminCalls.rpc.length = 0;
     await expect(call(setReferencePrice, { symbol: "acm", price: 10 })).resolves.toEqual({ symbol: "ACM", referencePrice: 10 });
-    expect(adminCalls.writes).toContain("update:brands");
+    expect(adminCalls.rpc[0]).toMatchObject({ name: "set_reference_price", args: { _symbol: "ACM", _price: 10, _actor_id: "admin-1" } });
+    // No direct table write, and the audit row is written by the SQL function.
+    expect(adminCalls.writes).not.toContain("update:brands");
+    expect(vi.mocked(writeAudit)).not.toHaveBeenCalled();
   });
 });
 

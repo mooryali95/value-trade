@@ -3,7 +3,6 @@
 // ledger guard, the Shariah buy-block, the branded email pipeline (a real send
 // to the operator's own inbox) and the scheduled cron endpoint.
 
-import { createHmac } from "crypto";
 import { isBuyBlockedByShariah } from "@/lib/trading/calc";
 import { logOpsRun } from "./run-log.server";
 
@@ -180,17 +179,20 @@ export async function runSmoke(input: {
   );
 
   // 7) Scheduled cron endpoint reachable and authenticating. Signed with the
-  // same HMAC scheme external schedulers use (CRON_ALERTS_SECRET over the raw
-  // body, hex, in x-signature). The service-role key never leaves the server.
+  // same scheme external schedulers use (x-timestamp, and the hex HMAC of
+  // "<timestamp>.<body>" with CRON_ALERTS_SECRET in x-signature). The
+  // service-role key never leaves the server.
   checks.push(
     await timed("cron_endpoint", async () => {
       const secret = process.env["CRON_ALERTS_SECRET"];
       if (!secret) return { status: "warn", detail: "skipped: secret not configured" };
       const body = "{}";
-      const signature = createHmac("sha256", secret).update(body).digest("hex");
+      const { cronSignature } = await import("@/lib/ops/cron-signature");
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = cronSignature(secret, timestamp, body);
       const res = await fetch(`${input.origin}/api/public/cron-alerts`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-signature": signature },
+        headers: { "content-type": "application/json", "x-signature": signature, "x-timestamp": timestamp },
         body,
         redirect: "manual",
       });

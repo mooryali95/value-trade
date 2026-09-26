@@ -39,6 +39,7 @@ import {
   type AdminInstrument,
 } from "@/lib/admin/listing.functions";
 import { validatePrice, validateQty } from "@/components/order-outcome";
+import { isValidReferencePrice } from "@/lib/trading/calc";
 
 export const Route = createFileRoute("/_authenticated/admin/investors")({
   head: () => ({
@@ -117,10 +118,10 @@ function AdminInvestorsPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow={t("navGroupAdmin")}
+        eyebrow={t("modePlatform")}
         title={t("nav_investors")}
         description={t("investorsDesc")}
-        crumbs={[{ label: t("navGroupAdmin"), to: "/admin/companies" }, { label: t("nav_investors") }]}
+        crumbs={[{ label: t("modePlatform"), to: "/admin/companies" }, { label: t("nav_investors") }]}
       />
 
       {!rolesLoading && isAdmin && (
@@ -214,7 +215,12 @@ function ReferencePriceCard() {
   const [touched, setTouched] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const symbolValid = SYMBOL_RE.test(symbol.trim());
-  const priceError = validatePrice(price);
+  // A reference price runs from 0.05 to 1,000,000,000 on the 0.01 tick
+  // (the database enforces the same rule).
+  const priceError: Key | null =
+    price.trim() !== "" && !validatePrice(price) && isValidReferencePrice(Number(price.trim()))
+      ? null
+      : "fx3_errReferencePriceRange";
 
   const qc = useQueryClient();
   const mut = useMutation({
@@ -231,7 +237,7 @@ function ReferencePriceCard() {
       setTouched(false);
     },
     onError: (e: unknown) => {
-      const msg = errorMessage(e);
+      const msg = errorMessage(e, { INVALID_PRICE: "fx3_errReferencePriceRange" });
       toast.error(msg);
       setAnnouncement(msg);
     },
@@ -280,7 +286,7 @@ function ReferencePriceCard() {
           <input
             type="number"
             inputMode="decimal"
-            min="0.01"
+            min="0.05"
             step="0.01"
             dir="ltr"
             value={price}
@@ -320,7 +326,10 @@ function InstrumentListingCard() {
   const listFn = useServerFn(listAdminInstruments);
   const publishFn = useServerFn(setInstrumentPublished);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<ListingFilter>("all");
+  // Listed instruments first; the legacy demo instruments of the early
+  // builds (no company, no submission) are hidden unless asked for.
+  const [filter, setFilter] = useState<ListingFilter>("published");
+  const [showSeeded, setShowSeeded] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const list = useQuery({ queryKey: ["admin-instruments"], queryFn: () => listFn() });
 
@@ -367,7 +376,10 @@ function InstrumentListingCard() {
     if (ok) mut.mutate({ symbol: i.symbol, published: publish });
   };
 
-  const rows = list.data ?? [];
+  const all = list.data ?? [];
+  const seededCount = all.filter((i) => i.origin === "demo_seed" && !i.published).length;
+  // A listed seeded instrument stays visible (it must be delistable).
+  const rows = showSeeded ? all : all.filter((i) => i.origin !== "demo_seed" || i.published);
   const needle = q.trim().toLowerCase();
   const filtered = rows.filter((i) => {
     if (filter === "published" && !i.published) return false;
@@ -403,6 +415,12 @@ function InstrumentListingCard() {
           <option value="published">{t("e2_published")}</option>
           <option value="unpublished">{t("e2_unpublished")}</option>
         </select>
+        {seededCount > 0 && (
+          <label className="inline-flex min-h-9 items-center gap-1.5 text-xs text-ink-soft">
+            <input type="checkbox" checked={showSeeded} onChange={(e) => setShowSeeded(e.target.checked)} />
+            {t("d_showSeeded")}
+          </label>
+        )}
         {list.data && (
           <span className="text-[11px] text-muted-foreground">
             {t("e2_publishedCount").replace("{n}", String(publishedCount)).replace("{total}", String(rows.length))}
@@ -418,9 +436,9 @@ function InstrumentListingCard() {
       ) : filtered.length === 0 ? (
         <p className="py-6 text-center text-xs text-muted-foreground">{t("emptyTitle")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
+        <div>
+          <table className="w-full text-sm max-md:block">
+            <thead className="max-md:hidden">
               <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2 text-start font-semibold">{t("e2_colInstrument")}</th>
                 <th className="px-3 py-2 text-start font-semibold">{t("e2_origin")}</th>
@@ -429,26 +447,28 @@ function InstrumentListingCard() {
                 <th className="px-3 py-2" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="max-md:block">
               {shown.map((i) => (
-                <tr key={i.symbol} className="border-b border-border/40 last:border-0">
-                  <td className="px-3 py-2">
-                    <div className="font-mono text-xs font-semibold text-ink">{i.symbol}</div>
-                    <div className="max-w-[260px] truncate text-[11px] text-muted-foreground">{lang === "ar" ? i.nameAr : i.nameEn}</div>
+                <tr key={i.symbol} className="border-b border-border/40 last:border-0 max-md:block max-md:py-2">
+                  <td className="px-3 py-2 max-md:block max-md:pb-1">
+                    <div className="font-mono text-xs font-semibold text-ink"><span dir="ltr">{i.symbol}</span></div>
+                    <div className="max-w-[260px] truncate text-[11px] text-muted-foreground max-md:max-w-none max-md:whitespace-normal">{lang === "ar" ? i.nameAr : i.nameEn}</div>
                   </td>
-                  <td className="px-3 py-2 text-[11px] text-ink-soft">{originLabel(i.origin)}</td>
-                  <td className="px-3 py-2 text-end font-mono text-xs" dir="ltr">
+                  <td className="px-3 py-2 text-[11px] text-ink-soft max-md:inline-block max-md:py-1">{originLabel(i.origin)}</td>
+                  <td className="px-3 py-2 text-end font-mono text-xs max-md:inline-block max-md:py-1" dir="ltr">
                     {i.referencePrice > 0 ? formatCurrency(i.referencePrice, false, lang) : "—"}
                   </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={i.published ? "bull" : "neutral"}>{i.published ? t("e2_published") : t("e2_unpublished")}</Badge>
+                  <td className="px-3 py-2 max-md:inline-block max-md:py-1">
+                    <span className="whitespace-nowrap">
+                      <Badge variant={i.published ? "bull" : "neutral"}>{i.published ? t("e2_published") : t("e2_unpublished")}</Badge>
+                    </span>
                   </td>
-                  <td className="px-3 py-2 text-end">
+                  <td className="px-3 py-2 text-end max-md:block max-md:pt-1 max-md:text-start">
                     <button
                       type="button"
                       onClick={() => void toggle(i)}
                       disabled={mut.isPending}
-                      className={`rounded border px-3 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+                      className={`min-h-9 rounded border px-3 py-1 text-[11px] font-semibold disabled:opacity-50 ${
                         i.published
                           ? "border-[var(--bear)]/40 text-[var(--bear)] hover:bg-[var(--bear)]/5"
                           : "border-[var(--gold-deep)]/40 text-[var(--gold-deep)] hover:bg-[var(--gold-soft)]"
@@ -892,6 +912,7 @@ const SOURCE_KEY: Record<PendingActivation["source"], Key> = {
   investor_request: "r_invSourceInvestorRequest",
   invited_no_account: "r_invSourceInvitedNoAccount",
   no_role: "r_invSourceNoRole",
+  no_role_never_signed_in: "fx3_srcNoRoleNeverSignedIn",
 };
 
 /**
@@ -961,9 +982,10 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
       ) : rows.length === 0 ? (
         <p className="px-4 py-6 text-center text-xs text-muted-foreground">{t("r_invPendingEmpty")}</p>
       ) : (
-        <div className="overflow-x-auto p-2">
-          <table className="w-full text-sm">
-            <thead>
+        <div className="p-2">
+          {/* Below md each row is a card: applicant, source, date, then the actions. */}
+          <table className="w-full text-sm max-md:block">
+            <thead className="max-md:hidden">
               <tr className="border-b border-border/60 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2 text-start font-semibold">{t("r_arColApplicant")}</th>
                 <th className="px-3 py-2 text-start font-semibold">{t("r_invColSource")}</th>
@@ -971,18 +993,20 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                 <th className="px-3 py-2" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="max-md:block">
               {rows.map((r) => (
-                <tr key={`${r.userId ?? "none"}:${r.email}`} className="border-b border-border/40 align-top last:border-0">
-                  <td className="px-3 py-2">
-                    <div className="text-xs font-semibold text-ink">{r.fullName || "—"}</div>
-                    <div className="text-[11px] text-muted-foreground" dir="ltr">{r.email}</div>
+                <tr key={`${r.userId ?? "none"}:${r.email}`} className="border-b border-border/40 align-top last:border-0 max-md:block max-md:py-2">
+                  <td className="px-3 py-2 max-md:block max-md:pb-1">
+                    <div className="break-words text-xs font-semibold text-ink">{r.fullName || "—"}</div>
+                    <div className="break-all text-[11px] text-muted-foreground" dir="ltr">{r.email}</div>
                     {r.requestReference && (
                       <div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{r.requestReference}</div>
                     )}
                   </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={r.source === "invited_no_account" ? "neutral" : "gold"}>{t(SOURCE_KEY[r.source])}</Badge>
+                  <td className="px-3 py-2 max-md:inline-block max-md:py-1">
+                    <span className="whitespace-nowrap">
+                      <Badge variant={r.source === "invited_no_account" ? "neutral" : "gold"}>{t(SOURCE_KEY[r.source] ?? "r_invSourceNoRole")}</Badge>
+                    </span>
                     {r.userId && !r.emailConfirmed && (
                       <div className="mt-1">
                         <Badge variant="bear">{t("emailUnconfirmed")}</Badge>
@@ -1000,15 +1024,15 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                       </div>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground">{fmt(r.requestedAt ?? r.createdAt)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap justify-end gap-1.5">
+                  <td className="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground max-md:inline-block max-md:py-1">{fmt(r.requestedAt ?? r.createdAt)}</td>
+                  <td className="px-3 py-2 max-md:block max-md:pt-1">
+                    <div className="flex flex-wrap justify-end gap-1.5 max-md:justify-start">
                       {r.requestId && (!r.userId || !r.emailConfirmed) && (
                         <button
                           type="button"
                           disabled={resend.isPending}
                           onClick={() => resend.mutate(r.requestId!)}
-                          className="rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+                          className="min-h-9 rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
                         >
                           {t("r_arResendPlatformInvite")}
                         </button>
@@ -1018,7 +1042,7 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                           <button
                             type="button"
                             onClick={() => onOpen(r.email)}
-                            className="rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)]"
+                            className="min-h-9 rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)]"
                           >
                             {t("r_invOpen")}
                           </button>
@@ -1035,7 +1059,7 @@ function PendingActivationsCard({ onOpen }: { onOpen: (email: string) => void })
                               });
                               if (ok) activate.mutate(r);
                             }}
-                            className="rounded gold-gradient px-2 py-1 text-[11px] font-semibold text-ink disabled:opacity-50"
+                            className="min-h-9 rounded gold-gradient px-2 py-1 text-[11px] font-semibold text-ink disabled:opacity-50"
                           >
                             {t("activateTrading")}
                           </button>

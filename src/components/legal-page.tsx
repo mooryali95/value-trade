@@ -73,7 +73,7 @@ export function LegalPage({
             <ol className="grid gap-1 text-sm sm:grid-cols-2">
               {shown.map((s, i) => (
                 <li key={s.id} className="min-w-0">
-                  <a href={`#${s.id}`} className="text-ink-soft hover:text-[var(--gold-deep)]">
+                  <a href={`#${s.id}`} className="inline-flex min-h-9 items-center text-ink-soft hover:text-[var(--gold-deep)]">
                     {i + 1}. {s.heading}
                   </a>
                 </li>

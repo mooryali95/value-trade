@@ -430,13 +430,21 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 7) Storage: the submission documents bucket is private.
 -- ---------------------------------------------------------------------------
+-- The storage schema belongs to the storage service: if the migration role
+-- may not change it, the migration goes on (one-transaction launch bundle)
+-- and says so; the bucket is then checked by hand (Storage settings:
+-- "submission-docs", public off, no policies).
 DO $$
 DECLARE r record;
 BEGIN
   IF to_regclass('storage.buckets') IS NOT NULL THEN
-    INSERT INTO storage.buckets (id, name, public)
-    VALUES ('submission-docs', 'submission-docs', false)
-    ON CONFLICT (id) DO UPDATE SET public = false;
+    BEGIN
+      INSERT INTO storage.buckets (id, name, public)
+      VALUES ('submission-docs', 'submission-docs', false)
+      ON CONFLICT (id) DO UPDATE SET public = false;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE WARNING 'STORAGE_BUCKET_NOT_CHECKED: make sure the bucket submission-docs is private';
+    END;
   END IF;
   IF to_regclass('storage.objects') IS NOT NULL THEN
     -- No client policy may open this bucket: the server uses the service
@@ -448,8 +456,12 @@ BEGIN
          AND (COALESCE(pg_get_expr(pol.polqual, pol.polrelid), '') ILIKE '%submission-docs%'
               OR COALESCE(pg_get_expr(pol.polwithcheck, pol.polrelid), '') ILIKE '%submission-docs%')
     LOOP
-      EXECUTE format('DROP POLICY %I ON storage.objects', r.polname);
-      RAISE NOTICE 'dropped storage policy % (submission-docs is server-only)', r.polname;
+      BEGIN
+        EXECUTE format('DROP POLICY %I ON storage.objects', r.polname);
+        RAISE NOTICE 'dropped storage policy % (submission-docs is server-only)', r.polname;
+      EXCEPTION WHEN insufficient_privilege THEN
+        RAISE WARNING 'STORAGE_POLICY_NOT_DROPPED: remove the storage policy % by hand', r.polname;
+      END;
     END LOOP;
   END IF;
 END $$;

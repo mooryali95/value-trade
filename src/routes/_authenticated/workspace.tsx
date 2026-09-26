@@ -137,14 +137,27 @@ function WorkspacePage() {
     );
   }
 
-  // Company brands (roster) joined with the public board: a brand is
-  // "listed" only when it is published; its price is the last trade or the
-  // listing reference price, both from the database.
+  // The company's brands: its roster (company_brands) together with the
+  // instruments it owns (brands.company_id, e.g. listed through a product
+  // submission), counted once each, as the database counts them against the
+  // 30-brand cap. A brand is "listed" only when it is published; its price
+  // is the last trade or the listing reference price, both from the database.
   const listed = indexBySymbol(market.data?.instruments);
-  const brandRows = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => ({
-    id: row.id,
-    symbol: row.brand_symbol,
-    instrument: listed.get(row.brand_symbol.toUpperCase()) ?? null,
+  const owned = new Set((details.data?.instruments ?? []).map((b: { symbol: string }) => b.symbol.toUpperCase()));
+  const roster = (details.data?.brands ?? []).map((row: { id: string; brand_symbol: string }) => ({
+    id: row.id as string | null,
+    symbol: row.brand_symbol.toUpperCase(),
+  }));
+  const inRoster = new Set(roster.map((r) => r.symbol));
+  const brandRows = [
+    ...roster,
+    ...Array.from(owned).filter((sym) => !inRoster.has(sym)).map((sym) => ({ id: null as string | null, symbol: sym })),
+  ].map((r) => ({
+    ...r,
+    // An instrument the company owns stays on its list: only roster entries
+    // can be removed here.
+    removable: r.id !== null && !owned.has(r.symbol),
+    instrument: listed.get(r.symbol) ?? null,
   }));
   const listedCount = brandRows.filter((r) => r.instrument).length;
   const totalValue24h = brandRows.reduce((s, r) => s + (r.instrument?.volume24hValue ?? 0), 0);
@@ -225,7 +238,7 @@ function WorkspacePage() {
           ) : (
             <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
               {brandRows.map((r) => (
-                <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                <div key={r.id ?? `owned:${r.symbol}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                   <div className="flex min-w-0 items-center gap-3">
                     <Monogram symbol={r.symbol} className="h-10 w-10" />
                     <div className="min-w-0">
@@ -254,6 +267,7 @@ function WorkspacePage() {
                         {t("overview")}
                       </Link>
                     )}
+                    {r.removable && r.id && (
                     <button
                       disabled={!canManageBrands}
                       onClick={async () => {
@@ -264,13 +278,14 @@ function WorkspacePage() {
                           cancelLabel: t("cancel"),
                           tone: "danger",
                         });
-                        if (ok) removeBrandMut.mutate(r.id);
+                        if (ok && r.id) removeBrandMut.mutate(r.id);
                       }}
                       type="button"
                       className="inline-flex min-h-9 items-center rounded-md border border-[var(--bear)]/40 px-3 text-xs text-[var(--bear)] disabled:opacity-40"
                     >
                       {t("wsRemove")}
                     </button>
+                    )}
                   </div>
                 </div>
               ))}

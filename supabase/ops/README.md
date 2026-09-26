@@ -3,9 +3,14 @@
 This folder holds scripts the owner runs **by hand**. Nothing here is a
 migration and nothing here runs automatically.
 
+**Launch requirements for the owner** (secrets, authentication settings, the
+database update, post-deploy checks, go-live, the owner inputs checklist and
+known limitations): [Arabic, primary](../../docs/launch/LAUNCH_REQUIREMENTS.ar.md)
+and [English](../../docs/launch/LAUNCH_REQUIREMENTS.en.md).
+
 | File | Purpose |
 | --- | --- |
-| `go_live_reset.sql` | One-time reset of the trading state right before the first real investor is invited. Archives, then clears orders, trades, positions, the cash ledger and unit issuances, and sets every cash balance to 0. Read its header before running it. |
+| `go_live_reset.sql` | One-time reset of the trading state right before the first real investor is invited. Archives, then clears orders, trades, positions, the cash ledger and unit issuances, sets every cash balance to 0 and removes the legacy demo instruments. Read its header before running it. |
 | `test_go_live_reset.sh` | Regression test for the reset script (fixtures, reset, second-run refusal, restore). Run it against a throwaway database only. |
 | `launch_bundle.sql` | **Generated.** Every migration from `20260924100000` onward, in order, in ONE transaction, with preconditions (right database, not applied yet) and the migration-history record. Run once in the Lovable Cloud SQL editor (step 2). |
 | `build_launch_bundle.sh` | Regenerates `launch_bundle.sql` from `supabase/migrations` (`--check` fails when the committed bundle is stale). |
@@ -25,7 +30,10 @@ before it.
      (optional `APP_ALLOWED_ORIGINS`: extra exact origins, comma separated);
    - `LOVABLE_API_KEY` (transactional email);
    - `CRON_ALERTS_SECRET` (a long random value, signs the price-alert job and
-     the smoke suite).
+     the smoke suite). An external scheduler sends `x-timestamp` (Unix
+     seconds) and `x-signature` = hex HMAC-SHA256 of
+     `"<x-timestamp>.<body>"`; a request more than 5 minutes from its
+     timestamp is refused (see `docs/api-public.md`).
    Also fill in the confirmed operator details in `src/lib/config/site.ts`
    (legal entity, commercial registration, address, contact addresses,
    licensing status, Shariah board). Empty fields are simply not shown.
@@ -56,7 +64,9 @@ before it.
    open `/admin/health`: the `integrity.*` checks list the ledger and market
    invariants (`public.integrity_report()`). Before the reset, legacy units
    with no issuance behind them may show `units_match_history` /
-   `units_conserved_per_symbol` in red; step 5 clears them.
+   `units_conserved_per_symbol` in red: that is expected between steps 2 and
+   5 (the bundle alone does not clear them), and step 5 clears them. Run
+   step 5 before any real investor is invited.
 5. **Run `go_live_reset.sql`** once, in the Lovable Cloud SQL editor, as the
    last step before inviting the first real investor:
    - paste the whole file and run it;
@@ -64,6 +74,10 @@ before it.
    - if it stops with `GO_LIVE_RESET_ALREADY_RUN`, it has already run and
      nothing was changed; `GO_LIVE_RESET_NO_ADMIN` means no account has the
      `platform_admin` role yet; any other error also means nothing changed;
+   - it also deletes the legacy demo instruments of the early builds (off
+     the market, no company, no submission; some carried the names of real
+     listed issuers), with the price alerts and watch-list rows on them.
+     Their Shariah rulings stay on record;
    - the archive lives in the private schema `go_live_archive`; the header
      of the script explains how to restore from it;
    - afterwards every `integrity.*` check on `/admin/health` must pass (the
@@ -74,7 +88,7 @@ before it.
    Every amount is recorded in the cash ledger and the audit log.
 7. **List instruments through the lifecycle** (`/admin/submissions`), in
    this order, each step by its own role and enforced in the database:
-   1. a company owner or finance member submits the product (status
+   1. a company owner or finance member submits the brand (status
       *awaiting Shariah review*);
    2. a Shariah reviewer approves it (records the ruling and creates the
       instrument off the market, no price) or rejects it with a reason. A
@@ -99,9 +113,14 @@ before it.
 يضم هذا المجلد نصوصًا برمجية يشغّلها مالك المنصة **يدويًا**. لا شيء هنا
 يُعدّ ترحيلًا (migration)، ولا شيء يعمل تلقائيًا.
 
+**متطلبات الإطلاق للمالك** (الأسرار، وإعدادات المصادقة، وتحديث قاعدة البيانات،
+وفحوص ما بعد النشر، والتشغيل الفعلي، وقائمة مدخلات المالك، والقيود المعروفة):
+[النسخة العربية المعتمدة](../../docs/launch/LAUNCH_REQUIREMENTS.ar.md)
+و[النسخة الإنجليزية](../../docs/launch/LAUNCH_REQUIREMENTS.en.md).
+
 | الملف | الغرض |
 | --- | --- |
-| `go_live_reset.sql` | إعادة ضبط حالة التداول مرة واحدة قبيل دعوة أول مستثمر فعلي: يؤرشف البيانات، ثم يحذف الأوامر والصفقات والمراكز وسجل النقد وإصدارات الوحدات، ويجعل رصيد كل محفظة صفرًا. اقرأ ترويسة الملف قبل تشغيله. |
+| `go_live_reset.sql` | إعادة ضبط حالة التداول مرة واحدة قبيل دعوة أول مستثمر فعلي: يؤرشف البيانات، ثم يحذف الأوامر والصفقات والمراكز وسجل النقد وإصدارات الوحدات، ويجعل رصيد كل محفظة صفرًا، ويحذف الأدوات التجريبية القديمة. اقرأ ترويسة الملف قبل تشغيله. |
 | `test_go_live_reset.sh` | اختبار انحدار لنص إعادة الضبط (بيانات تجريبية، إعادة الضبط، رفض التشغيل الثاني، الاستعادة). شغّله على قاعدة بيانات مؤقتة فقط. |
 | `launch_bundle.sql` | **ملف مولَّد.** جميع الترحيلات من `20260924100000` فصاعدًا بترتيبها، في معاملة واحدة، مع شروط مسبقة (قاعدة البيانات الصحيحة، وعدم التطبيق السابق) وتسجيل الإصدارات في سجل الترحيلات. يُشغَّل مرة واحدة في محرّر SQL في Lovable Cloud (الخطوة 2). |
 | `build_launch_bundle.sh` | يعيد توليد `launch_bundle.sql` من `supabase/migrations` (ويفشل الخيار `--check` إذا كانت الحزمة المحفوظة قديمة). |
@@ -116,7 +135,10 @@ before it.
      (و`APP_ALLOWED_ORIGINS` اختياريًا: نطاقات إضافية مطابقة تمامًا، مفصولة بفواصل)؛
    - `LOVABLE_API_KEY` (رسائل البريد الإلكتروني)؛
    - `CRON_ALERTS_SECRET` (قيمة عشوائية طويلة توقّع مهمة تنبيهات الأسعار
-     ومجموعة الفحص السريع).
+     ومجموعة الفحص السريع). ويرسل المُجدوِل الخارجي الترويسة `x-timestamp`
+     (الوقت بثواني يونكس) والترويسة `x-signature` = توقيع HMAC-SHA256 بالنظام
+     الست عشري للنص `"<x-timestamp>.<body>"`، ويُرفض الطلب إذا ابتعد عن وقته
+     أكثر من 5 دقائق (انظر `docs/api-public.md`).
    واملأ كذلك بيانات المشغّل المؤكَّدة في `src/lib/config/site.ts` (الكيان
    القانوني، والسجل التجاري، والعنوان، وعناوين التواصل، وحالة الترخيص،
    والهيئة الشرعية). الحقول الفارغة لا تظهر للمستخدمين.
@@ -145,7 +167,8 @@ before it.
    `/admin/health`: تعرض فحوص `integrity.*` ثوابت السجل المالي والسوق
    (`public.integrity_report()`). وقبل إعادة الضبط قد يظهر الفحصان
    `units_match_history` و`units_conserved_per_symbol` باللون الأحمر بسبب وحدات
-   قديمة لا يقابلها إصدار، وتزيلها الخطوة 5.
+   قديمة لا يقابلها إصدار؛ وهذا متوقَّع بين الخطوتين 2 و5 (فالحزمة وحدها لا
+   تزيلهما)، وتزيلها الخطوة 5. شغّل الخطوة 5 قبل دعوة أي مستثمر فعلي.
 5. **تشغيل `go_live_reset.sql`** مرة واحدة في محرّر SQL في Lovable Cloud،
    بوصفه الخطوة الأخيرة قبل دعوة أول مستثمر فعلي:
    - الصق الملف كاملًا وشغّله؛
@@ -153,6 +176,9 @@ before it.
    - إذا توقّف برسالة `GO_LIVE_RESET_ALREADY_RUN` فقد شُغّل سابقًا ولم يتغيّر
      شيء؛ وتعني `GO_LIVE_RESET_NO_ADMIN` أنه لا يوجد حساب بدور
      `platform_admin` بعد؛ وأي خطأ آخر يعني كذلك أنه لم يتغيّر شيء؛
+   - ويحذف كذلك الأدوات التجريبية القديمة من الإصدارات الأولى (خارج السوق، بلا
+     شركة ولا طلب إدراج، وبعضها كان يحمل أسماء جهات مُدرجة فعليًا)، مع تنبيهات
+     الأسعار وقوائم المتابعة المرتبطة بها، وتبقى أحكامها الشرعية محفوظة في السجل؛
    - تُحفظ الأرشيفات في المخطط الخاص `go_live_archive`، وتشرح ترويسة الملف
      طريقة الاستعادة منها؛
    - بعد ذلك يجب أن تنجح كل فحوص `integrity.*` في `/admin/health` (ويرفض الملف
@@ -163,8 +189,8 @@ before it.
    التدقيق.
 7. **إدراج الأدوات عبر مسار الإدراج** (`/admin/submissions`) بهذا الترتيب، ولكل
    خطوة دورها الخاص، وتفرضها قاعدة البيانات:
-   1. يقدّم مالك الشركة أو مسؤولها المالي المنتج (الحالة: *بانتظار المراجعة
-      الشرعية*)؛
+   1. يقدّم مالك الشركة أو مسؤولها المالي العلامة التجارية (الحالة: *بانتظار
+      المراجعة الشرعية*)؛
    2. يعتمده المراجع الشرعي (فيُسجَّل الحكم الشرعي وتُنشأ الأداة خارج السوق دون
       سعر) أو يرفضه مع ذكر السبب. ولا يُستبدل حكم مختلف ساري دون تأكيد صريح؛
    3. يعتمد مدير المنصة الإدراج: يحدّد سعرًا مرجعيًا فعليًا (يُبنى عليه نطاق

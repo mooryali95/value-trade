@@ -364,7 +364,7 @@ function AuthPage() {
                     setError(null);
                     setNotice(null);
                   }}
-                  className="mx-auto block text-[11px] text-muted-foreground underline hover:text-[var(--gold-deep)]"
+                  className="mx-auto block min-h-11 px-2 text-[11px] text-muted-foreground underline hover:text-[var(--gold-deep)]"
                 >
                   {mode === "forgot" ? t("backToSignin") : t("forgotPassword")}
                 </button>

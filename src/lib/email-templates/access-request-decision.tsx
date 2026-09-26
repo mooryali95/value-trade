@@ -103,7 +103,7 @@ const AccessRequestDecisionEmail = ({
 
 export const template = {
   component: AccessRequestDecisionEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     d.decision === 'approved'
       ? 'تمت الموافقة على طلبك · Request approved — وحدة القيمة'
       : 'بخصوص طلب الانضمام · About your request — وحدة القيمة',

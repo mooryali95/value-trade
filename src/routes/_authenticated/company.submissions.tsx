@@ -14,6 +14,7 @@ import { listCompanySubmissions } from "@/lib/submissions/submissions.functions"
 import { LifecycleSteps, NEXT_STEP, StageProgress, SubmissionStageBadge } from "@/lib/submissions/lifecycle";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { SubmissionDocuments } from "@/components/submission-documents";
+import { sectorLabel } from "@/components/market-data";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useState } from "react";
 
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/company/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "طلبات إدراج الشركة — وحدة القيمة" },
+      { title: "طلبات إدراج الشركة — وحدة القيمة | Company listing submissions — Value Unit" },
       { name: "description", content: "مراحل طلبات الإدراج المقدَّمة: المراجعة الشرعية ثم اعتماد الإدراج." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -162,7 +163,7 @@ function CompanySubmissions() {
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{s.symbol}</div>
               </div>
               <div>{ASSET_LABEL[s.asset_class] ? t(ASSET_LABEL[s.asset_class]) : s.asset_class}</div>
-              <div className="text-muted-foreground">{s.sector ?? "—"}</div>
+              <div className="text-muted-foreground">{sectorLabel(s.sector, t) || "—"}</div>
               <div className="text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
               <div className="flex items-center gap-2">
                 <SubmissionStageBadge status={s.status} />

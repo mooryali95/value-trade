@@ -89,13 +89,29 @@ units, and only invited, admin-activated investors trade them.
 - **Audit log** (`public.audit_log`) recording sensitive actions with owner-only read access. Append-only: only the server (service role) inserts, with the verified actor id; users cannot write, update or delete rows.
 - **Stable error codes.** Server functions return `UPPER_SNAKE` codes (e.g. `INSUFFICIENT_CASH`, `ORDER_NOT_OPEN`); database and driver messages are logged server side and never sent to the browser.
 - **HMAC-signed** public webhooks/cron (`/api/public/cron-alerts`, others).
-- **Rate limiting** on public routes via `public.check_rate_limit`.
+- **Rate limiting** on public routes via `public.check_rate_limit`: fixed
+  windows aligned on the epoch (one counter row per key and window), each row
+  kept until its own window has ended, so hourly and daily limits (e.g. 3
+  access requests per address per day) hold as configured.
 - **HIBP** leaked-password protection: enable it in the Supabase Auth settings
   (Lovable Cloud) and confirm it there; the app maps the resulting Auth errors
   to stable codes.
 - **Security headers** on every response the worker renders (see *Security
   headers* below).
-- **HTTPS** enforced by hosting; strict cookies for the Supabase session.
+- **HTTPS** enforced by hosting (HSTS). The Supabase session is kept in the
+  browser's `localStorage` (key `sb-*-auth-token`), not in a cookie: it is
+  protected by the absence of script injection (React escaping, no
+  `dangerouslySetInnerHTML` of user data, sandboxed e-mail previews), not by
+  cookie flags. There is no script-src CSP yet; add a nonce-based one when
+  TanStack Start supports it.
+- **Stable error codes end to end.** A global server-function middleware
+  (`src/start.ts`) turns any other failure (validator issue lists, the auth
+  middleware's "Unauthorized: ..." text, library messages) into
+  `INVALID_INPUT`, `NOT_AUTHENTICATED` or `INTERNAL_ERROR`.
+- **Notifications of unlisted instruments.** Rulings, prices and position
+  news are e-mailed only for instruments listed on the market; watch lists
+  and price alerts accept listed instruments only (RLS), at most 100 of each
+  per account.
 
 ## Public market data
 
@@ -282,9 +298,9 @@ each version in `supabase_migrations.schema_migrations`. See
 | `shariah_decision_audit` | Indefinite | Regulatory trail for Shariah rulings; append-only via trigger. |
 | `cash_ledger`, `orders`, `positions` | Indefinite | Financial records; ledger is the single source of truth for balances. |
 | `email_send_log` | 90 days | Operational only; older rows may be pruned. |
-| `rate_limits` | 1 hour | Auto-pruned by `public.check_rate_limit`. |
+| `rate_limits` | Until the row's own window ends (at least 1 hour) | Auto-pruned by `public.check_rate_limit`. |
 | `email_unsubscribe_tokens` | 12 months | Single-use tokens, marked `used_at`. |
-| Storage `submission-docs` | Lifetime of the submission + 24 months | Private bucket; access via short-lived signed URLs (120 s). |
+| Storage `submission-docs` | Lifetime of the submission + 24 months | Private bucket (created private by migration 20260926101500, which also drops any client policy on its objects); access via short-lived signed URLs (120 s). |
 
 **Backups** — the managed Postgres instance takes automated daily backups with
 point-in-time recovery on the platform tier. Restore drills are performed
@@ -301,13 +317,16 @@ obligations.
 
 | Job | Endpoint | Cadence | Auth |
 | --- | --- | --- | --- |
-| Price alert scan | `POST /api/public/cron-alerts` | every minute | HMAC-SHA256 (`CRON_ALERTS_SECRET`) over the raw body in `x-signature` |
+| Price alert scan | `POST /api/public/cron-alerts` | every minute | Service-role bearer (pg_cron), or `x-timestamp` (Unix seconds) + `x-signature` = hex HMAC-SHA256 (`CRON_ALERTS_SECRET`) of `"<x-timestamp>.<raw body>"`, accepted within 300 s of the timestamp |
 | Email queue drain | `POST /lovable/email/queue/process` | every 5 s while queued | service-role bearer, self-disarming |
 
 The price-alert scan is scheduled in production as `pg_cron` job
 `scan-price-alerts` (`* * * * *`). It authenticates with a service-role bearer
-read from the vault; external callers must instead sign the raw body with
-`CRON_ALERTS_SECRET`. Every run appends a row to `public.ops_run_log`
+read from the vault; external callers must instead sign
+`"<x-timestamp>.<raw body>"` with `CRON_ALERTS_SECRET` (a signed request is
+refused 5 minutes after its timestamp, so a captured one cannot be replayed
+later). Each run reads the active alerts page by page (no API row cap).
+Every run appends a row to `public.ops_run_log`
 (platform-admin read only), surfaced at `/admin/ops` with the last run time,
 result and metrics.
 
@@ -331,7 +350,7 @@ Server-side environment variables (never exposed to the browser):
 | --- | --- | --- |
 | `APP_ORIGIN` | Canonical public origin (e.g. `https://hub.sunkvalue.com`). Used for every absolute link in emails (invitations, price alerts, Shariah notices), robots.txt and the sitemap. | Legacy `PUBLIC_SITE_URL` / `PUBLIC_APP_ORIGIN`, then the current request's origin if it is on the allow-list, then `https://hub.sunkvalue.com`. **Set it on any other domain**, or emails link to hub.sunkvalue.com. |
 | `APP_ALLOWED_ORIGINS` | Comma-separated exact origins the server may link to or call (smoke suite), in addition to `APP_ORIGIN` and the known production hosts. No wildcards. | Only `APP_ORIGIN` and the built-in production hosts are allowed. |
-| `CRON_ALERTS_SECRET` | HMAC-SHA256 key for external callers of `POST /api/public/cron-alerts`. | Only the service-role bearer (pg_cron) is accepted; the smoke suite's cron check reports a warning. With neither configured the endpoint answers 503. |
+| `CRON_ALERTS_SECRET` | HMAC-SHA256 key for external callers of `POST /api/public/cron-alerts` (signs `"<x-timestamp>.<body>"`). | Only the service-role bearer (pg_cron) is accepted; the smoke suite's cron check reports a warning. With neither configured the endpoint answers 503. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role for trusted server code (engine calls, audit writes, cron bearer). | Server functions that move money or write audit rows fail closed. |
 
 ## Launch reconciliation

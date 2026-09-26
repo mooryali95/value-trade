@@ -1,6 +1,6 @@
 -- ============================================================================
 -- EXECUTE privileges for the functions of the phase 3 fixer migrations
--- (20260926101500, 20260926101600), following the explicit allow-list
+-- (20260926101500, 20260926101600, 20260926101650), following the explicit allow-list
 -- pattern of 20260924100600_function_execute_audit.sql: Supabase's default
 -- privileges grant EXECUTE on every new public function to anon and
 -- authenticated, so each one is revoked from PUBLIC, anon and authenticated.
@@ -31,7 +31,9 @@ DECLARE
     'public.audit_name_change()',
     'public.log_shariah_decision_update()',
     'public.product_submissions_guard()',
-    'public.enforce_brand_cap()'
+    'public.enforce_brand_cap()',
+    -- 20260926101650_fixer_access_request_siblings.sql
+    'public.access_requests_close_siblings()'
   ];
   -- Browser-visible market data (anon + authenticated), unchanged audience.
   public_read text[] := ARRAY[

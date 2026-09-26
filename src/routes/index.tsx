@@ -640,8 +640,9 @@ function AccountHome({ userId }: { userId: string }) {
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px hairline-gold" />
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-[var(--gold-ink)]">{t("u_homeEyebrow")}</div>
-            <h1 className="mt-1 text-title text-ink">{t(head[state].title)}</h1>
+            <div className="text-xs font-semibold leading-5 text-[var(--gold-ink)]">{t("u_homeEyebrow")}</div>
+            {/* Room above the title for Arabic diacritics (tanween). */}
+            <h1 className="mt-2 text-title leading-snug text-ink">{t(head[state].title)}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">{t(head[state].sub)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -733,8 +734,9 @@ function Kpi({ label, value, hint, strong }: { label: string; value: ReactNode; 
   return (
     <div className={`min-w-0 rounded-xl border p-3.5 ${strong ? "border-[var(--gold)]/40 bg-card" : "border-border/70 bg-card/80"}`}>
       <dt className="truncate text-xs text-muted-foreground">{label}</dt>
-      <dd className={`mt-1 truncate font-mono font-semibold text-ink ${strong ? "text-lg" : "text-base"}`}>{value}</dd>
-      {hint && <dd className="mt-0.5 truncate text-[11px] text-muted-foreground">{hint}</dd>}
+      {/* Money values and their hints wrap instead of being cut with an ellipsis. */}
+      <dd className={`mt-1 break-words font-mono font-semibold text-ink ${strong ? "text-lg" : "text-base"}`}>{value}</dd>
+      {hint && <dd className="mt-0.5 break-words text-[11px] leading-snug text-muted-foreground">{hint}</dd>}
     </div>
   );
 }

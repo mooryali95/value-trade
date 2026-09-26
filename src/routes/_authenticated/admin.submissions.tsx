@@ -63,7 +63,7 @@ export const Route = createFileRoute("/_authenticated/admin/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "طلبات الإدراج واعتمادها — وحدة القيمة" },
+      { title: "طلبات الإدراج واعتمادها — وحدة القيمة | Listing submissions — Value Unit" },
       { name: "description", content: "المراجعة الشرعية لطلبات الشركات واعتماد إدراجها في السوق." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -166,10 +166,10 @@ function AdminSubmissions() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow={t("g_adminEyebrow")}
+        eyebrow={t("modePlatform")}
         title={t("d_queueTitle")}
         description={description}
-        crumbs={[{ label: t("g_adminEyebrow"), to: "/admin/submissions" }, { label: t("d_queueTitle") }]}
+        crumbs={[{ label: t("modePlatform"), to: "/admin/submissions" }, { label: t("d_queueTitle") }]}
       />
 
       <LifecycleSteps />
@@ -372,7 +372,7 @@ function ListingDialog({ submission, onClose }: { submission: QueueSubmission; o
           <label className="grid gap-1">
             <span className="font-semibold text-ink">{t("referencePrice")}</span>
             <input dir="ltr" inputMode="decimal" required value={price} onChange={(e) => setPrice(e.target.value)} aria-invalid={price !== "" && !priceOk} className="rounded-md border border-border bg-background px-2 py-1.5 font-mono focus:border-[var(--gold-deep)] focus:outline-none" />
-            {price !== "" && !priceOk && <span className="text-[var(--bear)]">{t("errInvalidPrice")}</span>}
+            {price !== "" && !priceOk && <span className="text-[var(--bear)]">{t("fx3_errReferencePriceRange")}</span>}
           </label>
 
           <fieldset className="grid gap-2 rounded-md border border-border/60 p-3">
@@ -399,7 +399,7 @@ function ListingDialog({ submission, onClose }: { submission: QueueSubmission; o
                 <label className="grid gap-1">
                   <span>{t("d_issuePrice")}</span>
                   <input dir="ltr" inputMode="decimal" value={issuePrice} onChange={(e) => setIssuePrice(e.target.value)} aria-invalid={!issueOk} className="rounded-md border border-border bg-background px-2 py-1.5 font-mono" />
-                  {!issueOk && <span className="text-[var(--bear)]">{t("errInvalidPrice")}</span>}
+                  {!issueOk && <span className="text-[var(--bear)]">{t("fx3_errReferencePriceRange")}</span>}
                 </label>
                 <label className="grid gap-1">
                   <span>{t("d_noteOptional")}</span>

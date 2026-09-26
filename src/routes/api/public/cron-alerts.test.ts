@@ -20,8 +20,14 @@ const updateChain = vi.fn();
 const tradesEq = vi.fn();
 
 function alertsTable() {
+  const page = {
+    eq: vi.fn(() => page),
+    gt: vi.fn(() => page),
+    order: vi.fn(() => page),
+    limit: vi.fn().mockResolvedValue({ data: alertRows, error: null }),
+  };
   return {
-    select: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ data: alertRows, error: null }) })),
+    select: vi.fn(() => page),
     update: (patch: unknown) => {
       updateChain(patch);
       const chain = {
@@ -102,8 +108,13 @@ describe("POST /api/public/cron-alerts", () => {
     return (mod.Route as any).options.server.handlers.POST as (ctx: { request: Request }) => Promise<Response>;
   }
 
-  function sign(body: string) {
-    return createHmac("sha256", secret).update(body).digest("hex");
+  /** x-timestamp and the HMAC of "<timestamp>.<body>" (default: now). */
+  function signed(body: string, at = Math.floor(Date.now() / 1000)) {
+    const timestamp = String(at);
+    return {
+      "x-timestamp": timestamp,
+      "x-signature": createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex"),
+    };
   }
 
   it("rejects unsigned requests with 401", async () => {
@@ -124,6 +135,23 @@ describe("POST /api/public/cron-alerts", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects a correctly signed request that is stale, from the future, or unsigned by time", async () => {
+    const handler = await getHandler();
+    const body = "{}";
+    const now = Math.floor(Date.now() / 1000);
+    const post = (headers: Record<string, string>) =>
+      handler({ request: new Request("http://x/api/public/cron-alerts", { method: "POST", body, headers }) });
+    // Replayed six minutes later.
+    expect((await post(signed(body, now - 360))).status).toBe(401);
+    expect((await post(signed(body, now + 360))).status).toBe(401);
+    // The old scheme (HMAC of the body alone, no timestamp) is no longer accepted.
+    expect((await post({ "x-signature": createHmac("sha256", secret).update(body).digest("hex") })).status).toBe(401);
+    // A timestamp that was not signed.
+    const good = signed(body, now);
+    expect((await post({ ...good, "x-timestamp": String(now - 1) })).status).toBe(401);
+    expect(notifySymbolEvent).not.toHaveBeenCalled();
+  });
+
   it("returns 503 when neither an HMAC secret nor a service key is configured", async () => {
     delete process.env.CRON_ALERTS_SECRET;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -142,7 +170,7 @@ describe("POST /api/public/cron-alerts", () => {
       request: new Request("http://x/api/public/cron-alerts", {
         method: "POST",
         body,
-        headers: { "x-signature": sign(body) },
+        headers: signed(body),
       }),
     });
     expect(res.status).toBe(200);

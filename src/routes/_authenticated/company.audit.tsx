@@ -7,8 +7,9 @@ import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { formatDateTime } from "@/components/market-data";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { useI18n } from "@/lib/i18n";
+import { useCallback, useMemo, useState } from "react";
+import { useI18n, type Key } from "@/lib/i18n";
+import { ar } from "@/lib/i18n/ar";
 import { useActiveCompany } from "@/hooks/use-active-company";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { AccessDenied } from "@/components/access-denied";
@@ -82,6 +83,23 @@ function CompanyAuditPage() {
   );
 }
 
+/** Label key of an audit action or entity ("brand.publish" -> fx3_auditAct_brand_publish), if one exists. */
+function auditKey(prefix: "fx3_auditAct_" | "fx3_auditEnt_", raw: string): Key | null {
+  const key = `${prefix}${raw.replace(/[^a-z0-9]+/gi, "_")}`;
+  return Object.prototype.hasOwnProperty.call(ar, key) ? (key as Key) : null;
+}
+
+/** Audit details as short "key: value" pairs (nested values as compact JSON). */
+function detailPairs(metadata: unknown): Array<[string, string]> {
+  if (metadata == null || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return metadata == null ? [] : [["", String(JSON.stringify(metadata))]];
+  }
+  return Object.entries(metadata as Record<string, unknown>).map(([k, v]) => [
+    k,
+    v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v),
+  ]);
+}
+
 function AuditContent({
   rows,
   isLoading,
@@ -102,6 +120,24 @@ function AuditContent({
 
   const actions = useMemo(() => Array.from(new Set(rows.map((r) => r.action))).sort(), [rows]);
   const entities = useMemo(() => Array.from(new Set(rows.map((r) => r.entity))).sort(), [rows]);
+  const actionLabel = useCallback((a: string) => {
+    const k = auditKey("fx3_auditAct_", a);
+    return k ? t(k) : a;
+  }, [t]);
+  const entityLabel = useCallback((e: string) => {
+    const k = auditKey("fx3_auditEnt_", e);
+    return k ? t(k) : e;
+  }, [t]);
+  const actorLabel = (r: AuditRow) =>
+    r.actor.kind === "member"
+      ? r.actor.email ?? t("fx3_auditActorOther")
+      : r.actor.kind === "admin"
+        ? t("fx3_auditActorAdmin")
+        : r.actor.kind === "reviewer"
+          ? t("fx3_auditActorReviewer")
+          : r.actor.kind === "system"
+            ? t("fx3_auditActorSystem")
+            : t("fx3_auditActorOther");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -109,12 +145,12 @@ function AuditContent({
       if (actionFilter && r.action !== actionFilter) return false;
       if (entityFilter && r.entity !== entityFilter) return false;
       if (q) {
-        const hay = `${r.action} ${r.entity} ${r.entity_id ?? ""} ${r.actor_id} ${JSON.stringify(r.metadata)}`.toLowerCase();
+        const hay = `${r.action} ${actionLabel(r.action)} ${r.entity} ${entityLabel(r.entity)} ${r.entity_id ?? ""} ${r.actor.email ?? ""} ${JSON.stringify(r.metadata)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, actionFilter, entityFilter, search]);
+  }, [rows, actionFilter, entityFilter, search, actionLabel, entityLabel]);
 
   function exportCsv() {
     const header = ["created_at", "action", "entity", "entity_id", "actor_id", "company_id", "metadata"];
@@ -167,7 +203,7 @@ function AuditContent({
           className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-ink outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
         >
           <option value="">{t("auditFilterAction")} — {t("auditAll")}</option>
-          {actions.map((a) => (<option key={a} value={a}>{a}</option>))}
+          {actions.map((a) => (<option key={a} value={a}>{actionLabel(a)}</option>))}
         </select>
         <select
           value={entityFilter}
@@ -176,7 +212,7 @@ function AuditContent({
           className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-ink outline-none focus:border-[var(--gold-deep)] sm:min-h-10"
         >
           <option value="">{t("auditFilterEntity")} — {t("auditAll")}</option>
-          {entities.map((a) => (<option key={a} value={a}>{a}</option>))}
+          {entities.map((a) => (<option key={a} value={a}>{entityLabel(a)}</option>))}
         </select>
       </div>
       {isError && (
@@ -206,11 +242,20 @@ function AuditContent({
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border/40">
                   <td className="whitespace-nowrap px-4 py-2.5 text-xs text-ink-soft">{formatDateTime(r.created_at, lang)}</td>
-                  <td className="px-4 py-2.5"><code className="text-xs font-medium text-ink" dir="ltr">{r.action}</code></td>
-                  <td className="px-4 py-2.5 text-xs text-ink-soft"><span dir="ltr">{r.entity}{r.entity_id ? ` · ${r.entity_id.slice(0, 8)}` : ""}</span></td>
-                  <td className="px-4 py-2.5 text-xs text-ink-soft"><code dir="ltr">{r.actor_id.slice(0, 8)}</code></td>
-                  <td className="max-w-[320px] px-4 py-2.5 text-xs text-ink-soft">
-                    <code className="block truncate rounded bg-secondary/50 px-2 py-0.5 text-[11px]" dir="ltr" title={JSON.stringify(r.metadata)}>{JSON.stringify(r.metadata)}</code>
+                  <td className="px-4 py-2.5 text-xs font-medium text-ink">{actionLabel(r.action)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-soft">{entityLabel(r.entity)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-soft">
+                    <span dir={r.actor.kind === "member" && r.actor.email ? "ltr" : undefined} className="break-all">{actorLabel(r)}</span>
+                  </td>
+                  <td className="max-w-[360px] px-4 py-2.5 text-xs text-ink-soft">
+                    <dl className="space-y-0.5 text-[11px]">
+                      {detailPairs(r.metadata).map(([k, v], i) => (
+                        <div key={`${k}:${i}`} className="flex flex-wrap gap-x-1.5" dir="ltr">
+                          {k && <dt className="text-muted-foreground">{k}:</dt>}
+                          <dd className="break-all font-mono text-ink-soft">{v}</dd>
+                        </div>
+                      ))}
+                    </dl>
                   </td>
                 </tr>
               ))

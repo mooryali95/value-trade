@@ -402,7 +402,7 @@ function RequestAccessPage() {
 
                 <div className="mt-6 text-center text-xs text-muted-foreground">
                   {t("r_raHaveAccount")}{" "}
-                  <Link to="/auth" className="font-medium text-[var(--gold-deep)] underline">
+                  <Link to="/auth" className="inline-flex min-h-11 items-center font-medium text-[var(--gold-deep)] underline">
                     {t("signin")}
                   </Link>
                 </div>
@@ -414,7 +414,7 @@ function RequestAccessPage() {
                 type="button"
                 onClick={() => setShowStatusCheck((v) => !v)}
                 aria-expanded={showStatusCheck}
-                className="text-xs font-medium text-[var(--gold-deep)] hover:underline"
+                className="inline-flex min-h-11 items-center text-xs font-medium text-[var(--gold-deep)] hover:underline"
               >
                 {t("checkPreviousRequest")}
               </button>

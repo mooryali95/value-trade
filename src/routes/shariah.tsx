@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader, HeaderLink } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { FreeText } from "@/components/free-text";
 import { ErrorState } from "@/components/error-state";
 import { LuxurySkeletonBlock } from "@/components/luxury-skeleton";
 import { useI18n, pick, type Key } from "@/lib/i18n";
@@ -309,7 +310,7 @@ function RulingsSection() {
                       <RulingBadge status={r.status} />
                     </div>
                     <p className="col-span-2 min-w-0 text-sm leading-relaxed text-ink-soft md:col-span-1">
-                      {r.reason?.trim() ? r.reason : <span className="text-muted-foreground">{t("shariahNoReason")}</span>}
+                      {r.reason?.trim() ? <FreeText text={r.reason} /> : <span className="text-muted-foreground">{t("shariahNoReason")}</span>}
                     </p>
                     <div className="col-span-2 text-xs text-muted-foreground md:col-span-1 md:text-end">
                       <span className="md:hidden">{t("shariahColEffective")}: </span>

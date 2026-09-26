@@ -2,8 +2,8 @@
 -- Value Unit (وحدة القيمة): LAUNCH MIGRATION BUNDLE
 -- GENERATED FILE: do not edit by hand. Rebuild with
 --   bash supabase/ops/build_launch_bundle.sh
--- Source: 27 files of supabase/migrations, 20260924100000_rls_helper_grants.sql
---         ... 20260926101200_integrity_report.sql, in filename order.
+-- Source: 31 files of supabase/migrations, 20260924100000_rls_helper_grants.sql
+--         ... 20260926101700_fixer_execute_allowlist.sql, in filename order.
 --
 -- ENGLISH
 -- What it is: every database change made for the launch (security lockdown,
@@ -52,7 +52,7 @@ BEGIN
     EXECUTE $q$
       SELECT coalesce(array_agg(version ORDER BY version), '{}')
         FROM supabase_migrations.schema_migrations
-       WHERE version >= '20260924100000' AND version <= '20260926101200'
+       WHERE version >= '20260924100000' AND version <= '20260926101700'
     $q$ INTO _applied;
     IF cardinality(_applied) > 0 THEN
       RAISE EXCEPTION 'LAUNCH_BUNDLE_ALREADY_APPLIED'
@@ -6467,6 +6467,1353 @@ END $$;
 
 
 -- ============================================================================
+-- >>> 20260926101500_fixer_security_hardening.sql
+-- ============================================================================
+SET LOCAL search_path = public, extensions;
+-- ============================================================================
+-- Phase 3 fixer, round 1: security hardening.
+--
+--   1) Rate limits (check_rate_limit): the bucket start is computed with
+--      floor() instead of a rounding ::bigint cast, so a window is one row,
+--      not two (limits were about 2x looser), and old rows are cleaned up
+--      per row after their own window has ended. Before, every row older
+--      than one hour was deleted in the call that had just counted it, so a
+--      window longer than one hour (the 3-per-day cap per address on
+--      /request-access) was never enforced. The bucket arithmetic lives in
+--      rate_limit_bucket() so it can be tested with fixed timestamps.
+--   2) Watch lists and price alerts: a row can only be added for an
+--      instrument listed on the market (brands.published), symbols are
+--      stored upper-case (the notification lookups match them exactly), and
+--      each user holds at most 100 watched symbols and 100 price alerts.
+--      Before, any signed-in account could watch any symbol (including
+--      unlisted, pre-listing instruments) and receive their Shariah ruling
+--      e-mails, and insert thousands of rows in one request.
+--   3) Instruments (brands) through the API: authenticated callers keep
+--      UPDATE on the descriptive columns only (name_ar, name_en, sector;
+--      company owners, through brands_company_owner_update and
+--      brands_guard); INSERT and the platform-admin write policies are
+--      gone. Reference prices change through set_reference_price(), which
+--      writes its audit row in the same transaction. The symbol, and the
+--      company it belongs to, can no longer change once the instrument has
+--      orders, positions, trades or issuances (INSTRUMENT_HAS_HISTORY), for
+--      every caller.
+--   4) Names: company names at most 120 characters, instrument names at
+--      most 160, sector at most 80 (the limits of the forms); renaming a
+--      company or an instrument through the API writes an audit_log row.
+--   5) Signed-in market stats: get_symbol_market_stats / get_market_snapshot
+--      answered for unlisted instruments; nothing in the app calls them, so
+--      they are service_role only now.
+--   6) Shariah rulings: a ruling is changed only through
+--      update_shariah_decision(), which requires a written change reason
+--      and records it in shariah_decision_audit in the same transaction.
+--      Direct UPDATE of shariah_decisions is revoked from authenticated.
+--   7) Storage: the bucket for submission documents is private, with no
+--      anon/authenticated policy on its objects (the server reads and
+--      writes it with the service role and short-lived signed URLs).
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) Rate limits.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.rate_limits ADD COLUMN IF NOT EXISTS window_seconds integer;
+
+CREATE OR REPLACE FUNCTION public.rate_limit_bucket(_at timestamptz, _window_seconds integer)
+RETURNS timestamptz
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  -- Fixed windows aligned on the Unix epoch: [k * w, (k + 1) * w).
+  SELECT to_timestamp(
+    (floor(extract(epoch FROM _at) / GREATEST(COALESCE(_window_seconds, 1), 1))
+      * GREATEST(COALESCE(_window_seconds, 1), 1))::double precision
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.check_rate_limit(
+  _key text,
+  _limit integer,
+  _window_seconds integer
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _w integer := GREATEST(COALESCE(_window_seconds, 1), 1);
+  _bucket timestamptz := public.rate_limit_bucket(now(), GREATEST(COALESCE(_window_seconds, 1), 1));
+  _current integer;
+BEGIN
+  INSERT INTO public.rate_limits (key, window_start, count, window_seconds)
+  VALUES (_key, _bucket, 1, _w)
+  ON CONFLICT (key, window_start)
+  DO UPDATE SET count = public.rate_limits.count + 1,
+                window_seconds = GREATEST(COALESCE(public.rate_limits.window_seconds, 0), EXCLUDED.window_seconds)
+  RETURNING count INTO _current;
+
+  -- Best-effort cleanup: a row goes once its own window has ended (rows
+  -- written before this migration have no window and are kept one hour).
+  DELETE FROM public.rate_limits r
+   WHERE r.window_start < now() - interval '1 hour'
+     AND r.window_start + make_interval(secs => COALESCE(r.window_seconds, 3600)) < now();
+
+  RETURN _current <= _limit;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 2) Watch lists and price alerts: listed instruments only, capped.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.user_watch_rows_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  c_max constant integer := 100;
+  _n integer;
+BEGIN
+  NEW.symbol := upper(btrim(COALESCE(NEW.symbol, '')));
+  IF TG_OP = 'INSERT' THEN
+    -- One writer per user and table at a time, so the cap holds under
+    -- concurrent requests too.
+    PERFORM pg_advisory_xact_lock(hashtext(TG_TABLE_NAME || ':' || NEW.user_id::text));
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE user_id = $1', TG_TABLE_NAME)
+      INTO _n USING NEW.user_id;
+    IF _n >= c_max THEN
+      RAISE EXCEPTION '%', CASE WHEN TG_TABLE_NAME = 'price_alerts' THEN 'ALERT_LIMIT_REACHED'
+                                ELSE 'WATCHLIST_LIMIT_REACHED' END;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.user_watch_rows_guard() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_symbol_watchers_guard ON public.symbol_watchers;
+CREATE TRIGGER trg_symbol_watchers_guard BEFORE INSERT OR UPDATE OF symbol ON public.symbol_watchers
+  FOR EACH ROW EXECUTE FUNCTION public.user_watch_rows_guard();
+DROP TRIGGER IF EXISTS trg_price_alerts_guard ON public.price_alerts;
+CREATE TRIGGER trg_price_alerts_guard BEFORE INSERT OR UPDATE OF symbol ON public.price_alerts
+  FOR EACH ROW EXECUTE FUNCTION public.user_watch_rows_guard();
+
+-- The owner reads and deletes their rows; a new or changed row must name a
+-- listed instrument (checked after the trigger has normalised the symbol).
+DROP POLICY IF EXISTS "watchers_self" ON public.symbol_watchers;
+DROP POLICY IF EXISTS "watchers_read_own" ON public.symbol_watchers;
+DROP POLICY IF EXISTS "watchers_delete_own" ON public.symbol_watchers;
+DROP POLICY IF EXISTS "watchers_insert_listed" ON public.symbol_watchers;
+DROP POLICY IF EXISTS "watchers_update_listed" ON public.symbol_watchers;
+CREATE POLICY "watchers_read_own" ON public.symbol_watchers
+  FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "watchers_delete_own" ON public.symbol_watchers
+  FOR DELETE TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "watchers_insert_listed" ON public.symbol_watchers
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id
+              AND EXISTS (SELECT 1 FROM public.brands b
+                           WHERE b.symbol = symbol_watchers.symbol AND b.published));
+CREATE POLICY "watchers_update_listed" ON public.symbol_watchers
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id
+              AND EXISTS (SELECT 1 FROM public.brands b
+                           WHERE b.symbol = symbol_watchers.symbol AND b.published));
+
+DROP POLICY IF EXISTS "alerts_self" ON public.price_alerts;
+DROP POLICY IF EXISTS "alerts_read_own" ON public.price_alerts;
+DROP POLICY IF EXISTS "alerts_delete_own" ON public.price_alerts;
+DROP POLICY IF EXISTS "alerts_insert_listed" ON public.price_alerts;
+DROP POLICY IF EXISTS "alerts_update_listed" ON public.price_alerts;
+CREATE POLICY "alerts_read_own" ON public.price_alerts
+  FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "alerts_delete_own" ON public.price_alerts
+  FOR DELETE TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "alerts_insert_listed" ON public.price_alerts
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id
+              AND EXISTS (SELECT 1 FROM public.brands b
+                           WHERE b.symbol = price_alerts.symbol AND b.published));
+CREATE POLICY "alerts_update_listed" ON public.price_alerts
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id
+              AND EXISTS (SELECT 1 FROM public.brands b
+                           WHERE b.symbol = price_alerts.symbol AND b.published));
+
+-- ---------------------------------------------------------------------------
+-- 3) Instruments through the API.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "brands_platform_admin_insert" ON public.brands;
+DROP POLICY IF EXISTS "brands_platform_admin_update" ON public.brands;
+-- Revoking the table privilege also revokes the column privileges; the
+-- descriptive columns are granted again right after.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.brands FROM PUBLIC, anon, authenticated;
+GRANT UPDATE (name_ar, name_en, sector) ON public.brands TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.brands_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  -- PostgREST switches every request to one of these roles; migrations and
+  -- the SQL editor run as the owner with no role set.
+  _api boolean := COALESCE(current_setting('role', true), 'none') IN ('anon', 'authenticated', 'service_role');
+BEGIN
+  -- Symbols are stored upper-case (Shariah rulings and orders match on them).
+  IF TG_OP = 'INSERT' THEN
+    NEW.symbol := upper(btrim(NEW.symbol));
+    -- A new instrument starts off the market; set_instrument_published
+    -- lists it once it has a reference price and a ruling.
+    IF _api AND NEW.published THEN
+      RAISE EXCEPTION 'FORBIDDEN_BRAND_FIELD';
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- Listing and delisting: set_instrument_published only (it closes the
+  -- resting orders and writes the audit row in the same transaction).
+  IF _api AND NEW.published IS DISTINCT FROM OLD.published
+     AND COALESCE(current_setting('app.listing_control', true), '') <> 'on' THEN
+    RAISE EXCEPTION 'FORBIDDEN_BRAND_FIELD';
+  END IF;
+  IF NEW.symbol IS DISTINCT FROM OLD.symbol THEN
+    NEW.symbol := upper(btrim(NEW.symbol));
+  END IF;
+  -- Fixer (phase 3): the identity of an instrument with a market history
+  -- is frozen for every caller. Orders, positions, trades and issuances
+  -- refer to it by symbol; renaming the symbol or moving the instrument to
+  -- another company would orphan them. (Detaching it, company_id -> NULL,
+  -- stays possible: that is what deleting the company does.)
+  IF (NEW.symbol IS DISTINCT FROM OLD.symbol
+      OR (NEW.company_id IS DISTINCT FROM OLD.company_id AND NEW.company_id IS NOT NULL))
+     AND (EXISTS (SELECT 1 FROM public.orders o WHERE upper(o.symbol) = OLD.symbol)
+          OR EXISTS (SELECT 1 FROM public.positions p WHERE upper(p.symbol) = OLD.symbol)
+          OR EXISTS (SELECT 1 FROM public.trades t WHERE upper(t.symbol) = OLD.symbol)
+          OR EXISTS (SELECT 1 FROM public.unit_issuances u WHERE upper(u.symbol) = OLD.symbol)) THEN
+    RAISE EXCEPTION 'INSTRUMENT_HAS_HISTORY';
+  END IF;
+  -- No end-user identity: service role (server) or a migration.
+  IF auth.uid() IS NULL OR public.has_role(auth.uid(), 'platform_admin') THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.symbol IS DISTINCT FROM OLD.symbol
+     OR NEW.slug IS DISTINCT FROM OLD.slug
+     OR NEW.company_id IS DISTINCT FROM OLD.company_id
+     OR NEW.published IS DISTINCT FROM OLD.published
+     OR NEW.reference_price IS DISTINCT FROM OLD.reference_price
+     OR NEW.asset_class IS DISTINCT FROM OLD.asset_class
+     OR NEW.source_submission_id IS DISTINCT FROM OLD.source_submission_id
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'FORBIDDEN_BRAND_FIELD';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.brands_guard() FROM PUBLIC, anon, authenticated;
+
+-- Reference price: platform admins, through the server (service role), with
+-- the audit row in the same transaction. brands_reference_price_rules
+-- enforces the price rules (INVALID_PRICE).
+DROP FUNCTION IF EXISTS public.set_reference_price(text, numeric, uuid);
+CREATE FUNCTION public.set_reference_price(_symbol text, _price numeric, _actor_id uuid)
+RETURNS TABLE(brand_id uuid, symbol text, previous_price numeric, reference_price numeric, changed boolean)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  _sym text := upper(btrim(COALESCE(_symbol, '')));
+  _brand public.brands;
+  _changed boolean;
+BEGIN
+  IF _actor_id IS NULL OR NOT public.has_role(_actor_id, 'platform_admin') THEN
+    RAISE EXCEPTION 'FORBIDDEN_ADMIN_REQUIRED';
+  END IF;
+  IF _price IS NULL OR _price = 'NaN'::numeric OR _price <= 0 THEN RAISE EXCEPTION 'INVALID_PRICE'; END IF;
+  IF _sym !~ '^[A-Z0-9._-]{1,32}$' THEN RAISE EXCEPTION 'INSTRUMENT_NOT_FOUND'; END IF;
+
+  -- The engine's per-symbol lock: no order is priced against a half-moved band.
+  PERFORM pg_advisory_xact_lock(hashtext('match:' || _sym));
+  SELECT * INTO _brand FROM public.brands b WHERE b.symbol = _sym FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'INSTRUMENT_NOT_FOUND'; END IF;
+
+  _changed := _brand.reference_price IS DISTINCT FROM _price;
+  IF _changed THEN
+    UPDATE public.brands b SET reference_price = _price WHERE b.id = _brand.id;
+  END IF;
+
+  INSERT INTO public.audit_log (actor_id, company_id, action, entity, entity_id, metadata)
+  VALUES (_actor_id, _brand.company_id, 'brand.reference_price', 'brands', _brand.id::text,
+          jsonb_build_object('symbol', _brand.symbol, 'from', _brand.reference_price, 'to', _price,
+                             'changed', _changed));
+
+  RETURN QUERY SELECT _brand.id, _brand.symbol, _brand.reference_price, _price, _changed;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4) Name lengths and rename audit.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.companies DROP CONSTRAINT IF EXISTS companies_name_length;
+ALTER TABLE public.companies ADD CONSTRAINT companies_name_length
+  CHECK (char_length(btrim(name_ar)) BETWEEN 1 AND 120 AND char_length(btrim(name_en)) BETWEEN 1 AND 120) NOT VALID;
+ALTER TABLE public.brands DROP CONSTRAINT IF EXISTS brands_name_length;
+ALTER TABLE public.brands ADD CONSTRAINT brands_name_length
+  CHECK (char_length(btrim(name_ar)) BETWEEN 1 AND 160 AND char_length(btrim(name_en)) BETWEEN 1 AND 160
+         AND (sector IS NULL OR char_length(sector) <= 80)) NOT VALID;
+DO $$ BEGIN
+  ALTER TABLE public.companies VALIDATE CONSTRAINT companies_name_length;
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'companies has legacy names outside 1..120 characters; check left NOT VALID (new writes are checked)';
+END $$;
+DO $$ BEGIN
+  ALTER TABLE public.brands VALIDATE CONSTRAINT brands_name_length;
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'brands has legacy names or sectors outside the limits; check left NOT VALID (new writes are checked)';
+END $$;
+
+CREATE OR REPLACE FUNCTION public.audit_name_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- End users only: the server's own changes write their own audit rows.
+  IF auth.uid() IS NULL THEN RETURN NULL; END IF;
+  IF TG_TABLE_NAME = 'brands' THEN
+    IF NEW.name_ar IS DISTINCT FROM OLD.name_ar OR NEW.name_en IS DISTINCT FROM OLD.name_en
+       OR NEW.sector IS DISTINCT FROM OLD.sector THEN
+      INSERT INTO public.audit_log (actor_id, company_id, action, entity, entity_id, metadata)
+      VALUES (auth.uid(), NEW.company_id, 'brand.rename', 'brands', NEW.id::text,
+              jsonb_build_object('symbol', NEW.symbol,
+                                 'from', jsonb_build_object('name_ar', OLD.name_ar, 'name_en', OLD.name_en, 'sector', OLD.sector),
+                                 'to', jsonb_build_object('name_ar', NEW.name_ar, 'name_en', NEW.name_en, 'sector', NEW.sector)));
+    END IF;
+  ELSIF NEW.name_ar IS DISTINCT FROM OLD.name_ar OR NEW.name_en IS DISTINCT FROM OLD.name_en THEN
+    INSERT INTO public.audit_log (actor_id, company_id, action, entity, entity_id, metadata)
+    VALUES (auth.uid(), NEW.id, 'company.rename', 'companies', NEW.id::text,
+            jsonb_build_object('from', jsonb_build_object('name_ar', OLD.name_ar, 'name_en', OLD.name_en),
+                               'to', jsonb_build_object('name_ar', NEW.name_ar, 'name_en', NEW.name_en)));
+  END IF;
+  RETURN NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.audit_name_change() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_brands_audit_rename ON public.brands;
+CREATE TRIGGER trg_brands_audit_rename AFTER UPDATE OF name_ar, name_en, sector ON public.brands
+  FOR EACH ROW EXECUTE FUNCTION public.audit_name_change();
+DROP TRIGGER IF EXISTS trg_companies_audit_rename ON public.companies;
+CREATE TRIGGER trg_companies_audit_rename AFTER UPDATE OF name_ar, name_en ON public.companies
+  FOR EACH ROW EXECUTE FUNCTION public.audit_name_change();
+
+-- ---------------------------------------------------------------------------
+-- 5) Signed-in market stats that ignored the listing state: server only.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE fn text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY['public.get_symbol_market_stats(text)', 'public.get_market_snapshot(text[])'] LOOP
+    CONTINUE WHEN to_regprocedure(fn) IS NULL;
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
+  END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 6) Shariah rulings change with a written reason, through the server.
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "shariah_update_board" ON public.shariah_decisions;
+REVOKE UPDATE ON TABLE public.shariah_decisions FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.log_shariah_decision_update()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status
+     OR NEW.reason IS DISTINCT FROM OLD.reason THEN
+    INSERT INTO public.shariah_decision_audit
+      (decision_id, previous_status, new_status, previous_reason, new_reason, changed_by, change_reason)
+    VALUES (NEW.id, OLD.status, NEW.status, OLD.reason, NEW.reason,
+            COALESCE(auth.uid(), NEW.updated_by),
+            NULLIF(current_setting('app.shariah_change_reason', true), ''));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.log_shariah_decision_update() FROM PUBLIC, anon, authenticated;
+
+DROP FUNCTION IF EXISTS public.update_shariah_decision(uuid, uuid, text, text, text);
+CREATE FUNCTION public.update_shariah_decision(
+  _decision_id uuid,
+  _actor_id uuid,
+  _status text,
+  _reason text,
+  _change_reason text
+)
+RETURNS TABLE(decision_id uuid, symbol text, status text, previous_status text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  _d public.shariah_decisions;
+  _why text := NULLIF(btrim(COALESCE(_change_reason, '')), '');
+  _text text := NULLIF(btrim(COALESCE(_reason, '')), '');
+BEGIN
+  IF _actor_id IS NULL OR NOT public.has_role(_actor_id, 'shariah_board') THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+  IF _status IS NULL OR _status NOT IN ('halal', 'non_halal', 'reviewing') THEN
+    RAISE EXCEPTION 'INVALID_INPUT';
+  END IF;
+  IF _why IS NULL THEN RAISE EXCEPTION 'RULING_CHANGE_REASON_REQUIRED'; END IF;
+  IF char_length(_why) > 600 OR char_length(COALESCE(_text, '')) > 600 THEN
+    RAISE EXCEPTION 'INVALID_INPUT';
+  END IF;
+
+  SELECT * INTO _d FROM public.shariah_decisions d WHERE d.id = _decision_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'DECISION_NOT_FOUND'; END IF;
+  -- The engine's per-symbol lock (a non_halal ruling cancels resting buys).
+  PERFORM pg_advisory_xact_lock(hashtext('match:' || _d.symbol));
+  SELECT * INTO _d FROM public.shariah_decisions d WHERE d.id = _decision_id FOR UPDATE;
+
+  PERFORM set_config('app.shariah_change_reason', _why, true);
+  -- updated_by: the stamp trigger keeps it when there is no session user.
+  UPDATE public.shariah_decisions d
+     SET status = _status, reason = _text, updated_by = _actor_id
+   WHERE d.id = _d.id;
+  PERFORM set_config('app.shariah_change_reason', '', true);
+
+  RETURN QUERY SELECT _d.id, _d.symbol, _status, _d.status;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 7) Storage: the submission documents bucket is private.
+-- ---------------------------------------------------------------------------
+-- The storage schema belongs to the storage service: if the migration role
+-- may not change it, the migration goes on (one-transaction launch bundle)
+-- and says so; the bucket is then checked by hand (Storage settings:
+-- "submission-docs", public off, no policies).
+DO $$
+DECLARE r record;
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    BEGIN
+      INSERT INTO storage.buckets (id, name, public)
+      VALUES ('submission-docs', 'submission-docs', false)
+      ON CONFLICT (id) DO UPDATE SET public = false;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE WARNING 'STORAGE_BUCKET_NOT_CHECKED: make sure the bucket submission-docs is private';
+    END;
+  END IF;
+  IF to_regclass('storage.objects') IS NOT NULL THEN
+    -- No client policy may open this bucket: the server uses the service
+    -- role (which bypasses RLS) and hands out 120-second signed URLs.
+    FOR r IN
+      SELECT pol.polname
+        FROM pg_policy pol
+       WHERE pol.polrelid = 'storage.objects'::regclass
+         AND (COALESCE(pg_get_expr(pol.polqual, pol.polrelid), '') ILIKE '%submission-docs%'
+              OR COALESCE(pg_get_expr(pol.polwithcheck, pol.polrelid), '') ILIKE '%submission-docs%')
+    LOOP
+      BEGIN
+        EXECUTE format('DROP POLICY %I ON storage.objects', r.polname);
+        RAISE NOTICE 'dropped storage policy % (submission-docs is server-only)', r.polname;
+      EXCEPTION WHEN insufficient_privilege THEN
+        RAISE WARNING 'STORAGE_POLICY_NOT_DROPPED: remove the storage policy % by hand', r.polname;
+      END;
+    END LOOP;
+  END IF;
+END $$;
+
+
+-- ============================================================================
+-- >>> 20260926101600_fixer_market_rules.sql
+-- ============================================================================
+SET LOCAL search_path = public, extensions;
+-- ============================================================================
+-- Phase 3 fixer, round 1: market rules.
+--
+--   1) Price band: the ±20% band around the anchor (previous close, else
+--      the listing reference price) always keeps at least one 0.01 tick on
+--      each side of the anchor. The listing reference price is at least
+--      0.05, but a band built on 0.05 lets a trade print at 0.04, and a band
+--      anchored on a 0.04 close was [0.04, 0.04] (ceil(0.032) = floor(0.048)),
+--      so the price could never move again. band_tick_edges() is the one
+--      definition, used by match_order and by public_instrument (the band
+--      the trade page shows). For every anchor >= 0.05 the edges are
+--      unchanged.
+--   2) Submissions: the market lists brand units only (Terms of use); a
+--      submission of any other asset class is refused
+--      (ASSET_CLASS_NOT_SUPPORTED), and so is listing one
+--      (set_instrument_published, which approve_listing calls).
+--   3) The 30-brand cap per company counts the company's roster
+--      (company_brands) together with the instruments it owns
+--      (brands.company_id): the company workspace shows the same figure,
+--      and a new submission is refused at the cap (BRAND_CAP_REACHED).
+--   4) admin_pending_activations: an account with no role that never
+--      signed in gets its own source, 'no_role_never_signed_in'.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1a) Band edges on the tick.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.band_tick_edges(_ref numeric, OUT low_tick numeric, OUT high_tick numeric)
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  -- low:  ceil(ref x 0.8) on the tick, but at most one tick below the
+  --       anchor, and never below 0.01;
+  -- high: floor(ref x 1.2) on the tick, but at least one tick above it.
+  SELECT round(GREATEST(0.01, LEAST(ceil(_ref * 0.8 * 100) / 100, ceil(_ref * 100) / 100 - 0.01)), 2),
+         round(GREATEST(floor(_ref * 1.2 * 100) / 100, floor(_ref * 100) / 100 + 0.01), 2)
+   WHERE _ref IS NOT NULL AND _ref > 0 AND _ref <> 'NaN'::numeric;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 3) Brand cap: roster and owned instruments together.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.company_brand_count(_company_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT count(*)::integer FROM (
+    SELECT upper(btrim(cb.brand_symbol)) FROM public.company_brands cb WHERE cb.company_id = _company_id
+    UNION
+    SELECT b.symbol FROM public.brands b WHERE b.company_id = _company_id
+  ) s;
+$$;
+
+CREATE OR REPLACE FUNCTION public.enforce_brand_cap()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- An instrument the company already owns is counted already.
+  IF NOT EXISTS (SELECT 1 FROM public.brands b
+                  WHERE b.company_id = NEW.company_id AND b.symbol = upper(btrim(NEW.brand_symbol)))
+     AND public.company_brand_count(NEW.company_id) >= 30 THEN
+    RAISE EXCEPTION 'BRAND_CAP_REACHED';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.enforce_brand_cap() FROM PUBLIC, anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 1b) match_order (same signature and results as 20260926100600; only the
+--     band edges change: band_tick_edges).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.match_order(
+  _user_id uuid, _symbol text, _asset_class text, _side text, _type text,
+  _qty numeric, _limit_price numeric DEFAULT NULL
+) RETURNS TABLE(order_id uuid, filled_qty numeric, avg_price numeric, status text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  c_max_qty constant numeric := 10000000;
+  c_max_notional constant numeric := 5000000;
+  c_band constant numeric := 0.2;
+  _brand public.brands;
+  _opposite text;
+  _price numeric;
+  _ref numeric;
+  _low numeric;
+  _high numeric;
+  _low_tick numeric;
+  _high_tick numeric;
+  _order_notional numeric;
+  _cash numeric;
+  _held numeric;
+  _open numeric;
+  _parties uuid[];
+  my_order public.orders;
+  cand public.orders;
+  remaining numeric;
+  trade_qty numeric;
+  trade_price numeric;
+  notional numeric;
+  total_qty numeric := 0;
+  total_cost numeric := 0;
+  buyer uuid;
+  seller uuid;
+  buyer_cash numeric;
+  seller_qty numeric;
+  final_status text;
+BEGIN
+  -- Input validation (K1).
+  IF _side IS NULL OR _side NOT IN ('buy', 'sell') THEN RAISE EXCEPTION 'INVALID_SIDE'; END IF;
+  IF _type IS NULL OR _type NOT IN ('limit', 'market') THEN RAISE EXCEPTION 'INVALID_TYPE'; END IF;
+  IF _qty IS NULL OR _qty = 'NaN'::numeric OR _qty <= 0 OR _qty > c_max_qty OR _qty <> trunc(_qty) THEN
+    RAISE EXCEPTION 'INVALID_QTY';
+  END IF;
+  IF _type = 'limit' THEN
+    IF _limit_price IS NULL OR _limit_price = 'NaN'::numeric OR _limit_price <= 0
+       OR _limit_price > 1000000000 OR _limit_price <> round(_limit_price, 2) THEN
+      RAISE EXCEPTION 'INVALID_PRICE';
+    END IF;
+    _price := _limit_price;
+  ELSE
+    _price := NULL;
+  END IF;
+  IF _user_id IS NULL THEN RAISE EXCEPTION 'FORBIDDEN_TRADER_REQUIRED'; END IF;
+
+  -- One order path per trader at a time (placement, modify, restore,
+  -- deactivation, withdrawals), taken before the symbol lock everywhere:
+  -- the buying-power and holdings checks below then see the trader's other
+  -- orders and cash movements.
+  PERFORM pg_advisory_xact_lock(4242, hashtext(_user_id::text));
+
+  IF NOT public.has_role(_user_id, 'trader') THEN
+    RAISE EXCEPTION 'FORBIDDEN_TRADER_REQUIRED';
+  END IF;
+
+  SELECT * INTO _brand FROM public.brands b WHERE b.symbol = _symbol AND b.published;
+  IF NOT FOUND THEN RAISE EXCEPTION 'INSTRUMENT_NOT_FOUND'; END IF;
+
+  -- One matcher per symbol at a time (shared with cancel/replace/restore and
+  -- the Shariah trigger).
+  PERFORM pg_advisory_xact_lock(hashtext('match:' || _brand.symbol));
+
+  IF public.current_shariah_status(_brand.symbol) = 'non_halal' AND _side = 'buy' THEN
+    RAISE EXCEPTION 'SHARIAH_BLOCKED';
+  END IF;
+
+  -- Reference price (previous close, else the listing reference) and the
+  -- protection band. Trades of the current day do not move it.
+  _ref := public.band_reference_price(_brand.symbol);
+  IF _ref IS NULL OR _ref <= 0 THEN RAISE EXCEPTION 'PRICE_OUT_OF_BAND'; END IF;
+  -- Band edges on the 0.01 tick (band_tick_edges): ±20% of the anchor,
+  -- and never less than one tick either side of it (fixer, phase 3: a
+  -- previous close of 0.04 no longer freezes the band at [0.04, 0.04]).
+  SELECT e.low_tick, e.high_tick INTO _low_tick, _high_tick FROM public.band_tick_edges(_ref) e;
+  IF _low_tick IS NULL OR _high_tick IS NULL OR _high_tick <= 0 OR _high_tick < _low_tick THEN
+    RAISE EXCEPTION 'PRICE_OUT_OF_BAND';
+  END IF;
+  -- Limit prices are on the tick, so this is the band on the tick.
+  IF _type = 'limit' AND (_price < _low_tick OR _price > _high_tick) THEN
+    RAISE EXCEPTION 'PRICE_OUT_OF_BAND';
+  END IF;
+
+  -- Size limit and cash reserve: a market order is measured at the top of
+  -- the band on the tick (phase 3), the worst price a market buy can fill
+  -- at; a limit order at its limit.
+  _order_notional := _qty * COALESCE(_price, _high_tick);
+  IF _order_notional > c_max_notional THEN RAISE EXCEPTION 'ORDER_TOO_LARGE'; END IF;
+
+  _opposite := CASE WHEN _side = 'buy' THEN 'sell' ELSE 'buy' END;
+
+  -- Self-trade prevention: an order that would cross the trader's own
+  -- resting order is refused (it would otherwise rest on a crossed book).
+  IF EXISTS (
+    SELECT 1 FROM public.orders o
+     WHERE o.user_id = _user_id AND o.symbol = _brand.symbol AND o.side = _opposite
+       AND o.status IN ('open', 'partial') AND o.price IS NOT NULL AND o.qty > o.filled_qty
+       AND ((_side = 'buy' AND o.price <= COALESCE(_price, _high_tick))
+         OR (_side = 'sell' AND o.price >= COALESCE(_price, _low_tick)))
+  ) THEN
+    RAISE EXCEPTION 'SELF_TRADE';
+  END IF;
+
+  -- The trader's own side must be covered, including what their other
+  -- resting orders already promise (no spoofed depth).
+  INSERT INTO public.portfolios (user_id, cash_balance) VALUES (_user_id, 0)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  IF _side = 'buy' THEN
+    SELECT p.cash_balance INTO _cash FROM public.portfolios p WHERE p.user_id = _user_id;
+    _open := public.open_buy_reserve(_user_id);
+    IF COALESCE(_cash, 0) < _order_notional + _open THEN RAISE EXCEPTION 'INSUFFICIENT_CASH'; END IF;
+  ELSE
+    SELECT ps.qty INTO _held FROM public.positions ps
+     WHERE ps.user_id = _user_id AND ps.symbol = _brand.symbol;
+    SELECT COALESCE(sum(o.qty - o.filled_qty), 0) INTO _open
+      FROM public.orders o
+     WHERE o.user_id = _user_id AND o.symbol = _brand.symbol AND o.side = 'sell'
+       AND o.status IN ('open', 'partial');
+    IF COALESCE(_held, 0) < _qty + _open THEN RAISE EXCEPTION 'INSUFFICIENT_QTY'; END IF;
+  END IF;
+
+  -- Defensive: resting buys on a non_halal symbol must never fill.
+  IF public.current_shariah_status(_brand.symbol) = 'non_halal' THEN
+    PERFORM public.cancel_shariah_blocked_buys(_brand.symbol, NULL);
+  END IF;
+
+  -- created_at is taken after the locks, so time priority follows the real
+  -- arrival order.
+  INSERT INTO public.orders
+    (user_id, symbol, asset_class, side, type, qty, price, status, filled_qty, filled_notional, created_at, updated_at)
+  VALUES
+    (_user_id, _brand.symbol, _brand.asset_class, _side, _type, _qty, _price, 'open', 0, 0,
+     clock_timestamp(), clock_timestamp())
+  RETURNING * INTO my_order;
+
+  -- Lock every portfolio this order may touch, in user_id order, before any
+  -- cash moves: two matchers on different symbols with overlapping traders
+  -- then always lock in the same order and cannot deadlock.
+  SELECT array_agg(DISTINCT o.user_id) INTO _parties
+    FROM public.orders o
+   WHERE o.symbol = _brand.symbol AND o.side = _opposite
+     AND o.status IN ('open', 'partial') AND o.user_id <> _user_id
+     AND o.price IS NOT NULL AND o.qty > o.filled_qty
+     AND ((_side = 'buy' AND o.price <= COALESCE(_price, _high_tick))
+       OR (_side = 'sell' AND o.price >= COALESCE(_price, _low_tick)));
+  _parties := array_append(COALESCE(_parties, ARRAY[]::uuid[]), _user_id);
+  INSERT INTO public.portfolios (user_id, cash_balance)
+  SELECT u, 0 FROM unnest(_parties) AS u
+  ON CONFLICT (user_id) DO NOTHING;
+  PERFORM 1 FROM public.portfolios p
+   WHERE p.user_id = ANY(_parties)
+   ORDER BY p.user_id
+     FOR UPDATE;
+
+  remaining := _qty;
+  FOR cand IN
+    SELECT * FROM public.orders o
+     WHERE o.symbol = _brand.symbol AND o.side = _opposite
+       AND o.status IN ('open', 'partial') AND o.user_id <> _user_id
+       AND o.price IS NOT NULL AND o.qty > o.filled_qty
+       AND ((_side = 'buy' AND o.price <= COALESCE(_price, _high_tick))
+         OR (_side = 'sell' AND o.price >= COALESCE(_price, _low_tick)))
+     ORDER BY CASE WHEN _side = 'buy' THEN o.price ELSE -o.price END ASC,
+              o.created_at ASC, o.id ASC
+     FOR UPDATE
+  LOOP
+    EXIT WHEN remaining <= 0;
+
+    -- Legacy rows that break K1 (fractional remaining units, off-tick price)
+    -- are taken off the book, never filled.
+    IF (cand.qty - cand.filled_qty) <> trunc(cand.qty - cand.filled_qty)
+       OR cand.price <> round(cand.price, 2) THEN
+      PERFORM public.engine_cancel_order(cand.id, 'engine_cancel_invalid_order', NULL);
+      CONTINUE;
+    END IF;
+
+    -- An investor whose trading access was withdrawn cannot trade, not even
+    -- as the passive side.
+    IF NOT public.has_role(cand.user_id, 'trader') THEN
+      PERFORM public.engine_cancel_order(cand.id, 'engine_cancel_inactive_trader', NULL);
+      CONTINUE;
+    END IF;
+
+    trade_qty := LEAST(remaining, cand.qty - cand.filled_qty);
+    CONTINUE WHEN trade_qty <= 0;
+    -- Resting price, kept inside the band. A resting ask below the band
+    -- trades at the band floor, a resting bid above it at the band ceiling:
+    -- never worse than the resting order's limit, never outside the band.
+    -- Both are on the 0.01 tick; scale 2 keeps trades.price and the ledger
+    -- notes readable ('@ 360.00', not the division's 16 decimals).
+    trade_price := round(CASE WHEN _side = 'buy' THEN GREATEST(cand.price, _low_tick)
+                              ELSE LEAST(cand.price, _high_tick) END, 2);
+    -- One rounded amount, debited and credited identically.
+    notional := round(trade_qty * trade_price, 2);
+
+    IF _side = 'buy' THEN
+      buyer := _user_id; seller := cand.user_id;
+    ELSE
+      buyer := cand.user_id; seller := _user_id;
+    END IF;
+
+    SELECT p.cash_balance INTO buyer_cash FROM public.portfolios p WHERE p.user_id = buyer FOR UPDATE;
+    IF COALESCE(buyer_cash, 0) < notional THEN
+      IF buyer = cand.user_id THEN
+        PERFORM public.engine_cancel_order(cand.id, 'engine_cancel_insufficient_cash', NULL);
+        CONTINUE;
+      END IF;
+      RAISE EXCEPTION 'INSUFFICIENT_CASH';
+    END IF;
+
+    SELECT ps.qty INTO seller_qty FROM public.positions ps
+     WHERE ps.user_id = seller AND ps.symbol = _brand.symbol FOR UPDATE;
+    IF COALESCE(seller_qty, 0) < trade_qty THEN
+      IF seller = cand.user_id THEN
+        PERFORM public.engine_cancel_order(cand.id, 'engine_cancel_insufficient_qty', NULL);
+        CONTINUE;
+      END IF;
+      RAISE EXCEPTION 'INSUFFICIENT_QTY';
+    END IF;
+
+    INSERT INTO public.trades
+      (symbol, asset_class, qty, price, buy_order_id, sell_order_id, buyer_id, seller_id, created_at)
+    VALUES
+      (_brand.symbol, _brand.asset_class, trade_qty, trade_price,
+       CASE WHEN _side = 'buy' THEN my_order.id ELSE cand.id END,
+       CASE WHEN _side = 'buy' THEN cand.id ELSE my_order.id END,
+       buyer, seller, clock_timestamp());
+
+    PERFORM public.apply_trade_position(buyer, _brand.symbol, _brand.asset_class, 'buy', trade_qty, trade_price);
+    PERFORM public.apply_trade_position(seller, _brand.symbol, _brand.asset_class, 'sell', trade_qty, trade_price);
+
+    PERFORM public.post_cash_movement(buyer, 'order_buy', -notional,
+      CASE WHEN _side = 'buy' THEN my_order.id ELSE cand.id END,
+      'buy ' || trade_qty || ' ' || _brand.symbol || ' @ ' || trade_price, buyer);
+    PERFORM public.post_cash_movement(seller, 'order_sell', notional,
+      CASE WHEN _side = 'buy' THEN cand.id ELSE my_order.id END,
+      'sell ' || trade_qty || ' ' || _brand.symbol || ' @ ' || trade_price, seller);
+
+    -- phase 3: filled_price is the resting order's exact average fill
+    -- price, from the sum of its fill amounts (no running re-rounding).
+    UPDATE public.orders o
+       SET filled_qty = cand.filled_qty + trade_qty,
+           filled_notional = cand.filled_notional + notional,
+           filled_price = round((cand.filled_notional + notional) / (cand.filled_qty + trade_qty), 4),
+           status = CASE WHEN cand.filled_qty + trade_qty >= cand.qty THEN 'filled' ELSE 'partial' END,
+           filled_at = clock_timestamp(),
+           updated_at = clock_timestamp()
+     WHERE o.id = cand.id;
+
+    remaining := remaining - trade_qty;
+    total_qty := total_qty + trade_qty;
+    total_cost := total_cost + notional;
+  END LOOP;
+
+  IF remaining <= 0 THEN
+    final_status := 'filled';
+  ELSIF _type = 'market' THEN
+    -- K3: a market order never rests; the unfilled remainder is cancelled.
+    final_status := 'cancelled';
+  ELSIF total_qty > 0 THEN
+    final_status := 'partial';
+  ELSE
+    final_status := 'open';
+  END IF;
+
+  UPDATE public.orders o
+     SET filled_qty = total_qty,
+         filled_notional = total_cost,
+         status = final_status,
+         filled_price = CASE WHEN total_qty > 0 THEN round(total_cost / total_qty, 4) ELSE NULL END,
+         filled_at = CASE WHEN total_qty > 0 THEN clock_timestamp() ELSE NULL END,
+         updated_at = clock_timestamp()
+   WHERE o.id = my_order.id;
+
+  IF final_status = 'cancelled' THEN
+    INSERT INTO public.orders_audit
+      (order_id, action, previous_qty, previous_price, new_qty, new_price, changed_by, previous_status, new_status)
+    VALUES (my_order.id, 'market_unfilled', _qty, NULL, total_qty, NULL, NULL, 'open', 'cancelled');
+  END IF;
+
+  RETURN QUERY SELECT my_order.id, total_qty,
+    CASE WHEN total_qty > 0 THEN round(total_cost / total_qty, 4) ELSE NULL::numeric END,
+    final_status;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.match_order(uuid, text, text, text, text, numeric, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.match_order(uuid, text, text, text, text, numeric, numeric) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- 1c) public_instrument: the band it shows is the engine's (same signature).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.public_instrument(_slug text)
+RETURNS TABLE (
+  symbol text,
+  slug text,
+  name_ar text,
+  name_en text,
+  sector text,
+  asset_class text,
+  company_id uuid,
+  company_name_ar text,
+  company_name_en text,
+  reference_price numeric,
+  last_price numeric,
+  change_24h_pct numeric,
+  volume_24h_units numeric,
+  volume_24h_value numeric,
+  trades_24h bigint,
+  last_trade_at timestamptz,
+  shariah_status text,
+  day_open numeric,
+  day_high numeric,
+  day_low numeric,
+  band_reference numeric,
+  band_low numeric,
+  band_high numeric
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH target AS (
+    SELECT b.id, b.symbol
+      FROM public.brands b
+     WHERE b.published
+       AND char_length(btrim(COALESCE(_slug, ''))) BETWEEN 1 AND 64
+       AND (lower(b.slug) = lower(btrim(_slug)) OR b.symbol = upper(btrim(_slug)))
+     ORDER BY (lower(b.slug) = lower(btrim(_slug))) DESC, b.symbol
+     LIMIT 1
+  ), ref AS (
+    -- The engine's anchor: previous close, else the listing reference price.
+    SELECT public.band_reference_price(t.symbol) AS price FROM target t
+  ), day AS (
+    SELECT (array_agg(tr.price ORDER BY tr.created_at ASC, tr.id ASC))[1] AS open_price,
+           max(tr.price) AS high_price,
+           min(tr.price) AS low_price
+      FROM public.trades tr
+      JOIN target t ON t.symbol = tr.symbol
+     WHERE tr.created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'Asia/Riyadh')
+  )
+  SELECT r.symbol, r.slug, r.name_ar, r.name_en, r.sector, r.asset_class,
+         r.company_id, r.company_name_ar, r.company_name_en,
+         r.reference_price, r.last_price, r.change_24h_pct,
+         r.volume_24h_units, r.volume_24h_value, r.trades_24h, r.last_trade_at,
+         r.shariah_status,
+         day.open_price, day.high_price, day.low_price,
+         ref.price,
+         -- Exactly the limit prices match_order accepts (band_tick_edges).
+         CASE WHEN ref.price > 0 THEN (public.band_tick_edges(ref.price)).low_tick END,
+         CASE WHEN ref.price > 0 THEN (public.band_tick_edges(ref.price)).high_tick END
+    FROM target t
+    CROSS JOIN LATERAL public.market_instrument_rows(NULL, t.id) r
+    CROSS JOIN ref
+    CROSS JOIN day;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 2) Submissions: brand units only; the brand cap (same trigger as
+--    20260926101000 plus these two checks on INSERT).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.product_submissions_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _api boolean := COALESCE(current_setting('role', true), 'none') IN ('anon', 'authenticated', 'service_role');
+  _control boolean := COALESCE(current_setting('app.submission_control', true), '') = 'on';
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    -- Symbols are stored as the market shows them (upper case, trimmed).
+    NEW.symbol := upper(btrim(COALESCE(NEW.symbol, '')));
+    IF NEW.symbol !~ '^[A-Z0-9._-]{1,32}$' THEN
+      RAISE EXCEPTION 'INVALID_SYMBOL';
+    END IF;
+    -- Fixer (phase 3): the market lists brand units only (Terms of use).
+    NEW.asset_class := COALESCE(NULLIF(btrim(NEW.asset_class), ''), 'brand');
+    IF NEW.asset_class <> 'brand' THEN
+      RAISE EXCEPTION 'ASSET_CLASS_NOT_SUPPORTED';
+    END IF;
+    -- The 30-brand cap per company (enforce_brand_cap) covers submissions
+    -- of a symbol the company does not hold yet.
+    IF NOT EXISTS (SELECT 1 FROM public.brands b WHERE b.symbol = NEW.symbol AND b.company_id = NEW.company_id)
+       AND public.company_brand_count(NEW.company_id) >= 30 THEN
+      RAISE EXCEPTION 'BRAND_CAP_REACHED';
+    END IF;
+    NEW.status := 'pending';
+    NEW.reviewer_id := NULL;
+    NEW.review_reason := NULL;
+    NEW.reviewed_at := NULL;
+    NEW.shariah_decision_id := NULL;
+    NEW.listing_decided_by := NULL;
+    NEW.listing_decided_at := NULL;
+    NEW.listing_reason := NULL;
+    NEW.submitted_at := now();
+    NEW.created_at := now();
+    NEW.updated_at := now();
+    IF auth.uid() IS NOT NULL THEN
+      NEW.submitted_by := auth.uid();
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- Decision fields change only through review_submission / approve_listing
+  -- / decline_listing when the caller is an API role.
+  IF _api AND NOT _control AND (
+       NEW.status IS DISTINCT FROM OLD.status
+    OR NEW.reviewer_id IS DISTINCT FROM OLD.reviewer_id
+    OR NEW.review_reason IS DISTINCT FROM OLD.review_reason
+    OR NEW.reviewed_at IS DISTINCT FROM OLD.reviewed_at
+    OR NEW.shariah_decision_id IS DISTINCT FROM OLD.shariah_decision_id
+    OR NEW.listing_decided_by IS DISTINCT FROM OLD.listing_decided_by
+    OR NEW.listing_decided_at IS DISTINCT FROM OLD.listing_decided_at
+    OR NEW.listing_reason IS DISTINCT FROM OLD.listing_reason
+  ) THEN
+    RAISE EXCEPTION 'SUBMISSION_TRANSITION_FORBIDDEN';
+  END IF;
+
+  -- The submitted content and ownership are frozen for API callers.
+  IF _api AND (
+       NEW.id IS DISTINCT FROM OLD.id
+    OR NEW.company_id IS DISTINCT FROM OLD.company_id
+    OR NEW.submitted_by IS DISTINCT FROM OLD.submitted_by
+    OR NEW.symbol IS DISTINCT FROM OLD.symbol
+    OR NEW.asset_class IS DISTINCT FROM OLD.asset_class
+    OR NEW.submitted_at IS DISTINCT FROM OLD.submitted_at
+    OR NEW.created_at IS DISTINCT FROM OLD.created_at
+  ) THEN
+    RAISE EXCEPTION 'SUBMISSION_TRANSITION_FORBIDDEN';
+  END IF;
+
+  -- Allowed transitions, for every caller (migrations included).
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NOT (
+         (OLD.status = 'pending'  AND NEW.status IN ('approved', 'rejected'))
+      OR (OLD.status = 'approved' AND NEW.status IN ('listed', 'rejected'))
+    ) THEN
+      RAISE EXCEPTION 'SUBMISSION_TRANSITION_FORBIDDEN';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 3) set_instrument_published (same as 20260926101000 plus the asset class).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.set_instrument_published(_symbol text, _published boolean, _actor_id uuid)
+RETURNS TABLE(brand_id uuid, company_id uuid, symbol text, published boolean, changed boolean, cancelled_orders integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  _sym text := upper(btrim(COALESCE(_symbol, '')));
+  _brand public.brands;
+  _n integer := 0;
+  _changed boolean;
+BEGIN
+  IF _actor_id IS NULL OR NOT public.has_role(_actor_id, 'platform_admin') THEN
+    RAISE EXCEPTION 'FORBIDDEN_ADMIN_REQUIRED';
+  END IF;
+  IF _published IS NULL THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
+  IF _sym !~ '^[A-Z0-9._-]{1,32}$' THEN RAISE EXCEPTION 'INSTRUMENT_NOT_FOUND'; END IF;
+
+  -- Symbol lock first (as every order path), then the rows.
+  PERFORM pg_advisory_xact_lock(hashtext('match:' || _sym));
+
+  SELECT * INTO _brand FROM public.brands b WHERE b.symbol = _sym FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'INSTRUMENT_NOT_FOUND'; END IF;
+
+  IF _published THEN
+    -- The reference price anchors the band; 0 means no admin has set one.
+    IF NOT (_brand.reference_price > 0 AND _brand.reference_price <= 1000000000) THEN
+      RAISE EXCEPTION 'INVALID_PRICE';
+    END IF;
+    -- Every listed instrument carries a ruling in force.
+    IF public.current_shariah_status(_brand.symbol) IS NULL THEN
+      RAISE EXCEPTION 'SHARIAH_RULING_REQUIRED';
+    END IF;
+    -- Fixer (phase 3): only brand units are listed (approve_listing lists
+    -- through this function too).
+    IF _brand.asset_class IS DISTINCT FROM 'brand' THEN
+      RAISE EXCEPTION 'ASSET_CLASS_NOT_SUPPORTED';
+    END IF;
+  END IF;
+
+  _changed := _brand.published IS DISTINCT FROM _published;
+  IF _changed THEN
+    PERFORM set_config('app.listing_control', 'on', true);
+    UPDATE public.brands b SET published = _published WHERE b.id = _brand.id;
+    PERFORM set_config('app.listing_control', 'off', true);
+  END IF;
+
+  IF NOT _published THEN
+    _n := public.close_instrument_orders(_brand.symbol, 'delisted', _actor_id);
+  END IF;
+
+  -- Lifecycle: listing a Shariah-approved submission's instrument lists it.
+  IF _published AND _brand.source_submission_id IS NOT NULL THEN
+    PERFORM set_config('app.submission_control', 'on', true);
+    UPDATE public.product_submissions s
+       SET status = 'listed', listing_decided_by = _actor_id, listing_decided_at = now()
+     WHERE s.id = _brand.source_submission_id
+       AND s.company_id IS NOT DISTINCT FROM _brand.company_id
+       AND s.status = 'approved';
+    PERFORM set_config('app.submission_control', 'off', true);
+  END IF;
+
+  INSERT INTO public.audit_log (actor_id, company_id, action, entity, entity_id, metadata)
+  VALUES (
+    _actor_id, _brand.company_id,
+    CASE WHEN _published THEN 'brand.publish' ELSE 'brand.unpublish' END,
+    'brands', _brand.id::text,
+    jsonb_build_object('symbol', _brand.symbol, 'changed', _changed, 'cancelledOrders', _n)
+  );
+
+  RETURN QUERY SELECT _brand.id, _brand.company_id, _brand.symbol, _published, _changed, _n;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 5) admin_pending_activations (same signature as 20260926100100): an
+--    account with no role that never signed in is labelled as such
+--    ('no_role_never_signed_in'), not as "signed in without a role".
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_pending_activations(_actor_id uuid, _limit integer DEFAULT 200)
+RETURNS TABLE(
+  user_id uuid,
+  email text,
+  full_name text,
+  created_at timestamptz,
+  email_confirmed boolean,
+  source text,
+  request_id uuid,
+  request_reference text,
+  requested_at timestamptz,
+  pending_company_invitations integer,
+  on_hold boolean
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF _actor_id IS NULL OR NOT public.has_role(_actor_id, 'platform_admin') THEN
+    RAISE EXCEPTION 'FORBIDDEN_ADMIN_REQUIRED';
+  END IF;
+
+  RETURN QUERY
+  WITH inv_req AS (
+    SELECT DISTINCT ON (lower(ar.email))
+           lower(ar.email) AS addr, ar.id, ar.reference_code, ar.full_name, ar.created_at, ar.reviewed_at
+      FROM public.access_requests ar
+     WHERE ar.join_method = 'investor' AND ar.status = 'approved'
+     ORDER BY lower(ar.email), ar.reviewed_at DESC NULLS LAST, ar.created_at DESC
+  ),
+  accounts AS (
+    SELECT u.id AS uid, lower(u.email) AS addr, u.created_at AS u_created, u.email_confirmed_at IS NOT NULL AS confirmed,
+           -- auth.users.last_sign_in_at (read through jsonb: absent on stripped-down auth schemas).
+           (to_jsonb(u) ->> 'last_sign_in_at') IS NOT NULL AS signed_in
+      FROM auth.users u
+     WHERE u.email IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = u.id AND r.role = 'trader')
+  ),
+  cand AS (
+    SELECT a.uid, a.addr, COALESCE(p.full_name, ir.full_name) AS name, a.u_created, a.confirmed,
+           'investor_request'::text AS src, ir.id AS rid, ir.reference_code AS rref, ir.created_at AS rat
+      FROM accounts a
+      JOIN inv_req ir ON ir.addr = a.addr
+      LEFT JOIN public.profiles p ON p.id = a.uid
+    UNION ALL
+    SELECT a.uid, a.addr, p.full_name, a.u_created, a.confirmed,
+           CASE WHEN a.signed_in THEN 'no_role' ELSE 'no_role_never_signed_in' END,
+           NULL::uuid, NULL::text, NULL::timestamptz
+      FROM accounts a
+      LEFT JOIN public.profiles p ON p.id = a.uid
+     WHERE NOT EXISTS (SELECT 1 FROM inv_req ir WHERE ir.addr = a.addr)
+       AND NOT EXISTS (SELECT 1 FROM public.user_roles r WHERE r.user_id = a.uid)
+       AND NOT EXISTS (SELECT 1 FROM public.company_members m WHERE m.user_id = a.uid)
+    UNION ALL
+    SELECT NULL::uuid, ir.addr, ir.full_name, NULL::timestamptz, false,
+           'invited_no_account'::text, ir.id, ir.reference_code, ir.created_at
+      FROM inv_req ir
+     WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE lower(u.email) = ir.addr)
+  )
+  SELECT r.uid, r.addr, r.name, r.u_created, r.confirmed, r.src, r.rid, r.rref, r.rat,
+         (SELECT count(*)::integer FROM public.company_invitations ci
+           WHERE lower(ci.email) = r.addr AND ci.status = 'pending' AND ci.expires_at > now()),
+         (r.uid IS NOT NULL AND EXISTS (SELECT 1 FROM public.launch_review_holds h
+                                         WHERE h.user_id = r.uid AND h.resolved_at IS NULL))
+    FROM cand r
+   ORDER BY COALESCE(r.rat, r.u_created) DESC NULLS LAST, r.addr
+   LIMIT GREATEST(1, LEAST(COALESCE(_limit, 200), 500));
+END;
+$$;
+
+-- EXECUTE privileges of the functions above: see
+-- 20260926101700_fixer_execute_allowlist.sql.
+
+
+-- ============================================================================
+-- >>> 20260926101650_fixer_access_request_siblings.sql
+-- ============================================================================
+SET LOCAL search_path = public, extensions;
+-- ============================================================================
+-- Phase 3 fixer, round 1: duplicate access requests.
+--
+-- The same person can submit the request form more than once (the per-address
+-- limit is 3 a day). Each submission gets its own reference code, and the
+-- applicant may keep any of them, so a submission is never refused or merged
+-- (answering "you already applied" would tell anyone who types an address
+-- whether that person applied). Instead, when a request is decided (approved
+-- or rejected), every other PENDING request for the same thing from the same
+-- address takes the same decision in the same transaction:
+--   - investor requests: same address;
+--   - requests to join a company (search / link): same address and company;
+--   - requests for a new company: same address and the same company names.
+-- Before, the duplicates stayed in the review queue after the decision, and
+-- approving one later sent a second decision e-mail.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.access_requests_close_siblings()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- The sibling UPDATE below fires this trigger again: nothing left to do.
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NULL;
+  END IF;
+  IF OLD.status <> 'pending' OR NEW.status NOT IN ('approved', 'rejected') THEN
+    RETURN NULL;
+  END IF;
+
+  UPDATE public.access_requests s
+     SET status = NEW.status,
+         reviewed_by = NEW.reviewed_by,
+         reviewed_at = NEW.reviewed_at,
+         rejection_reason = NEW.rejection_reason,
+         resulting_invitation_id = NEW.resulting_invitation_id
+   WHERE s.id <> NEW.id
+     AND s.status = 'pending'
+     AND lower(btrim(s.email)) = lower(btrim(NEW.email))
+     AND CASE
+           WHEN NEW.join_method = 'investor' THEN s.join_method = 'investor'
+           WHEN NEW.join_method IN ('search', 'link') THEN
+             s.join_method IN ('search', 'link') AND s.requested_company_id = NEW.requested_company_id
+           WHEN NEW.join_method = 'new_company' THEN
+             s.join_method = 'new_company'
+             AND lower(btrim(s.new_company_name_ar)) = lower(btrim(NEW.new_company_name_ar))
+             AND lower(btrim(s.new_company_name_en)) = lower(btrim(NEW.new_company_name_en))
+           ELSE false
+         END;
+  RETURN NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.access_requests_close_siblings() FROM PUBLIC, anon, authenticated;
+
+-- The trigger is (re)created after the backfill below, which must not close
+-- requests submitted after a decision.
+DROP TRIGGER IF EXISTS trg_access_requests_close_siblings ON public.access_requests;
+
+-- Requests decided before this migration: close the pending duplicates of an
+-- already decided request the same way (oldest decision first).
+DO $$
+DECLARE
+  r public.access_requests;
+  n integer := 0;
+  k integer;
+BEGIN
+  FOR r IN
+    SELECT * FROM public.access_requests d
+     WHERE d.status IN ('approved', 'rejected')
+     ORDER BY d.reviewed_at NULLS FIRST, d.created_at
+  LOOP
+    UPDATE public.access_requests s
+       SET status = r.status,
+           reviewed_by = r.reviewed_by,
+           reviewed_at = r.reviewed_at,
+           rejection_reason = r.rejection_reason,
+           resulting_invitation_id = r.resulting_invitation_id
+     WHERE s.id <> r.id
+       AND s.status = 'pending'
+       AND s.created_at <= COALESCE(r.reviewed_at, r.created_at)
+       AND lower(btrim(s.email)) = lower(btrim(r.email))
+       AND CASE
+             WHEN r.join_method = 'investor' THEN s.join_method = 'investor'
+             WHEN r.join_method IN ('search', 'link') THEN
+               s.join_method IN ('search', 'link') AND s.requested_company_id = r.requested_company_id
+             WHEN r.join_method = 'new_company' THEN
+               s.join_method = 'new_company'
+               AND lower(btrim(s.new_company_name_ar)) = lower(btrim(r.new_company_name_ar))
+               AND lower(btrim(s.new_company_name_en)) = lower(btrim(r.new_company_name_en))
+             ELSE false
+           END;
+    GET DIAGNOSTICS k = ROW_COUNT;
+    n := n + k;
+  END LOOP;
+  IF n > 0 THEN
+    RAISE NOTICE 'closed % pending duplicate access request(s) of already decided requests', n;
+  END IF;
+END $$;
+
+CREATE TRIGGER trg_access_requests_close_siblings
+  AFTER UPDATE OF status ON public.access_requests
+  FOR EACH ROW EXECUTE FUNCTION public.access_requests_close_siblings();
+
+
+-- ============================================================================
+-- >>> 20260926101700_fixer_execute_allowlist.sql
+-- ============================================================================
+SET LOCAL search_path = public, extensions;
+-- ============================================================================
+-- EXECUTE privileges for the functions of the phase 3 fixer migrations
+-- (20260926101500, 20260926101600, 20260926101650), following the explicit allow-list
+-- pattern of 20260924100600_function_execute_audit.sql: Supabase's default
+-- privileges grant EXECUTE on every new public function to anon and
+-- authenticated, so each one is revoked from PUBLIC, anon and authenticated.
+-- Server functions get service_role; trigger functions get no grant at all.
+-- Functions that do not exist on a given database are skipped.
+-- ============================================================================
+DO $$
+DECLARE
+  fn text;
+  service_only text[] := ARRAY[
+    -- 20260926101500_fixer_security_hardening.sql
+    'public.rate_limit_bucket(timestamptz, integer)',
+    'public.check_rate_limit(text, integer, integer)',
+    'public.set_reference_price(text, numeric, uuid)',
+    'public.update_shariah_decision(uuid, uuid, text, text, text)',
+    'public.get_symbol_market_stats(text)',
+    'public.get_market_snapshot(text[])',
+    -- 20260926101600_fixer_market_rules.sql
+    'public.band_tick_edges(numeric)',
+    'public.company_brand_count(uuid)',
+    'public.match_order(uuid, text, text, text, text, numeric, numeric)',
+    'public.set_instrument_published(text, boolean, uuid)',
+    'public.admin_pending_activations(uuid, integer)'
+  ];
+  trigger_only text[] := ARRAY[
+    'public.user_watch_rows_guard()',
+    'public.brands_guard()',
+    'public.audit_name_change()',
+    'public.log_shariah_decision_update()',
+    'public.product_submissions_guard()',
+    'public.enforce_brand_cap()',
+    -- 20260926101650_fixer_access_request_siblings.sql
+    'public.access_requests_close_siblings()'
+  ];
+  -- Browser-visible market data (anon + authenticated), unchanged audience.
+  public_read text[] := ARRAY[
+    'public.public_instrument(text)'
+  ];
+BEGIN
+  FOREACH fn IN ARRAY service_only LOOP
+    CONTINUE WHEN to_regprocedure(fn) IS NULL;
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn);
+  END LOOP;
+  FOREACH fn IN ARRAY trigger_only LOOP
+    CONTINUE WHEN to_regprocedure(fn) IS NULL;
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn);
+  END LOOP;
+  FOREACH fn IN ARRAY public_read LOOP
+    CONTINUE WHEN to_regprocedure(fn) IS NULL;
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', fn);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon, authenticated, service_role', fn);
+  END LOOP;
+END $$;
+
+
+-- ============================================================================
 -- Record the versions in the migration history (when the table exists) and
 -- report.
 -- ============================================================================
@@ -6508,7 +7855,11 @@ BEGIN
     ('20260926100900', 'money_execute_allowlist'),
     ('20260926101000', 'submission_lifecycle'),
     ('20260926101100', 'public_candles_cost'),
-    ('20260926101200', 'integrity_report')
+    ('20260926101200', 'integrity_report'),
+    ('20260926101500', 'fixer_security_hardening'),
+    ('20260926101600', 'fixer_market_rules'),
+    ('20260926101650', 'fixer_access_request_siblings'),
+    ('20260926101700', 'fixer_execute_allowlist')
       ) AS v(version, name)
       ON CONFLICT (version) DO NOTHING;
     ELSE
@@ -6540,12 +7891,16 @@ BEGIN
     ('20260926100900', 'money_execute_allowlist'),
     ('20260926101000', 'submission_lifecycle'),
     ('20260926101100', 'public_candles_cost'),
-    ('20260926101200', 'integrity_report')
+    ('20260926101200', 'integrity_report'),
+    ('20260926101500', 'fixer_security_hardening'),
+    ('20260926101600', 'fixer_market_rules'),
+    ('20260926101650', 'fixer_access_request_siblings'),
+    ('20260926101700', 'fixer_execute_allowlist')
       ) AS v(version, name)
       ON CONFLICT (version) DO NOTHING;
     END IF;
   END IF;
-  RAISE NOTICE 'LAUNCH_BUNDLE_DONE files=27 first=20260924100000 last=20260926101200';
+  RAISE NOTICE 'LAUNCH_BUNDLE_DONE files=31 first=20260924100000 last=20260926101700';
 END
 $launch_bundle_post$;
 

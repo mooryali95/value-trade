@@ -6,11 +6,14 @@ import { writeAudit } from "@/lib/audit/audit.server";
 import { checkRateLimit, clientKeyFromRequest } from "@/lib/security/rate-limit.server";
 import { toStableError } from "@/lib/ops/errors.server";
 import { normalizeReference, UUID_RE } from "./reference";
+import { parseOr } from "@/lib/security/parse-input";
 
-// NOTE ON `as any` CASTS BELOW: the onboarding functions and the
+// NOTE ON THE `as Untyped` CASTS BELOW: the onboarding functions and the
 // access_requests.reference_code column come from migrations that the
 // generated Database types (src/integrations/supabase/types.ts) only learn
 // about once Lovable applies them and regenerates that file.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- until the generated types include them (see above)
+type Untyped = any;
 
 // ---------------------------------------------------------------------------
 // Public: search / lookup companies (name+slug+id only). Only companies that
@@ -25,7 +28,7 @@ export const searchCompaniesPublic = createServerFn({ method: "GET" })
       throw new Error("RATE_LIMITED");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows, error } = await supabaseAdmin.rpc("search_companies_public" as any, {
+    const { data: rows, error } = await supabaseAdmin.rpc("search_companies_public" as Untyped, {
       _query: data.query,
     });
     if (error) throw toStableError("access.search", error);
@@ -41,7 +44,7 @@ export const getCompanyBySlugPublic = createServerFn({ method: "GET" })
       throw new Error("RATE_LIMITED");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: row, error } = await supabaseAdmin.rpc("get_company_by_slug_public" as any, {
+    const { data: row, error } = await supabaseAdmin.rpc("get_company_by_slug_public" as Untyped, {
       _slug: data.slug,
     });
     if (error) throw toStableError("access.slug", error);
@@ -122,7 +125,7 @@ async function sendMail(
 }
 
 export const submitAccessRequest = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => SubmitInput.parse(input))
+  .inputValidator((input: unknown) => parseOr(SubmitInput, input))
   .handler(async ({ data }): Promise<{ id: string; referenceCode: string; emailSent: boolean }> => {
     const request = getRequest();
     const ipKey = clientKeyFromRequest(request, "access-request-ip");
@@ -148,7 +151,7 @@ export const submitAccessRequest = createServerFn({ method: "POST" })
     // The reference code is random (40 bits); retry once on the rare clash.
     let row: { id: string; reference_code: string } | null = null;
     for (let attempt = 0; attempt < 2 && !row; attempt++) {
-      const res = await (supabaseAdmin.from("access_requests" as any) as any)
+      const res = await (supabaseAdmin.from("access_requests" as Untyped) as Untyped)
         .insert(insert)
         .select("id, reference_code")
         .single();
@@ -161,17 +164,19 @@ export const submitAccessRequest = createServerFn({ method: "POST" })
     if (!row) throw new Error("INTERNAL_ERROR");
 
     const { canonicalOrigin } = await import("@/lib/ops/origin.server");
+    // Anyone can type any address into this form, so the acknowledgement
+    // quotes nothing the applicant wrote (name, new company names): only
+    // the reference code and, for a join request, the registered company's
+    // own name.
     const names =
       data.join_method === "search" || data.join_method === "link"
         ? await companyNames(data.requested_company_id)
-        : data.join_method === "new_company"
-          ? { ar: data.new_company_name_ar, en: data.new_company_name_en }
-          : { ar: null, en: null };
+        : { ar: null, en: null };
     const ack = await sendMail(
       "access-request-received",
       data.email,
       {
-        fullName: data.full_name,
+        fullName: null,
         referenceCode: row.reference_code,
         kind: requestKind(data.join_method),
         companyNameAr: names.ar,
@@ -207,7 +212,7 @@ export type AccessRequestRow = {
 export const listAccessRequests = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AccessRequestRow[]> => {
-    const { data: rows, error } = await (context.supabase.from("access_requests" as any) as any)
+    const { data: rows, error } = await (context.supabase.from("access_requests" as Untyped) as Untyped)
       .select("*, companies:companies(id, name_ar, name_en, slug)")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
@@ -259,7 +264,7 @@ type RequestRecord = {
 
 async function loadRequest(requestId: string): Promise<RequestRecord> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await (supabaseAdmin.from("access_requests" as any) as any)
+  const { data, error } = await (supabaseAdmin.from("access_requests" as Untyped) as Untyped)
     .select(
       "id, email, full_name, join_method, requested_company_id, new_company_name_ar, new_company_name_en, status, reference_code, resulting_invitation_id, reviewed_at, created_at",
     )
@@ -306,7 +311,7 @@ export const approveAccessRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<ApprovalResult> => {
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rpcRows, error } = await supabaseAdmin.rpc("approve_access_request" as any, {
+    const { data: rpcRows, error } = await supabaseAdmin.rpc("approve_access_request" as Untyped, {
       _request_id: data.requestId,
       _actor_id: userId,
       _role: data.role ?? null,
@@ -374,7 +379,7 @@ export const rejectAccessRequest = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const reason = data.reason ? data.reason : null;
-    const { error } = await supabaseAdmin.rpc("reject_access_request" as any, {
+    const { error } = await supabaseAdmin.rpc("reject_access_request" as Untyped, {
       _request_id: data.requestId,
       _actor_id: userId,
       _reason: reason,
@@ -444,7 +449,7 @@ export const listRecentAccessDecisions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<RecentDecision[]> => {
     const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
-    const { data: rows, error } = await (context.supabase.from("access_requests" as any) as any)
+    const { data: rows, error } = await (context.supabase.from("access_requests" as Untyped) as Untyped)
       .select("id, email, full_name, join_method, reference_code, reviewed_at, requested_company_id, new_company_name_ar, new_company_name_en, resulting_invitation_id")
       .eq("status", "approved")
       // New companies stay listed past 60 days until their owner accepts:
@@ -518,7 +523,23 @@ export const listRecentAccessDecisions = createServerFn({ method: "GET" })
       const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
       return !!inv && inv.status !== "accepted";
     };
-    return list.filter(recentOrOpen).slice(0, 100).map((r) => {
+    // A decision also closes the applicant's pending duplicates (same
+    // address, same request; access_requests_close_siblings): list the
+    // decision once. Rows are newest first, so the first one is kept.
+    const seen = new Set<string>();
+    const once = (r: (typeof list)[number]) => {
+      const target =
+        r.join_method === "investor"
+          ? "investor"
+          : r.join_method === "new_company"
+            ? `new:${(r.new_company_name_en ?? "").trim().toLowerCase()}|${(r.new_company_name_ar ?? "").trim().toLowerCase()}`
+            : `co:${r.requested_company_id ?? ""}`;
+      const key = `${r.email.trim().toLowerCase()}|${target}|${r.reviewed_at ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    };
+    return list.filter(recentOrOpen).filter(once).slice(0, 100).map((r) => {
       const inv = r.resulting_invitation_id ? invites.get(r.resulting_invitation_id) : undefined;
       const companyId = r.requested_company_id ?? inv?.company_id ?? null;
       const co = companyId ? names.get(companyId) : undefined;
@@ -596,8 +617,8 @@ export const checkAccessRequestStatus = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = UUID_RE.test(ref)
-      ? await supabaseAdmin.rpc("check_access_request_status" as any, { _id: ref, _email: data.email })
-      : await supabaseAdmin.rpc("check_access_request_status_ref" as any, { _ref: ref, _email: data.email });
+      ? await supabaseAdmin.rpc("check_access_request_status" as Untyped, { _id: ref, _email: data.email })
+      : await supabaseAdmin.rpc("check_access_request_status_ref" as Untyped, { _ref: ref, _email: data.email });
     if (error) throw toStableError("access.status", error);
     const row = (Array.isArray(rows) ? rows[0] : rows) as
       | { status: string; reviewed_at: string | null; join_method?: string }

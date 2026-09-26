@@ -10,10 +10,10 @@ import { ErrorState } from "@/components/error-state";
 import { LuxurySkeleton } from "@/components/luxury-skeleton";
 import { AccessDenied } from "@/components/access-denied";
 import { useI18n } from "@/lib/i18n";
-import { ShariahPill, instrumentName } from "@/components/market-data";
+import { ShariahPill, formatDateTime, instrumentName, sectorLabel } from "@/components/market-data";
+import { FreeText } from "@/components/free-text";
 import { recordShariahDecision, listShariahDecisions, updateShariahDecision, listDecisionAudit, listReviewInstruments } from "@/lib/trading/shariah.functions";
 import { SubmissionStageBadge } from "@/lib/submissions/lifecycle";
-import { StatusBadge } from "@/components/status-badge";
 import { SortHeader, Pager, comparator, clampPage } from "@/components/data-table-controls";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useErrorMessage } from "@/hooks/use-error-message";
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/_authenticated/shariah/review")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
-      { title: "لوحة المراجعة الشرعية — وحدة القيمة" },
+      { title: "لوحة المراجعة الشرعية — وحدة القيمة | Shariah review — Value Unit" },
       { name: "description", content: "اعتماد أو رفض أو طلب معلومات عن الأدوات المدرجة." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -202,11 +202,11 @@ function ReviewPage() {
         ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           {pool.map((b) => (
-            <div key={b.symbol} className="grid grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-3 border-b border-border/40 px-4 py-3 last:border-b-0">
+            <div key={b.symbol} className="grid grid-cols-1 gap-2 border-b border-border/40 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] md:items-center md:gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-ink">{instrumentName(b, lang)}</div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase text-muted-foreground">
-                  <span>{[b.symbol, b.sector].filter(Boolean).join(" · ")}</span>
+                <div className="break-words text-sm font-semibold text-ink md:truncate">{instrumentName(b, lang)}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span><span dir="ltr" className="font-mono uppercase">{b.symbol}</span>{b.sector ? ` · ${sectorLabel(b.sector, t)}` : ""}</span>
                   <ShariahPill status={b.shariahStatus} />
                   <span className="rounded-full border border-border px-2 py-0.5 normal-case">{b.published ? t("e2_published") : t("e2_unpublished")}</span>
                   {b.submissionStatus && <SubmissionStageBadge status={b.submissionStatus} />}
@@ -214,14 +214,15 @@ function ReviewPage() {
               </div>
               <input
                 placeholder={t("reason")}
+                aria-label={`${t("reason")} · ${b.symbol}`}
                 value={reason[b.symbol] ?? ""}
                 onChange={(e) => setReason((r) => ({ ...r, [b.symbol]: e.target.value }))}
-                className="rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                className="min-h-10 w-full min-w-0 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
               />
-              <div className="flex gap-2">
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] || undefined })} className="rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
-                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] || undefined })} className="rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
+              <div className="flex flex-wrap gap-2">
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "halal", reason: reason[b.symbol] || undefined })} className="min-h-9 rounded border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bull)] disabled:opacity-40">{t("approve")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "reviewing", reason: reason[b.symbol] || undefined })} className="min-h-9 rounded border border-border px-3 py-1.5 text-[11px] font-semibold text-ink-soft disabled:opacity-40">{t("requestInfo")}</button>
+                <button disabled={!isReviewer || mutation.isPending} title={!isReviewer ? t("reviewerRequired") : undefined} onClick={() => setConfirm({ symbol: b.symbol, status: "non_halal", reason: reason[b.symbol] || undefined })} className="min-h-9 rounded border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-3 py-1.5 text-[11px] font-semibold text-[var(--bear)] disabled:opacity-40">{t("reject")}</button>
               </div>
             </div>
           ))}
@@ -248,9 +249,9 @@ function ReviewPage() {
               className="rounded-md border border-border bg-background px-2 py-1 text-xs"
             >
               <option value="all">{t("filterAll")}</option>
-              <option value="halal">{t("halal")}</option>
-              <option value="reviewing">{t("reviewing")}</option>
-              <option value="non_halal">{t("reject")}</option>
+              <option value="halal">{t("e2_shariahHalal")}</option>
+              <option value="reviewing">{t("e2_shariahReviewing")}</option>
+              <option value="non_halal">{t("e2_shariahNonHalal")}</option>
             </select>
             <select value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1 text-xs">
               {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
@@ -266,7 +267,7 @@ function ReviewPage() {
           <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="hidden grid-cols-[auto_minmax(8rem,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground md:grid">
               <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("e2_colSymbol")}</SortHeader>
               <div>{t("reason")}</div>
               <SortHeader active={search.sortBy === "updated"} dir={search.sortDir} onClick={() => patch({ sortBy: "updated", sortDir: search.sortBy === "updated" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("lastUpdated")}</SortHeader>
@@ -275,23 +276,23 @@ function ReviewPage() {
             </div>
             {paged.map((d) => (
               <div key={d.id} className="border-b border-border/40 px-4 py-3 last:border-b-0">
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 text-xs">
-                  <span className="font-mono font-semibold text-ink">{d.symbol}</span>
-                  <span className="truncate text-muted-foreground">{d.reason ?? "—"}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {new Date(d.updated_at ?? d.created_at).toLocaleString(lang === "ar" ? "ar" : "en-US", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs md:grid-cols-[auto_minmax(8rem,1fr)_auto_auto_auto]">
+                  <span className="font-mono font-semibold text-ink" dir="ltr">{d.symbol}</span>
+                  <span className="justify-self-end md:order-4 md:justify-self-auto"><ShariahPill status={d.status as "halal" | "non_halal" | "reviewing"} /></span>
+                  <FreeText text={d.reason} className="col-span-2 break-words text-muted-foreground md:order-2 md:col-span-1" />
+                  <span className="font-mono text-[10px] text-muted-foreground md:order-3" dir="ltr">
+                    {formatDateTime(d.updated_at ?? d.created_at, lang)}
                   </span>
-                  <StatusBadge status={d.status} />
-                  <div className="flex gap-1">
+                  <div className="flex justify-end gap-1 md:order-5">
                     <button
                       onClick={() => setOpenAudit((cur) => cur === d.id ? null : d.id)}
-                      className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
+                      className="min-h-8 rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)]"
                     >{t("auditTrail")}</button>
                     <button
                       disabled={!isReviewer}
                       title={!isReviewer ? t("reviewerRequired") : undefined}
                       onClick={() => setEditing({ id: d.id, status: d.status as never, reason: d.reason ?? "", changeReason: "", symbol: d.symbol })}
-                      className="rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40"
+                      className="min-h-8 rounded border border-border px-2 py-1 text-[10px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-40"
                     >{t("editDecision")}</button>
                   </div>
                 </div>
@@ -305,9 +306,13 @@ function ReviewPage() {
                       <ul className="space-y-1">
                         {audit.data!.map((a) => (
                           <li key={a.id} className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[10px] text-muted-foreground">{new Date(a.changed_at).toLocaleString(lang === "ar" ? "ar" : "en-US")}</span>
-                            <span className="text-ink-soft">{a.previous_status ?? "—"} → <span className="font-semibold text-ink">{a.new_status}</span></span>
-                            {a.change_reason && <span className="truncate text-muted-foreground">· {a.change_reason}</span>}
+                            <span className="font-mono text-[10px] text-muted-foreground" dir="ltr">{formatDateTime(a.changed_at, lang)}</span>
+                            <span className="inline-flex flex-wrap items-center gap-1 text-ink-soft">
+                              {a.previous_status ? <ShariahPill status={a.previous_status as "halal" | "non_halal" | "reviewing"} /> : "—"}
+                              <span aria-hidden>{lang === "ar" ? "←" : "→"}</span>
+                              <ShariahPill status={a.new_status as "halal" | "non_halal" | "reviewing"} />
+                            </span>
+                            {a.change_reason && <FreeText text={a.change_reason} className="break-words text-muted-foreground" />}
                           </li>
                         ))}
                       </ul>
@@ -359,9 +364,9 @@ function ReviewPage() {
             </DialogHeader>
             <div className="grid gap-2">
               <select aria-label={t("shariahStatus")} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as never })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
-                <option value="halal">{t("halal")}</option>
-                <option value="reviewing">{t("reviewing")}</option>
-                <option value="non_halal">{t("reject")}</option>
+                <option value="halal">{t("e2_shariahHalal")}</option>
+                <option value="reviewing">{t("e2_shariahReviewing")}</option>
+                <option value="non_halal">{t("e2_shariahNonHalal")}</option>
               </select>
               <textarea aria-label={t("reason")} value={editing.reason} onChange={(e) => setEditing({ ...editing, reason: e.target.value })} placeholder={t("reason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" />
               <textarea aria-label={t("changeReason")} value={editing.changeReason} onChange={(e) => setEditing({ ...editing, changeReason: e.target.value })} placeholder={t("changeReason")} rows={2} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none" required />

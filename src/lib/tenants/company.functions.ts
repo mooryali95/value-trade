@@ -70,10 +70,26 @@ export const getCompanyDetails = createServerFn({ method: "GET" })
         }),
       );
     }
+    // The instruments the company owns (brands.company_id: listed through a
+    // product submission or assigned by an admin), listed or not. Read with
+    // the service role only once RLS has shown the caller the company.
+    let instruments: Array<{ symbol: string; published: boolean }> = [];
+    if (company) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: owned, error: ownedErr } = await supabaseAdmin
+        .from("brands")
+        .select("symbol, published")
+        .eq("company_id", data.companyId)
+        .order("symbol", { ascending: true })
+        .limit(200);
+      if (ownedErr) console.error("[company] owned instruments lookup failed", ownedErr.code ?? "unknown");
+      instruments = (owned ?? []).map((b) => ({ symbol: b.symbol, published: b.published }));
+    }
     return {
       company,
       members: (members ?? []).map((m) => ({ ...m, email: emails.get(m.user_id) ?? null })),
       brands: brands ?? [],
+      instruments,
     };
   });
 

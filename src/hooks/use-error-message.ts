@@ -84,6 +84,21 @@ const CODE_TO_KEY: Record<string, Key> = {
   PASSWORD_NEEDS_LETTER_AND_DIGIT: "r_pwNeedsLetterDigit",
   PASSWORD_HAS_SPACES_AT_ENDS: "r_pwSpacesAtEnds",
   PASSWORD_MISMATCH: "r_pwMismatch",
+  // ---- Fixer (phase 3): codes the database raises that had no message ----
+  CASH_RESERVED: "m_errCashReserved",
+  SHARIAH_RULING_CONFLICT: "d_errRulingConflict",
+  SUBMISSION_NOT_APPROVED: "d_errNotApproved",
+  SHARIAH_NOT_HALAL: "d_errNotHalal",
+  SUBMISSION_TRANSITION_FORBIDDEN: "d_errTransition",
+  RULING_CHANGE_REASON_REQUIRED: "fx3_errChangeReason",
+  INVALID_SIDE: "errInvalidInput",
+  INVALID_TYPE: "errInvalidInput",
+  INVALID_FILE_PATH: "errInvalidInput",
+  ASSET_CLASS_NOT_SUPPORTED: "fx3_errAssetClass",
+  INSTRUMENT_HAS_HISTORY: "fx3_errInstrumentHistory",
+  BRAND_NOT_LISTED: "errInstrumentNotFound",
+  ALERT_LIMIT_REACHED: "fx3_errAlertLimit",
+  WATCHLIST_LIMIT_REACHED: "fx3_errWatchLimit",
 };
 
 /** i18n key of a stable error code, or undefined when it has no message. */

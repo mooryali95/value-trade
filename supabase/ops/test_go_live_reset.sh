@@ -82,6 +82,9 @@ DEMO_BEFORE=$(su "$DEMO_Q;"); BRANDS_BEFORE=$(su "SELECT count(*) FROM public.br
 check "invariants hold before the reset" "$(invariants)" "0|0|0|0"
 BEFORE=$(counts); SNAP=$(snapshot)
 OPEN_BEFORE=$(su "SELECT count(*) FROM public.orders WHERE status IN ('open','partial');")
+# Alerts the reset removes: every alert on a legacy demo instrument (the
+# fixture's GLVD plus any left by earlier suites on the same database).
+DEMO_ALERTS=$(su "SELECT count(*) FROM public.price_alerts a JOIN public.brands b ON upper(a.symbol) = b.symbol WHERE NOT b.published AND b.company_id IS NULL AND b.source_submission_id IS NULL;")
 echo "  rows before: $BEFORE (open orders: $OPEN_BEFORE)"
 check "scenario produced trades, ledger rows, audit rows and resting orders" \
   "$(su "SELECT (SELECT count(*) FROM public.trades) >= 3 AND (SELECT count(*) FROM public.cash_ledger) > 3 AND (SELECT count(*) FROM public.orders_audit) > 0 AND $OPEN_BEFORE >= 2;")" "t"
@@ -93,7 +96,7 @@ grep -q GO_LIVE_RESET_DONE <<<"$OUT" && check "reset reports completion" "t" "t"
 ARCH=""; for t in $TABLES; do ARCH+="$t=$(su "SELECT count(*) FROM go_live_archive.archive_20260925_$t;") "; done
 check "archives hold exactly the pre-reset rows" "$ARCH" "$BEFORE"
 check "trading tables cleared, portfolios and alerts on listed instruments kept" "$(counts)" \
-  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=$(( $(sed -E 's/.*price_alerts=([0-9]+).*/\1/' <<<"$BEFORE") - 1 )) "
+  "portfolios=$(su "SELECT count(*) FROM public.portfolios;") positions=0 orders=0 orders_audit=0 trades=0 cash_ledger=0 unit_issuances=0 price_alerts=$(( $(sed -E 's/.*price_alerts=([0-9]+).*/\1/' <<<"$BEFORE") - DEMO_ALERTS )) "
 check "legacy demo instruments removed (with their alerts and watchers), archived first" \
   "$(su "$DEMO_Q;")|$(su "SELECT count(*) FROM public.brands WHERE symbol='GLVD';")|$(su "SELECT count(*) FROM public.symbol_watchers WHERE symbol='GLVD';")|$(su "SELECT count(*) FROM go_live_archive.archive_20260925_brands;")|$(su "SELECT (metadata->>'demo_instruments_removed') FROM public.audit_log WHERE action='go_live_reset';")" \
   "0|0|0|$BRANDS_BEFORE|$DEMO_BEFORE"

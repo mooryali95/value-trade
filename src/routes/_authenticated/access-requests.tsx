@@ -16,6 +16,7 @@ import { useErrorMessage } from "@/hooks/use-error-message";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { INVITABLE_ROLES, companyRoleHintKey, companyRoleKey } from "@/lib/tenants/role-labels";
 import { formatDay } from "@/lib/account/dates";
+import { SECTORS, sectorLabel } from "@/components/market-data";
 import {
   listAccessRequests,
   approveAccessRequest,
@@ -263,7 +264,7 @@ function AccessRequestsPage() {
     <AppShell>
       <LiveRegion message={announcement} />
       <PageHeader
-        eyebrow={isAdmin ? t("navGroupAdmin") : t("companies")}
+        eyebrow={isAdmin ? t("modePlatform") : t("companies")}
         title={t("accessRequestsQueue")}
         description={isAdmin ? t("r_arDescAdmin") : t("accessRequestsQueueDesc")}
         crumbs={[{ label: t("accessRequestsQueue") }]}
@@ -306,12 +307,16 @@ function AccessRequestsPage() {
                 >
                   <label className="block text-[11px] text-muted-foreground">
                     {t("classifySector")}
-                    <input
+                    <select
                       value={sectorById[r.id] ?? ""}
-                      maxLength={80}
                       onChange={(e) => setSectorById((s) => ({ ...s, [r.id]: e.target.value }))}
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
-                    />
+                      className="mt-1 min-h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:border-[var(--gold-deep)] focus:outline-none"
+                    >
+                      <option value="">—</option>
+                      {SECTORS.map((sec) => (
+                        <option key={sec} value={sec}>{sectorLabel(sec, t)}</option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block text-[11px] text-muted-foreground">
                     {t("companySlug")}
@@ -477,9 +482,10 @@ function RecentDecisions({ onAnnounce }: { onAnnounce: (msg: string, ok?: boolea
         {t("r_arRecentTitle")}
       </h2>
       <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{t("r_arRecentDesc")}</p>
-      <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
-        <table className="w-full text-sm">
-          <thead>
+      {/* Below md each decision is a card: applicant, outcome, status, then the actions. */}
+      <div className="rounded-xl border border-border/60 bg-card">
+        <table className="w-full text-sm max-md:block">
+          <thead className="max-md:hidden">
             <tr className="border-b border-border/60 bg-secondary/40 text-[11px] uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 text-start font-semibold">{t("r_arColApplicant")}</th>
               <th className="px-3 py-2 text-start font-semibold">{t("r_arColOutcome")}</th>
@@ -487,31 +493,31 @@ function RecentDecisions({ onAnnounce }: { onAnnounce: (msg: string, ok?: boolea
               <th className="px-3 py-2" />
             </tr>
           </thead>
-          <tbody>
+          <tbody className="max-md:block">
             {rows.map((d) => {
               const company = lang === "ar" ? d.companyNameAr || d.companyNameEn : d.companyNameEn || d.companyNameAr;
               const roleKey = companyRoleKey(d.invitation?.role);
               return (
-                <tr key={d.id} className="border-b border-border/40 align-top last:border-0">
-                  <td className="px-3 py-2">
-                    <div className="text-xs font-semibold text-ink">{d.fullName}</div>
-                    <div className="text-[11px] text-muted-foreground" dir="ltr">{d.email}</div>
+                <tr key={d.id} className="border-b border-border/40 align-top last:border-0 max-md:block max-md:py-2">
+                  <td className="px-3 py-2 max-md:block max-md:pb-1">
+                    <div className="break-words text-xs font-semibold text-ink">{d.fullName}</div>
+                    <div className="break-all text-[11px] text-muted-foreground" dir="ltr">{d.email}</div>
                     {d.referenceCode && <div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{d.referenceCode}</div>}
                   </td>
-                  <td className="px-3 py-2 text-xs text-ink-soft">
+                  <td className="px-3 py-2 text-xs text-ink-soft max-md:block max-md:py-1">
                     {d.joinMethod === "investor" ? t("r_methodInvestor") : company ?? "—"}
                     {roleKey && <span className="block text-[11px] text-muted-foreground">{t(roleKey)}</span>}
                     <span className="block text-[10px] text-muted-foreground">{t("r_arApprovedOn").replace("{date}", fmt(d.reviewedAt))}</span>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 max-md:block max-md:py-1 [&_span]:whitespace-nowrap">
                     {invBadge(d)}
                     {investorBadge(d)}
                     {d.invitation?.status === "pending" && (
                       <div className="mt-1 text-[10px] text-muted-foreground">{t("r_inviteValidUntil").replace("{date}", fmt(d.invitation.expiresAt))}</div>
                     )}
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap justify-end gap-1.5">
+                  <td className="px-3 py-2 max-md:block max-md:pt-1">
+                    <div className="flex flex-wrap justify-end gap-1.5 max-md:justify-start">
                       {d.invitation?.inviteUrl && (
                         <SmallButton
                           onClick={async () => {
@@ -554,7 +560,7 @@ function SmallButton({ children, onClick, disabled }: { children: React.ReactNod
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="whitespace-nowrap rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
+      className="min-h-9 whitespace-nowrap rounded border border-border px-2 py-1 text-[11px] text-ink-soft hover:border-[var(--gold-deep)] disabled:opacity-50"
     >
       {children}
     </button>

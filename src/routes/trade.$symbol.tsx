@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NotFoundBlock } from "@/components/not-found-block";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -18,6 +18,7 @@ import { Num, formatNum } from "@/components/num";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useSignedIn } from "@/hooks/use-signed-in";
+import { useAccountStatus } from "@/hooks/use-account-status";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { describeOrderOutcome, validatePrice, validateQty, type OrderOutcome } from "@/components/order-outcome";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -89,7 +90,10 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const confirm = useConfirm();
   const isMobile = useIsMobile();
   const mark = markOf(brand);
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  // Buying is refused while the ruling in force is non-compliant: the ticket
+  // opens on the sell side and the buy side explains why it is off.
+  const buyBlocked = brand.shariahStatus === "non_halal";
+  const [side, setSide] = useState<"buy" | "sell">(buyBlocked ? "sell" : "buy");
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
   const [price, setPrice] = useState(mark.price.toFixed(2));
   const [qty, setQty] = useState("100");
@@ -98,8 +102,16 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const qc = useQueryClient();
   const { isTrader, isLoading: rolesLoading } = useMyRoles();
   const signedIn = useSignedIn();
+  const account = useAccountStatus();
+  const onHold = account.data?.onHold === true;
   const errorMessage = useErrorMessage();
   const [outcome, setOutcome] = useState("");
+  // The last order's result describes that order only.
+  useEffect(() => setOutcome(""), [side, orderType]);
+  // A ruling can change while the page is open (live instrument data).
+  useEffect(() => {
+    if (buyBlocked) setSide("sell");
+  }, [buyBlocked]);
   // Today's allowed limit-price range, as the engine enforces it (on the tick).
   const band = { low: brand.bandLow, high: brand.bandHigh };
 
@@ -116,7 +128,8 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const summary = portfolioQuery.data?.summary ?? null;
   const holding = portfolioQuery.data?.positions.find((p) => p.symbol.toUpperCase() === brand.symbol) ?? null;
   const heldQty = holding?.qty ?? 0;
-  const availableQty = Math.max(0, heldQty - (holding?.reserved_qty ?? 0));
+  const reservedQty = holding?.reserved_qty ?? 0;
+  const availableQty = Math.max(0, heldQty - reservedQty);
 
   // The same aggregated book the book panel shows (shared query).
   const bookFn = useServerFn(getBook);
@@ -163,7 +176,8 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
   const book = bookQuery.data ?? null;
   const marketEstimate =
     orderType === "market" && qtyNum > 0 && book ? estimateMarketFill(side, qtyNum, book, band) : null;
-  const orderInvalid = !!qtyError || !!priceError || tooLarge || shortCash || shortUnits || crossesOwn;
+  const sideBlocked = side === "buy" && buyBlocked;
+  const orderInvalid = sideBlocked || !!qtyError || !!priceError || tooLarge || shortCash || shortUnits || crossesOwn;
 
   // Largest whole quantity the account can place now.
   const maxQty = (() => {
@@ -257,11 +271,42 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
     if (ok) orderMutation.mutate();
   };
 
+  // Why the order button is off for this account, if it is.
+  const accountBlock: { reason: string; action?: React.ReactNode } | null =
+    signedIn === false
+      ? {
+          reason: t("signInToTrade"),
+          action: (
+            <Link to="/auth" search={{ redirect: `/trade/${brand.slug}` }} className="underline hover:text-[var(--gold-deep)]">
+              {t("signin")}
+            </Link>
+          ),
+        }
+      : onHold
+        ? { reason: t("fx3_tradeOnHold") }
+        : !rolesLoading && !isTrader
+          ? {
+              reason: t("fx3_tradeNotActivated"),
+              action: account.data?.pendingAccessRequest ? undefined : (
+                <Link to="/request-access" search={{ kind: "invest" }} className="underline hover:text-[var(--gold-deep)]">
+                  {t("fx3_tradeNotActivatedCta")}
+                </Link>
+              ),
+            }
+          : null;
+  // Order checks only matter to an account that can trade.
   const warning =
-    tooLarge ? t("orderTooLarge")
+    sideBlocked || accountBlock ? null
+    : tooLarge ? t("orderTooLarge")
     : crossesOwn ? t("errSelfTrade")
     : shortCash ? t("m_shortCash")
-    : shortUnits ? (heldQty > 0 ? t("m_shortUnits") : t("m_noUnits"))
+    : shortUnits
+      ? heldQty <= 0
+        ? t("m_noUnits")
+        // "Reserved by your open sells" only when some units really are.
+        : reservedQty > 0
+          ? t("m_shortUnits")
+          : t("fx3_shortUnitsHeld").replace("{n}", formatNum(availableQty, "qty"))
     : null;
 
   return (
@@ -338,7 +383,13 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
               <MiniStat label={t("e2_dayHigh")} v={<Num value={brand.dayHigh} />} />
               <MiniStat label={t("e2_dayLow")} v={<Num value={brand.dayLow} />} />
               <MiniStat label={t("e2_volumeUnits24h")} v={<Num value={brand.volume24hUnits} kind="qty" />} />
-              <MiniStat label={t("e2_value24h")} v={<span dir="ltr" className="tabular-nums" style={{ unicodeBidi: "isolate" }}>{formatCurrency(brand.volume24hValue, true, lang)}</span>} />
+              {/* As on the instrument page: no trade in 24h is "—", not 0. */}
+              <MiniStat
+                label={t("e2_value24h")}
+                v={brand.trades24h > 0
+                  ? <span dir="ltr" className="tabular-nums" style={{ unicodeBidi: "isolate" }}>{formatCurrency(brand.volume24hValue, true, lang)}</span>
+                  : <Num value={null} />}
+              />
               <MiniStat label={t("m_todaysRange")} v={<PriceRange low={band.low} high={band.high} />} />
             </dl>
           </section>
@@ -347,9 +398,29 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
 
         {/* Order ticket, book, own orders */}
         <aside className="order-2 space-y-4 lg:order-none lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:self-start">
+          {buyBlocked && (
+            <div role="note" className="flex items-start gap-3 rounded-xl border border-[var(--bear)]/30 bg-[var(--bear)]/5 px-4 py-3">
+              <ShariahPill status={brand.shariahStatus} />
+              <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-ink-soft">
+                {t("fx3_buyBlockedNonHalal")}{" "}
+                <Link to="/shariah" className="font-semibold text-[var(--gold-ink)] underline-offset-4 hover:underline">
+                  {t("e2_seeRulings")}
+                </Link>
+              </p>
+            </div>
+          )}
           <div className="rounded-xl border border-border/60 bg-card/60 p-4">
             <div className="mb-3 grid grid-cols-2 rounded-md bg-secondary/40 p-1 text-sm font-semibold" role="group" aria-label={t("m_orderSide")}>
-              <button type="button" aria-pressed={side === "buy"} onClick={() => setSide("buy")} className={`min-h-10 rounded-md py-2 transition ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}>{t("buy")}</button>
+              <button
+                type="button"
+                aria-pressed={side === "buy"}
+                disabled={buyBlocked}
+                title={buyBlocked ? t("fx3_buyBlockedNonHalal") : undefined}
+                onClick={() => setSide("buy")}
+                className={`min-h-10 rounded-md py-2 transition disabled:cursor-not-allowed disabled:opacity-50 ${side === "buy" ? "bg-[var(--bull)] text-ivory" : "text-muted-foreground"}`}
+              >
+                {t("buy")}
+              </button>
               <button type="button" aria-pressed={side === "sell"} onClick={() => setSide("sell")} className={`min-h-10 rounded-md py-2 transition ${side === "sell" ? "bg-[var(--bear)] text-ivory" : "text-muted-foreground"}`}>{t("sell")}</button>
             </div>
             <div className="mb-3 grid grid-cols-2 gap-2 text-xs" role="group" aria-label={t("orderType")}>
@@ -450,7 +521,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                   value={<Num value={side === "buy" ? cashNeeded : orderValue} kind="currency" className="font-semibold text-ink" />}
                 />
                 <Row label={t("m_fees")} value={<span className="font-semibold text-ink">{t("m_feesNone")}</span>} />
-                {signedIn === true && summary && (
+                {signedIn === true && summary && !onHold && (
                   side === "buy" ? (
                     <Row label={t("m_buyingPowerAfter")} value={<Num value={summary.buyingPower - cashNeeded} kind="currency" className={`font-semibold ${summary.buyingPower - cashNeeded < 0 ? "text-[var(--bear)]" : "text-ink"}`} />} />
                   ) : (
@@ -474,11 +545,17 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 {warning}
               </p>
             )}
-            <PermissionHint allowed={rolesLoading || isTrader} reason={signedIn === false ? t("signInToTrade") : t("traderRequired")}>
+            <PermissionHint
+              allowed={!accountBlock && !sideBlocked}
+              reason={accountBlock?.reason ?? t("fx3_buyBlockedNonHalal")}
+              showRoleLabel={false}
+              showUpgradeLink={false}
+              action={accountBlock?.action}
+            >
               <button
                 type="button"
-                disabled={orderMutation.isPending || rolesLoading || !isTrader || orderInvalid}
-                title={!isTrader ? (signedIn === false ? t("signInToTrade") : t("traderRequired")) : undefined}
+                disabled={orderMutation.isPending || rolesLoading || !isTrader || onHold || orderInvalid}
+                title={accountBlock?.reason ?? (sideBlocked ? t("fx3_buyBlockedNonHalal") : undefined)}
                 onClick={() => void submit()}
                 className={`mt-3 min-h-11 w-full rounded-md py-2.5 text-sm font-semibold text-ivory transition disabled:opacity-60 ${side === "buy" ? "bg-[var(--bull)]" : "bg-[var(--bear)]"}`}
               >
@@ -494,7 +571,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
             {/* Account: cash, reserved by resting buys, buying power */}
             <div className="mt-3 border-t border-border/40 pt-3 text-[11px]">
               {signedIn === false ? (
-                <Link to="/auth" search={{ redirect: `/trade/${brand.slug}` }} className="font-semibold text-[var(--gold-deep)] hover:underline">
+                <Link to="/auth" search={{ redirect: `/trade/${brand.slug}` }} className="inline-flex min-h-11 items-center font-semibold text-[var(--gold-deep)] hover:underline">
                   {t("signInToSeeBalance")}
                 </Link>
               ) : signedIn === null || portfolioQuery.isLoading ? (
@@ -503,7 +580,9 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
                 <button type="button" onClick={() => portfolioQuery.refetch()} className="text-[var(--bear)] hover:underline">{t("errInternal")}</button>
               ) : (
                 <dl className="space-y-1">
-                  <Row label={t("m_buyingPower")} value={<Num value={summary.buyingPower} kind="currency" className="font-semibold text-ink" />} />
+                  {!onHold && (
+                    <Row label={t("m_buyingPower")} value={<Num value={summary.buyingPower} kind="currency" className="font-semibold text-ink" />} />
+                  )}
                   <Row label={t("m_cashBalance")} value={<Num value={summary.cash} kind="currency" className="text-ink-soft" />} />
                   <Row label={t("m_reservedByOrders")} value={<Num value={summary.reserved} kind="currency" className="text-ink-soft" />} />
                   <Row label={t("m_heldUnits")} value={<span className="text-ink-soft"><Num value={heldQty} kind="qty" /> {brand.symbol}</span>} />
@@ -519,11 +598,12 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
           {/* Aggregated book: price levels only */}
           <OrderBookPanel symbol={brand.symbol} levels={6} showTotal={false} />
 
-          {/* Resting orders in the book */}
+          {/* The signed-in investor's own resting orders on this instrument */}
+          {signedIn === true && (
           <div className="rounded-xl border border-border/60 bg-card/60 p-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("openOrders")}</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t("fx3_yourOpenOrders")}</h3>
             {myOpenOrders.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">{t("noOpenOrders")}</p>
+              <p className="text-[11px] text-muted-foreground">{t("fx3_noOwnOpenOrders")}</p>
             ) : (
               <ul className="space-y-1">
                 {myOpenOrders.map((o) => (
@@ -546,6 +626,7 @@ function TradePage({ initial }: { initial: PublicInstrumentDetail }) {
               </ul>
             )}
           </div>
+          )}
         </aside>
 
         {/* Executed trades */}

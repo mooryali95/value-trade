@@ -22,12 +22,12 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/ops")({
   head: () => ({
     meta: [
-      { title: "دخان ما بعد النشر — وحدة القيمة" },
+      { title: "فحوص ما بعد النشر — وحدة القيمة | Post-deploy checks — Value Unit" },
       {
         name: "description",
-        content: "تشغيل اختبار الدخان للمسارات الحرجة والتحقق من جدولة فحص التنبيهات السعرية.",
+        content: "تشغيل الفحص السريع للمسارات الحرجة والتحقق من جدولة فحص التنبيهات السعرية. · Run the quick checks of the critical paths and verify the price-alert schedule.",
       },
-      { property: "og:title", content: "دخان ما بعد النشر — وحدة القيمة" },
+      { property: "og:title", content: "فحوص ما بعد النشر — وحدة القيمة | Post-deploy checks — Value Unit" },
       { property: "og:description", content: "اختبار المسارات الحرجة وحالة الجدولة." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

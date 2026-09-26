@@ -30,6 +30,7 @@ const LISTING_ERROR_CODES = new Set([
   "INSTRUMENT_NOT_FOUND",
   "USER_NOT_FOUND",
   "SHARIAH_RULING_REQUIRED",
+  "ASSET_CLASS_NOT_SUPPORTED",
 ]);
 
 /** How an instrument got into public.brands, for the admin listing screen. */
@@ -103,42 +104,38 @@ export function parsePublishInput(input: unknown): { symbol: string; published: 
   return { symbol: sym, published };
 }
 
-/** Sets brands.reference_price for a listed instrument. */
+/**
+ * Sets brands.reference_price through set_reference_price, which re-checks
+ * platform_admin, takes the engine's symbol lock, applies the price rules
+ * (INVALID_PRICE) and writes the audit_log row (brand.reference_price) in the
+ * same transaction. API users cannot write the column directly.
+ */
 export const setReferencePrice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => parseReferencePriceInput(input))
   .handler(async ({ data, context }): Promise<{ symbol: string; referencePrice: number }> => {
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: prev, error: readErr } = await supabaseAdmin
-      .from("brands")
-      .select("id, reference_price, company_id")
-      .eq("symbol", data.symbol)
-      .maybeSingle();
-    if (readErr) {
-      console.error("[listing] brand lookup failed:", readErr.code ?? "unknown");
-      throw new Error("INTERNAL_ERROR");
-    }
-    if (!prev) throw new Error("INSTRUMENT_NOT_FOUND");
-    const { error } = await supabaseAdmin
-      .from("brands")
-      .update({ reference_price: data.price })
-      .eq("id", prev.id);
+    const { data: rows, error } = await supabaseAdmin.rpc("set_reference_price" as never, {
+      _symbol: data.symbol,
+      _price: data.price,
+      _actor_id: context.userId,
+    } as never);
     if (error) {
-      // The database's own price rules (trigger INVALID_PRICE, CHECK 23514).
-      if ((error.message ?? "").trim() === "INVALID_PRICE" || error.code === "23514") throw new Error("INVALID_PRICE");
-      console.error("[listing] reference price update failed:", error.code ?? "unknown");
+      const err = error as { message?: string; code?: string };
+      const code = (err.message ?? "").trim();
+      if (LISTING_ERROR_CODES.has(code)) throw new Error(code);
+      // The database's own price rules (CHECK 23514).
+      if (err.code === "23514") throw new Error("INVALID_PRICE");
+      console.error("[listing] set_reference_price failed:", err.code ?? "unknown");
       throw new Error("INTERNAL_ERROR");
     }
-    await writeAudit(context.supabase, {
-      actorId: context.userId,
-      companyId: prev.company_id,
-      action: "brand.reference_price",
-      entity: "brands",
-      entityId: prev.id,
-      metadata: { symbol: data.symbol, from: Number(prev.reference_price), to: data.price },
-    });
-    return { symbol: data.symbol, referencePrice: data.price };
+    const row = (Array.isArray(rows) ? rows[0] : rows) as { symbol?: string; reference_price?: number | string } | null;
+    if (!row) {
+      console.error("[listing] set_reference_price returned no row");
+      throw new Error("INTERNAL_ERROR");
+    }
+    return { symbol: row.symbol ?? data.symbol, referencePrice: Number(row.reference_price ?? data.price) };
   });
 
 /** Primary issuance: credits whole units of a listed brand to an investor. */

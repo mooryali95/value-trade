@@ -116,6 +116,7 @@ export function isSameMarketDay(a: string | Date, b: string | Date): boolean {
   return f.format(new Date(a)) === f.format(new Date(b));
 }
 
+/** Time of day on the market clock, 24-hour (as the tape's older rows). */
 export function formatTime(iso: string, lang: Lang): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -124,6 +125,7 @@ export function formatTime(iso: string, lang: Lang): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hourCycle: "h23",
   }).format(d);
 }
 
@@ -158,6 +160,9 @@ const SECTOR_KEYS: Record<string, Key> = {
   media: "u_sectorMedia",
   auto: "u_sectorAuto",
 };
+/** The sectors the platform names (stored lower-case, labelled by sectorLabel). */
+export const SECTORS = Object.keys(SECTOR_KEYS);
+
 export function sectorLabel(sector: string | null | undefined, t: ReturnType<typeof useI18n>["t"]): string {
   if (!sector) return "";
   const key = SECTOR_KEYS[sector.trim().toLowerCase()];

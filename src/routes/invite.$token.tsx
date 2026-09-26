@@ -104,7 +104,8 @@ function InvitePage() {
     onError: (e: unknown) => {
       const code = e instanceof Error ? e.message : "";
       setMismatch(code === "INVITATION_EMAIL_MISMATCH");
-      setMessage({ tone: "error", text: errorMessage(e) });
+      // The invitee's own wording (the default message addresses the owner).
+      setMessage({ tone: "error", text: errorMessage(e, { ALREADY_MEMBER: "fx3_errAlreadyMemberInvitee" }) });
       qc.invalidateQueries({ queryKey: ["invitation-preview", token] });
     },
   });

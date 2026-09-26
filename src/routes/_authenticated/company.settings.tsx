@@ -36,7 +36,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/company/settings")({
   head: () => ({
     meta: [
-      { title: "إعدادات الشركة — وحدة القيمة" },
+      { title: "إعدادات الشركة — وحدة القيمة | Company settings — Value Unit" },
       { name: "description", content: "أدر أعضاء شركتك وعلاماتها التجارية ودعواتها. · Manage your company's members, brands and invitations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -297,7 +297,8 @@ function CompanySettings() {
                 <p className="mb-3 text-xs text-muted-foreground">{t("wantNewCompanyDesc")}</p>
                 <Link
                   to="/request-access"
-                  className="inline-flex items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
+                  search={{ kind: "new" }}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--gold-deep)] hover:border-[var(--gold-deep)]"
                 >
                   {t("requestAccess")}
                 </Link>
@@ -320,8 +321,9 @@ function CompanySettings() {
                     <div className="text-lg font-semibold text-ink">
                       {lang === "ar" ? details.data.company.name_ar : details.data.company.name_en}
                     </div>
-                    <div className="text-[11px] uppercase text-muted-foreground">
-                      {details.data.company.slug} · {details.data.company.plan}
+                    {/* The company's address on the platform; plan tiers are not offered yet. */}
+                    <div className="font-mono text-[11px] text-muted-foreground" dir="ltr">
+                      {details.data.company.slug}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

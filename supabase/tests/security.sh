@@ -147,7 +147,7 @@ if [ -n "$SLMIG" ] && out=$("${PSQL[@]}" -1 -f "$SLMIG" 2>&1 >/dev/null); then o
 else bad "submission lifecycle migration re-applies after it" "${SLMIG:-*_submission_lifecycle.sql not found} ${out:-}"; fi
 # ... and the phase 3 fixer migrations redefine brands_guard,
 # product_submissions_guard and set_instrument_published after that.
-for mig in fixer_security_hardening fixer_market_rules fixer_execute_allowlist; do
+for mig in fixer_security_hardening fixer_market_rules fixer_access_request_siblings fixer_execute_allowlist; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies after it"
   else bad "$mig migration re-applies after it" "${f:-*_$mig.sql not found} ${out:-}"; fi
@@ -969,7 +969,7 @@ q "$BOARD" "INSERT INTO public.shariah_decisions (symbol, status) VALUES ('MKTY'
 expect_eq "any ruling in force is enough to list" service "MKTY|true" "SELECT symbol || '|' || published FROM public.set_instrument_published('MKTY', true, '$ADMIN');"
 su_eq "every publish / unpublish above wrote its audit row" "t" "SELECT (SELECT count(*) FROM public.audit_log WHERE action IN ('brand.publish','brand.unpublish') AND entity_id IN (SELECT id::text FROM public.brands WHERE symbol IN ('MKTX','MKTY'))) = 4;"
 expect_err "published reference price cannot be set to 0" service "brands_published_reference_price" "UPDATE public.brands SET reference_price = 0 WHERE symbol='MKTA';"
-for mig in public_market_data instrument_publish_control listing_control_and_public_reads fixer_security_hardening fixer_market_rules fixer_execute_allowlist; do
+for mig in public_market_data instrument_publish_control listing_control_and_public_reads fixer_security_hardening fixer_market_rules fixer_access_request_siblings fixer_execute_allowlist; do
   f=$(ls "$REPO"/supabase/migrations/*_"$mig".sql 2>/dev/null | head -1)
   if [ -n "$f" ] && out=$("${PSQL[@]}" -1 -f "$f" 2>&1 >/dev/null); then ok "$mig migration re-applies cleanly"
   else bad "$mig migration re-applies cleanly" "${f:-*_$mig.sql not found} ${out:-}"; fi

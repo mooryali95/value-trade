@@ -84,7 +84,7 @@ export function UserMenu() {
     return (
       <Link
         to="/auth"
-        className="inline-flex items-center rounded-md gold-gradient px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:brightness-105"
+        className="inline-flex min-h-10 items-center rounded-md gold-gradient px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:brightness-105"
       >
         {t("signin")}
       </Link>

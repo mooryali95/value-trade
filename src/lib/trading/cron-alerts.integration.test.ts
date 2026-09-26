@@ -92,15 +92,27 @@ const supabaseAdmin = {
     if (table === "trades") return tradesQuery();
     if (table === "brands") return brandsQuery();
     return {
+      // Alerts are read page by page: eq(active) -> gt(id)? -> order(id) -> limit(n).
       select() {
-        return {
-          eq(_col: string, val: unknown) {
+        let active: unknown;
+        let after: string | null = null;
+        let limit = Infinity;
+        const page = {
+          eq(_col: string, val: unknown) { active = val; return page; },
+          gt(_col: string, val: string) { after = val; return page; },
+          order() { return page; },
+          limit(n: number) {
+            limit = n;
             const rows = table === "orders"
               ? state.orders
-              : state.alerts.filter((a) => a.active === val);
+              : state.alerts
+                  .filter((a) => a.active === active && (after === null || a.id > after))
+                  .sort((a, b) => a.id.localeCompare(b.id))
+                  .slice(0, limit);
             return Promise.resolve({ data: rows, error: null });
           },
         };
+        return page;
       },
       insert(row: Order | Alert) {
         if (table === "orders") state.orders.push(row as Order);
@@ -142,8 +154,13 @@ async function getCronHandler() {
   return (mod.Route as any).options.server.handlers.POST as (ctx: { request: Request }) => Promise<Response>;
 }
 
-function sign(body: string, secret: string) {
-  return createHmac("sha256", secret).update(body).digest("hex");
+/** The scheduler's headers: x-timestamp and the HMAC of "<timestamp>.<body>". */
+function signed(body: string, secret: string) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  return {
+    "x-timestamp": timestamp,
+    "x-signature": createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex"),
+  };
 }
 
 describe("integration: order -> price_alert -> cron", () => {
@@ -199,7 +216,7 @@ describe("integration: order -> price_alert -> cron", () => {
       request: new Request("http://x/api/public/cron-alerts", {
         method: "POST",
         body,
-        headers: { "x-signature": sign(body, SECRET) },
+        headers: signed(body, SECRET),
       }),
     });
     const after = Date.now();
@@ -244,7 +261,7 @@ describe("integration: order -> price_alert -> cron", () => {
       request: new Request("http://x/api/public/cron-alerts", {
         method: "POST",
         body,
-        headers: { "x-signature": sign(body, SECRET) },
+        headers: signed(body, SECRET),
       }),
     });
     expect(res.status).toBe(200);
@@ -254,5 +271,25 @@ describe("integration: order -> price_alert -> cron", () => {
       expect(a.active).toBe(true);
       expect(a.triggered_at).toBeNull();
     }
+  });
+
+  it("scans every active alert, past the API's row limit", async () => {
+    state.brands.push({ symbol: "NOOR001", published: true, reference_price: 100 });
+    state.trades.push({ symbol: "NOOR001", price: 120, created_at: NOW() });
+    for (let i = 0; i < 1234; i++) {
+      seed("price_alerts", {
+        id: `al-${String(i).padStart(5, "0")}`, user_id: USER, symbol: "NOOR001",
+        direction: i === 1233 ? "above" : "below", target_price: 100, active: true, triggered_at: null,
+      });
+    }
+    const handler = await getCronHandler();
+    const body = "{}";
+    const res = await handler({
+      request: new Request("http://x/api/public/cron-alerts", { method: "POST", body, headers: signed(body, SECRET) }),
+    });
+    expect(res.status).toBe(200);
+    // The one alert that fires is the last one by id (on the third page).
+    expect(await res.json()).toMatchObject({ scanned: 1234, triggered: 1 });
+    expect(state.alerts.find((a) => a.id === "al-01233")!.active).toBe(false);
   });
 });

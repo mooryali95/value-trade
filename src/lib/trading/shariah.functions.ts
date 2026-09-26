@@ -128,35 +128,30 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
     const { data: isReviewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "shariah_board" });
     if (!isReviewer) throw new Error("FORBIDDEN");
 
-    const { data: updated, error } = await supabase.from("shariah_decisions").update({
-      status: data.status,
-      reason: data.reason ?? null,
-    }).eq("id", data.id).select("id, symbol");
-    if (error) {
-      console.error("[shariah] update failed", error.code ?? "", error.message);
-      throw new Error(error.code === "42501" ? "FORBIDDEN" : "INTERNAL_ERROR");
-    }
-    if (!updated || updated.length === 0) throw new Error("DECISION_NOT_FOUND");
-
-    // Attach change_reason to the audit row this update just wrote (the
-    // trigger records changed_by = the session user). The audit table is
-    // not user-writable, so this goes through the service role.
+    // update_shariah_decision re-checks the role, takes the engine's symbol
+    // lock (a non_halal ruling cancels resting buys) and records the change
+    // with its reason in shariah_decision_audit, in one transaction. API
+    // users cannot UPDATE shariah_decisions directly.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: latest } = await supabaseAdmin
-      .from("shariah_decision_audit")
-      .select("id")
-      .eq("decision_id", data.id)
-      .eq("changed_by", userId)
-      .order("changed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latest?.id) {
-      const { error: reasonErr } = await supabaseAdmin
-        .from("shariah_decision_audit")
-        .update({ change_reason: data.changeReason })
-        .eq("id", latest.id);
-      if (reasonErr) console.error("[shariah] change_reason update failed", reasonErr.code ?? "", reasonErr.message);
+    const { data: rows, error } = await supabaseAdmin.rpc("update_shariah_decision" as never, {
+      _decision_id: data.id,
+      _actor_id: userId,
+      _status: data.status,
+      _reason: data.reason ?? null,
+      _change_reason: data.changeReason,
+    } as never);
+    if (error) {
+      const err = error as { message?: string; code?: string };
+      const code = (err.message ?? "").trim();
+      if (["FORBIDDEN", "DECISION_NOT_FOUND", "RULING_CHANGE_REASON_REQUIRED", "INVALID_INPUT"].includes(code)) {
+        throw new Error(code);
+      }
+      console.error("[shariah] update_shariah_decision failed", err.code ?? "unknown");
+      throw new Error("INTERNAL_ERROR");
     }
+    const updated = (Array.isArray(rows) ? rows : rows ? [rows] : []) as Array<{ decision_id: string; symbol: string }>;
+    if (updated.length === 0) throw new Error("DECISION_NOT_FOUND");
+
     await writeAudit(supabase, {
       actorId: userId, action: "shariah.decision.update", entity: "shariah_decisions", entityId: data.id,
       metadata: { status: data.status, changeReason: data.changeReason },
@@ -164,7 +159,9 @@ export const updateShariahDecision = createServerFn({ method: "POST" })
     try {
       const { notifyShariahDecision } = await import("./shariah-notify.server");
       await notifyShariahDecision({
-        decisionId: data.id,
+        // Each change of a ruling is its own notification (the idempotency
+        // key must differ from the one of the ruling's creation).
+        decisionId: `${data.id}:change:${Date.now()}`,
         symbol: updated[0]?.symbol ?? "",
         status: data.status,
         reason: data.reason ?? null,

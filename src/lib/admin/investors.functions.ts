@@ -222,9 +222,11 @@ export type PendingActivation = {
   /**
    * investor_request: approved investor request, account exists;
    * invited_no_account: approved investor request, invitation not used yet;
-   * no_role: signed-in account with no platform role and no company.
+   * no_role: signed-in account with no platform role and no company;
+   * no_role_never_signed_in: the same, but the account never signed in
+   * (created by an invitation or the admin API).
    */
-  source: "investor_request" | "invited_no_account" | "no_role";
+  source: "investor_request" | "invited_no_account" | "no_role" | "no_role_never_signed_in";
   requestId: string | null;
   requestReference: string | null;
   requestedAt: string | null;

@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { useI18n, type Key } from "@/lib/i18n";
 import { canonicalUrl } from "@/lib/config/site";
 import { Num } from "@/components/num";
+import { fill } from "@/lib/account/fill";
 import { Search } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -224,7 +225,10 @@ function MarketPage() {
           )}
 
           <div className="mb-2 text-xs text-muted-foreground" role="status" aria-live="polite" aria-atomic="true">
-            <Num value={filtered.length} kind="qty" /> / <Num value={instruments.length} kind="qty" /> {t("a11yResults")}
+            {fill(t("fx3_shownOfTotal"), {
+              n: <Num value={filtered.length} kind="qty" />,
+              total: <Num value={instruments.length} kind="qty" />,
+            })}
           </div>
 
           {/* Table (desktop) / cards (mobile) */}
