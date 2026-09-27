@@ -44,9 +44,10 @@ export async function asServiceRole<T>(fn: (c: pg.PoolClient) => Promise<T>): Pr
   const c = await db().connect();
   try {
     await c.query("BEGIN");
-    await c.query("SELECT set_config('role', 'service_role', true), set_config('request.jwt.claims', $1, true)", [
-      JSON.stringify({ role: "service_role" }),
-    ]);
+    await c.query(
+      "SELECT set_config('role', 'service_role', true), set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ role: "service_role" })],
+    );
     const out = await fn(c);
     await c.query("COMMIT");
     return out;
@@ -105,13 +106,19 @@ export async function createUser(opts: {
     [opts.email, opts.fullName, hashPw(opts.password)],
   );
   for (const role of opts.roles ?? []) {
-    await sql("INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2::app_role)", [row.id, role]);
+    await sql("INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2::app_role)", [
+      row.id,
+      role,
+    ]);
   }
   return row.id;
 }
 
 export async function userIdByEmail(email: string): Promise<string | null> {
-  const rows = await sql<{ id: string }>("SELECT id FROM auth.users WHERE lower(email) = lower($1)", [email]);
+  const rows = await sql<{ id: string }>(
+    "SELECT id FROM auth.users WHERE lower(email) = lower($1)",
+    [email],
+  );
   return rows[0]?.id ?? null;
 }
 
@@ -142,18 +149,33 @@ export async function createListedInstrument(opts: {
   await sql(
     `INSERT INTO public.brands (symbol, slug, name_ar, name_en, sector, reference_price, published, company_id)
      VALUES ($1, $2, $3, $4, 'retail', $5, false, $6)`,
-    [opts.symbol, opts.slug, opts.nameAr, opts.nameEn, opts.referencePrice, opts.companyId ?? SAMPLE_COMPANY_A.id],
+    [
+      opts.symbol,
+      opts.slug,
+      opts.nameAr,
+      opts.nameEn,
+      opts.referencePrice,
+      opts.companyId ?? SAMPLE_COMPANY_A.id,
+    ],
   );
   await sql(
     `INSERT INTO public.shariah_decisions (symbol, status, reason, reviewer_id, updated_by)
      VALUES ($1, 'halal', 'e2e: ruling for a test instrument', $2, $2)`,
     [opts.symbol, SEEDED.reviewer.id],
   );
-  await sql("SELECT 1 FROM public.set_instrument_published($1, true, $2)", [opts.symbol, SEEDED.admin.id]);
+  await sql("SELECT 1 FROM public.set_instrument_published($1, true, $2)", [
+    opts.symbol,
+    SEEDED.admin.id,
+  ]);
 }
 
 /** Primary issuance through issue_units (the only way units are created). */
-export async function issueUnits(userId: string, symbol: string, qty: number, price: number): Promise<void> {
+export async function issueUnits(
+  userId: string,
+  symbol: string,
+  qty: number,
+  price: number,
+): Promise<void> {
   await asServiceRole((c) =>
     c.query("SELECT public.issue_units($1, $2, $3, $4, $5, 'e2e issuance')", [
       SEEDED.admin.id,
@@ -183,19 +205,25 @@ export async function placeLimitOrder(
 }
 
 export async function cashBalance(userId: string): Promise<number> {
-  const r = await sql<{ cash_balance: string }>("SELECT cash_balance FROM public.portfolios WHERE user_id = $1", [userId]);
+  const r = await sql<{ cash_balance: string }>(
+    "SELECT cash_balance FROM public.portfolios WHERE user_id = $1",
+    [userId],
+  );
   return r.length ? Number(r[0].cash_balance) : 0;
 }
 
 export async function positionQty(userId: string, symbol: string): Promise<number> {
-  const r = await sql<{ qty: string }>("SELECT qty FROM public.positions WHERE user_id = $1 AND symbol = $2", [
-    userId,
-    symbol,
-  ]);
+  const r = await sql<{ qty: string }>(
+    "SELECT qty FROM public.positions WHERE user_id = $1 AND symbol = $2",
+    [userId, symbol],
+  );
   return r.length ? Number(r[0].qty) : 0;
 }
 
 export async function hasRole(userId: string, role: string): Promise<boolean> {
-  const r = await sql("SELECT 1 FROM public.user_roles WHERE user_id = $1 AND role = $2::app_role", [userId, role]);
+  const r = await sql(
+    "SELECT 1 FROM public.user_roles WHERE user_id = $1 AND role = $2::app_role",
+    [userId, role],
+  );
   return r.length > 0;
 }

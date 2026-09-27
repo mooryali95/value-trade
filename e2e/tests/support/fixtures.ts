@@ -2,7 +2,14 @@
 // (vu_lang=ar), the cookie notice pre-dismissed, and a guard that fails the
 // test if the app tries to reach anything but the local stack (for example
 // the production Supabase project committed in .env).
-import { test as base, expect, type Browser, type BrowserContext, type Page, type Locator } from "@playwright/test";
+import {
+  test as base,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Locator,
+} from "@playwright/test";
 import { closeDb } from "./db";
 import { sessionStorageKey, stack } from "./stack";
 
@@ -35,25 +42,28 @@ type Fixtures = {
 export const test = base.extend<Fixtures, { dbPool: void }>({
   // Closes this worker's database pool when the worker ends.
   dbPool: [
-    async ({}, use) => {
-      await use();
+    // Playwright requires the object pattern even when nothing is used.
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, provide) => {
+      await provide();
       await closeDb();
     },
     { scope: "worker", auto: true },
   ],
-  externalRequests: async ({}, use) => {
+  // eslint-disable-next-line no-empty-pattern
+  externalRequests: async ({}, provide) => {
     const list: string[] = [];
-    await use(list);
+    await provide(list);
     // Hermetic: the app under test talks to the local stack only.
     expect(list, "requests that left the local stack").toEqual([]);
   },
-  context: async ({ context, externalRequests }, use) => {
+  context: async ({ context, externalRequests }, provide) => {
     await prepareContext(context, externalRequests);
-    await use(context);
+    await provide(context);
   },
-  newActor: async ({ browser, externalRequests }, use, testInfo) => {
+  newActor: async ({ browser, externalRequests }, provide, testInfo) => {
     const contexts: BrowserContext[] = [];
-    await use(async () => {
+    await provide(async () => {
       const ctx = await newPreparedContext(browser, testInfo.project.use, externalRequests);
       contexts.push(ctx);
       return ctx.newPage();
@@ -91,21 +101,36 @@ export async function hydrated(locator: Locator, timeout = 60_000): Promise<void
   await expect
     .poll(
       () =>
-        locator.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$"))).catch(() => false),
+        locator
+          .evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$")))
+          .catch(() => false),
       { message: "element hydrated by React", timeout },
     )
     .toBe(true);
 }
 
-/** Goes to `path` and waits until the page is hydrated and the dev server is quiet. */
+/** Goes to `path` and waits until React has hydrated the page and the dev server is quiet. */
 export async function open(page: Page, path: string): Promise<void> {
   await page.goto(path, { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle").catch(() => undefined);
-  await hydrated(page.locator("body *").first());
+  // Pages that poll never stay idle for long; this only absorbs the initial burst.
+  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForFunction(
+    () =>
+      Array.from(document.body.querySelectorAll("*")).some((el) =>
+        Object.keys(el).some((k) => k.startsWith("__reactProps$")),
+      ),
+    null,
+    { timeout: 60_000, polling: 100 },
+  );
 }
 
 /** Signs in through the real /auth form and waits until the app has a session. */
-export async function signIn(page: Page, email: string, password: string, redirect?: string): Promise<void> {
+export async function signIn(
+  page: Page,
+  email: string,
+  password: string,
+  redirect?: string,
+): Promise<void> {
   await open(page, redirect ? `/auth?redirect=${encodeURIComponent(redirect)}` : "/auth");
   const emailInput = page.locator('form input[type="email"]');
   await hydrated(emailInput);

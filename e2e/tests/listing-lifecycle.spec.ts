@@ -1,6 +1,14 @@
 // Journey 3: a company's brand unit from submission to the public market.
 import { test, expect, hydrated, open, signIn, toast } from "./support/fixtures";
-import { SAMPLE_COMPANY_A, SEEDED, SEED_PASSWORD, one, positionQty, sql, uniqueTag } from "./support/db";
+import {
+  SAMPLE_COMPANY_A,
+  SEEDED,
+  SEED_PASSWORD,
+  one,
+  positionQty,
+  sql,
+  uniqueTag,
+} from "./support/db";
 import { money, t } from "./support/i18n";
 
 test("listing lifecycle: submission -> Shariah approval -> listing with first units -> on the market", async ({
@@ -20,7 +28,9 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
   await test.step("the company owner submits a brand unit on /company/submit", async () => {
     await signIn(owner, SEEDED.owner.email, SEED_PASSWORD);
     await open(owner, `/company/submit?companyId=${SAMPLE_COMPANY_A.id}`);
-    await expect(owner.getByRole("heading", { name: t("submitProductForm"), level: 1 })).toBeVisible();
+    await expect(
+      owner.getByRole("heading", { name: t("submitProductForm"), level: 1 }),
+    ).toBeVisible();
 
     const company = owner.getByLabel(t("company"));
     await hydrated(company);
@@ -41,11 +51,21 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
     await owner.waitForURL((u) => u.pathname === "/company/submissions");
     await expect(owner.getByText(symbol).first()).toBeVisible();
 
-    const sub = await one<{ status: string; company_id: string; submitted_by: string; asset_class: string }>(
+    const sub = await one<{
+      status: string;
+      company_id: string;
+      submitted_by: string;
+      asset_class: string;
+    }>(
       "SELECT status, company_id, submitted_by, asset_class FROM public.product_submissions WHERE symbol = $1",
       [symbol],
     );
-    expect(sub).toEqual({ status: "pending", company_id: SAMPLE_COMPANY_A.id, submitted_by: SEEDED.owner.id, asset_class: "brand" });
+    expect(sub).toEqual({
+      status: "pending",
+      company_id: SAMPLE_COMPANY_A.id,
+      submitted_by: SEEDED.owner.id,
+      asset_class: "brand",
+    });
     expect(await sql("SELECT 1 FROM public.brands WHERE symbol = $1", [symbol])).toHaveLength(0);
   });
 
@@ -66,7 +86,11 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
       "SELECT status, review_reason, reviewer_id FROM public.product_submissions WHERE symbol = $1",
       [symbol],
     );
-    expect(sub).toEqual({ status: "approved", review_reason: reason, reviewer_id: SEEDED.reviewer.id });
+    expect(sub).toEqual({
+      status: "approved",
+      review_reason: reason,
+      reviewer_id: SEEDED.reviewer.id,
+    });
     const ruling = await one<{ status: string; reason: string; reviewer_id: string }>(
       "SELECT status, reason, reviewer_id FROM public.shariah_decisions WHERE symbol = $1",
       [symbol],
@@ -80,7 +104,9 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
 
     // The ruling and its reason are on the Shariah review console.
     await open(reviewer, `/shariah/review?q=${symbol}`);
-    await expect(reviewer.getByRole("heading", { name: t("shariahReview"), level: 1 })).toBeVisible();
+    await expect(
+      reviewer.getByRole("heading", { name: t("shariahReview"), level: 1 }),
+    ).toBeVisible();
     const decision = reviewer.getByText(reason, { exact: true });
     await expect(decision).toBeVisible();
     const decisionRow = decision.locator("xpath=ancestor::div[1]");
@@ -95,11 +121,15 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
     const listButton = admin.getByRole("button", { name: t("d_approveListing") });
     await hydrated(listButton);
     // The submission's stage badge (not the status filter's <option>).
-    await expect(admin.locator("span").filter({ hasText: new RegExp(`^${t("d_stApproved")}$`) })).toBeVisible();
+    await expect(
+      admin.locator("span").filter({ hasText: new RegExp(`^${t("d_stApproved")}$`) }),
+    ).toBeVisible();
     await listButton.click();
 
     const dialog = admin.getByRole("dialog");
-    await expect(dialog.getByRole("heading", { name: t("d_listingDialogTitle", { symbol }) })).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: t("d_listingDialogTitle", { symbol }) }),
+    ).toBeVisible();
     await dialog.getByLabel(t("referencePrice")).fill(referencePrice.toFixed(2));
     await dialog.getByLabel(t("d_holder")).selectOption(SEEDED.owner.id);
     await dialog.getByLabel(t("d_units")).fill(String(units));
@@ -122,7 +152,11 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
       "SELECT user_id, qty, price FROM public.unit_issuances WHERE symbol = $1",
       [symbol],
     );
-    expect([issuance.user_id, Number(issuance.qty), Number(issuance.price)]).toEqual([SEEDED.owner.id, units, referencePrice]);
+    expect([issuance.user_id, Number(issuance.qty), Number(issuance.price)]).toEqual([
+      SEEDED.owner.id,
+      units,
+      referencePrice,
+    ]);
     expect(await positionQty(SEEDED.owner.id, symbol)).toBe(units);
 
     // Listing published it: the admin's publication control shows it as published.

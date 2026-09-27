@@ -19,7 +19,11 @@ export function readMail(): Mail[] {
 }
 
 /** Waits for the newest `kind` link sent to `email` (polling the log) and returns it. */
-export async function waitForMailLink(email: string, kind: MailKind, timeout = 30_000): Promise<string> {
+export async function waitForMailLink(
+  email: string,
+  kind: MailKind,
+  timeout = 30_000,
+): Promise<string> {
   let link = "";
   await expect
     .poll(

@@ -5,9 +5,27 @@
 import { chromium, type FullConfig } from "@playwright/test";
 import { sessionStorageKey, stack } from "./support/stack";
 
-const PUBLIC_ROUTES = ["/", "/auth", "/auth/update-password", "/request-access", "/market", "/market/sample-brand-1", "/trade/sample-brand-1"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/auth",
+  "/auth/update-password",
+  "/request-access",
+  "/market",
+  "/market/sample-brand-1",
+  "/trade/sample-brand-1",
+];
 // Client-only (signed-in) pages, loaded with the seeded admin's session.
-const SIGNED_IN_ROUTES = ["/portfolio", "/access-requests", "/admin/investors", "/admin/submissions", "/company/submit", "/shariah/review", "/trade/sample-brand-1"];
+const SIGNED_IN_ROUTES = [
+  "/portfolio",
+  "/portfolio?tab=orders",
+  "/access-requests",
+  "/admin/investors",
+  "/admin/submissions",
+  "/company/submit",
+  "/company/submissions",
+  "/shariah/review",
+  "/trade/sample-brand-1",
+];
 
 export default async function globalSetup(config: FullConfig): Promise<void> {
   const { APP_URL, SUPABASE_URL } = stack();
@@ -17,7 +35,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   ]) {
     const res = await fetch(url).catch((e: Error) => e);
     if (res instanceof Error || !res.ok) {
-      throw new Error(`The e2e stack is not answering (${name}: ${url}). Start it with 'bash e2e/stack/start.sh'.`);
+      throw new Error(
+        `The e2e stack is not answering (${name}: ${url}). Start it with 'bash e2e/stack/start.sh'.`,
+      );
     }
   }
   const started = Date.now();
@@ -34,10 +54,10 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     const visit = async (routes: string[], withSession: boolean) => {
       const ctx = await browser.newContext({ baseURL: APP_URL, locale: "ar-SA" });
       if (withSession) {
-        await ctx.addInitScript(
-          ({ key, value }) => window.localStorage.setItem(key, value),
-          { key: sessionStorageKey(), value: JSON.stringify(session) },
-        );
+        await ctx.addInitScript(({ key, value }) => window.localStorage.setItem(key, value), {
+          key: sessionStorageKey(),
+          value: JSON.stringify(session),
+        });
       }
       const page = await ctx.newPage();
       for (const route of routes) {

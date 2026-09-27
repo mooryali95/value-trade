@@ -12,7 +12,11 @@ test("password recovery: the e-mailed link sets a new password; the old one stop
   const email = `recover.${tag}@e2e.local`;
   const oldPassword = `OldPass-${tag}1`;
   const newPassword = `NewPass-${tag}2`;
-  const userId = await createUser({ email, password: oldPassword, fullName: `مستخدم الاستعادة ${tag}` });
+  const userId = await createUser({
+    email,
+    password: oldPassword,
+    fullName: `مستخدم الاستعادة ${tag}`,
+  });
   const before = await one<{ encrypted_password: string }>(
     "SELECT encrypted_password FROM auth.users WHERE id = $1",
     [userId],
@@ -44,11 +48,14 @@ test("password recovery: the e-mailed link sets a new password; the old one stop
   await pw.fill(newPassword);
   await page.getByLabel(t("confirmPassword"), { exact: true }).fill(newPassword);
   await page.getByRole("button", { name: t("updatePassword") }).click();
-  await expect(page.getByRole("status").filter({ hasText: t("r_pwUpdatedOthersSignedOut") })).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: t("r_pwUpdatedOthersSignedOut") }),
+  ).toBeVisible();
 
-  const after = await one<{ encrypted_password: string }>("SELECT encrypted_password FROM auth.users WHERE id = $1", [
-    userId,
-  ]);
+  const after = await one<{ encrypted_password: string }>(
+    "SELECT encrypted_password FROM auth.users WHERE id = $1",
+    [userId],
+  );
   expect(after.encrypted_password).not.toBe(before.encrypted_password);
 
   await page.getByRole("button", { name: t("r_continue") }).click();
@@ -62,7 +69,9 @@ test("password recovery: the e-mailed link sets a new password; the old one stop
   await emailInput.fill(email);
   await other.locator('form input[type="password"]').fill(oldPassword);
   await other.locator('form button[type="submit"]').click();
-  await expect(other.getByRole("alert").filter({ hasText: t("r_authInvalidCredentials") })).toBeVisible();
+  await expect(
+    other.getByRole("alert").filter({ hasText: t("r_authInvalidCredentials") }),
+  ).toBeVisible();
   await expect(other).toHaveURL(/\/auth/);
 
   await signIn(other, email, newPassword);

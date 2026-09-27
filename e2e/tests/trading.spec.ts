@@ -38,10 +38,11 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
 
   // Arrange (as the server would): a listed halal instrument, units for the
   // seeded investor2 and their resting sell; a fresh activated, funded buyer.
+  const nameAr = `علامة تداول تجريبية ${tag}`;
   await createListedInstrument({
     symbol,
     slug,
-    nameAr: `علامة تداول تجريبية ${tag}`,
+    nameAr,
     nameEn: `E2E Trade Brand ${tag}`,
     referencePrice: reference,
   });
@@ -53,7 +54,12 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
 
   const email = `trader.${tag}@e2e.local`;
   const password = `Trade-${tag}7`;
-  const buyer = await createUser({ email, password, fullName: `متداول تجريبي ${tag}`, roles: ["trader"] });
+  const buyer = await createUser({
+    email,
+    password,
+    fullName: `متداول تجريبي ${tag}`,
+    roles: ["trader"],
+  });
   await deposit(buyer, funds);
 
   await signIn(page, email, password);
@@ -97,7 +103,13 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
     await expect(dd(page, t("m_heldUnits"))).toHaveText(`${fmtQty(buy.qty)} ${symbol}`);
 
     // Database: one trade between the two investors, equal and opposite cash.
-    const trade = await one<{ qty: string; price: string; buy_order_id: string; sell_order_id: string; seller_id: string }>(
+    const trade = await one<{
+      qty: string;
+      price: string;
+      buy_order_id: string;
+      sell_order_id: string;
+      seller_id: string;
+    }>(
       "SELECT qty, price, buy_order_id, sell_order_id, seller_id FROM public.trades WHERE symbol = $1 AND buyer_id = $2",
       [symbol, buyer],
     );
@@ -130,12 +142,18 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
 
   await test.step("the portfolio shows the position and the reduced buying power", async () => {
     await open(page, "/portfolio");
-    await expect(page.getByText(t("m_buyingPower"), { exact: true }).locator("xpath=following-sibling::div[1]")).toHaveText(
-      money(funds - cost),
-    );
+    await expect(
+      page
+        .getByText(t("m_buyingPower"), { exact: true })
+        .locator("xpath=following-sibling::div[1]"),
+    ).toHaveText(money(funds - cost));
     // Positions row (desktop layout): quantity, average cost and value at the last trade.
-    const row = page.getByText(symbol, { exact: true }).filter({ visible: true }).locator("xpath=../..");
+    const row = page
+      .getByText(nameAr, { exact: true })
+      .filter({ visible: true })
+      .locator("xpath=../..");
     await expect(row).toHaveCount(1);
+    await expect(row).toContainText(symbol);
     await expect(row).toContainText(fmtQty(buy.qty));
     await expect(row).toContainText(money(buy.price));
     await expect(row).toContainText(money(cost));
@@ -149,7 +167,9 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
     await quantity.fill("50");
     await expect(submit).toBeEnabled();
     await submit.click();
-    await confirmDialog(page).getByRole("button", { name: t("buy"), exact: true }).click();
+    await confirmDialog(page)
+      .getByRole("button", { name: t("buy"), exact: true })
+      .click();
     await expect(toast(page, t("orderResting"))).toBeVisible();
     const open1 = await one<{ id: string; status: string }>(
       "SELECT id, status FROM public.orders WHERE user_id = $1 AND id <> $2",
@@ -162,8 +182,13 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
     await expect(dd(page, t("m_buyingPower"))).toHaveText(money(funds - cost - 950));
 
     await open(page, "/portfolio?tab=orders");
-    await expect(page.getByRole("tab", { name: t("tabOrders") })).toHaveAttribute("aria-selected", "true");
-    const cancel = page.getByRole("button", { name: t("cancelOrder"), exact: true }).filter({ visible: true });
+    await expect(page.getByRole("tab", { name: t("tabOrders") })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const cancel = page
+      .getByRole("button", { name: t("cancelOrder"), exact: true })
+      .filter({ visible: true });
     await expect(cancel).toHaveCount(1);
     await cancel.click();
     const dialog = confirmDialog(page);
@@ -173,12 +198,16 @@ test("trading: a crossing limit buy fills against a resting sell; out-of-band is
     await expect(toast(page, t("orderCancelled"))).toBeVisible();
     await expect(cancel).toHaveCount(0);
 
-    const after = await one<{ status: string }>("SELECT status FROM public.orders WHERE id = $1", [openOrderId]);
+    const after = await one<{ status: string }>("SELECT status FROM public.orders WHERE id = $1", [
+      openOrderId,
+    ]);
     expect(after.status).toBe("cancelled");
     // Nothing reserved any more; cash untouched by the cancelled order.
-    await expect(page.getByText(t("m_buyingPower"), { exact: true }).locator("xpath=following-sibling::div[1]")).toHaveText(
-      money(funds - cost),
-    );
+    await expect(
+      page
+        .getByText(t("m_buyingPower"), { exact: true })
+        .locator("xpath=following-sibling::div[1]"),
+    ).toHaveText(money(funds - cost));
     expect(await cashBalance(buyer)).toBe(funds - cost);
   });
 });

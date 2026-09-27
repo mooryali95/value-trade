@@ -4,7 +4,9 @@ import { createUser, uniqueTag } from "./support/db";
 import { t } from "./support/i18n";
 
 test.describe("access control", () => {
-  test("a signed-in user without roles sees the access-denied state on /admin/investors", async ({ page }) => {
+  test("a signed-in user without roles sees the access-denied state on /admin/investors", async ({
+    page,
+  }) => {
     const tag = uniqueTag();
     const email = `norole.${tag}@e2e.local`;
     const password = `Norole-${tag}1`;
@@ -21,7 +23,9 @@ test.describe("access control", () => {
     await expect(page.locator("#investor-email")).toHaveCount(0);
   });
 
-  test("an anonymous visitor to a guarded route is sent to /auth and back after signing in", async ({ page }) => {
+  test("an anonymous visitor to a guarded route is sent to /auth and back after signing in", async ({
+    page,
+  }) => {
     await open(page, "/portfolio");
 
     await page.waitForURL((u) => u.pathname === "/auth");

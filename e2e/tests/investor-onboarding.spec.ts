@@ -1,7 +1,16 @@
 // Journey 1: an investor from the public request form to a funded account.
 import type { Page } from "@playwright/test";
 import { test, expect, confirmDialog, hydrated, open, signIn, toast } from "./support/fixtures";
-import { SEEDED, SEED_PASSWORD, cashBalance, hasRole, one, sql, uniqueTag, userIdByEmail } from "./support/db";
+import {
+  SEEDED,
+  SEED_PASSWORD,
+  cashBalance,
+  hasRole,
+  one,
+  sql,
+  uniqueTag,
+  userIdByEmail,
+} from "./support/db";
 import { waitForMailLink } from "./support/mail";
 import { money, t } from "./support/i18n";
 
@@ -14,7 +23,10 @@ function banner(page: Page) {
   return page.getByRole("region", { name: t("r_bannerRegion") });
 }
 
-test("investor onboarding: request -> approval -> invite link -> activation -> deposit", async ({ page, newActor }) => {
+test("investor onboarding: request -> approval -> invite link -> activation -> deposit", async ({
+  page,
+  newActor,
+}) => {
   const tag = uniqueTag();
   const email = `investor.${tag}@e2e.local`;
   const fullName = `مستثمر تجريبي ${tag}`;
@@ -40,21 +52,35 @@ test("investor onboarding: request -> approval -> invite link -> activation -> d
     const done = visitor.getByRole("status").filter({ hasText: t("r_raSubmittedTitle") });
     await expect(done).toBeVisible();
     await expect(done).toContainText(t("r_raNextInvest"));
-    reference = (await done.getByRole("button", { name: t("r_raCopyReference") }).innerText()).trim();
+    reference = (
+      await done.getByRole("button", { name: t("r_raCopyReference") }).innerText()
+    ).trim();
     expect(reference).toMatch(/^VU-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
 
-    const row = await one<{ status: string; join_method: string; full_name: string; reference_code: string }>(
+    const row = await one<{
+      status: string;
+      join_method: string;
+      full_name: string;
+      reference_code: string;
+    }>(
       "SELECT status, join_method, full_name, reference_code FROM public.access_requests WHERE email = $1",
       [email],
     );
-    expect(row).toEqual({ status: "pending", join_method: "investor", full_name: fullName, reference_code: reference });
+    expect(row).toEqual({
+      status: "pending",
+      join_method: "investor",
+      full_name: fullName,
+      reference_code: reference,
+    });
   });
 
   const admin = await newActor();
   await test.step("the admin approves the investor request on /access-requests", async () => {
     await signIn(admin, SEEDED.admin.email, SEED_PASSWORD);
     await open(admin, "/access-requests");
-    await expect(admin.getByRole("heading", { name: t("accessRequestsQueue"), level: 1 })).toBeVisible();
+    await expect(
+      admin.getByRole("heading", { name: t("accessRequestsQueue"), level: 1 }),
+    ).toBeVisible();
 
     const approveButton = admin.getByRole("button", { name: t("approve"), exact: true });
     const card = admin
@@ -67,7 +93,9 @@ test("investor onboarding: request -> approval -> invite link -> activation -> d
     await card.getByRole("button", { name: t("approve"), exact: true }).click();
 
     const dialog = confirmDialog(admin);
-    await expect(dialog.getByRole("heading", { name: t("r_arApproveInvestorTitle") })).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: t("r_arApproveInvestorTitle") }),
+    ).toBeVisible();
     await expect(dialog).toContainText(email);
     await dialog.getByRole("button", { name: t("approve"), exact: true }).click();
     await expect(toast(admin, t("r_arApprovedInvestorSent"))).toBeVisible();
@@ -91,7 +119,9 @@ test("investor onboarding: request -> approval -> invite link -> activation -> d
     await visitor.goto(link);
     await visitor.waitForURL((u) => u.pathname === "/auth/update-password");
     expect(new URL(visitor.url()).searchParams.get("flow")).toBe("invite");
-    await expect(visitor.getByRole("heading", { name: t("r_pwCreateTitle"), level: 1 })).toBeVisible();
+    await expect(
+      visitor.getByRole("heading", { name: t("r_pwCreateTitle"), level: 1 }),
+    ).toBeVisible();
     await expect(visitor.getByText(email)).toBeVisible();
 
     const pw = visitor.getByLabel(t("newPassword"), { exact: true });
@@ -99,7 +129,9 @@ test("investor onboarding: request -> approval -> invite link -> activation -> d
     await pw.fill(password);
     await visitor.getByLabel(t("confirmPassword"), { exact: true }).fill(password);
     await visitor.getByRole("button", { name: t("r_pwCreateCta") }).click();
-    await expect(visitor.getByRole("status").filter({ hasText: t("r_pwUpdatedOthersSignedOut") })).toBeVisible();
+    await expect(
+      visitor.getByRole("status").filter({ hasText: t("r_pwUpdatedOthersSignedOut") }),
+    ).toBeVisible();
     await visitor.getByRole("button", { name: t("r_continue") }).click();
     await visitor.waitForURL((u) => u.pathname === "/");
 
@@ -119,7 +151,9 @@ test("investor onboarding: request -> approval -> invite link -> activation -> d
 
   await test.step("the admin activates trading from the pending-activation queue", async () => {
     await open(admin, "/admin/investors");
-    const queue = admin.locator("section").filter({ has: admin.getByRole("heading", { name: t("r_invPendingTitle") }) });
+    const queue = admin
+      .locator("section")
+      .filter({ has: admin.getByRole("heading", { name: t("r_invPendingTitle") }) });
     const row = queue.getByRole("row").filter({ hasText: email });
     await expect(row).toBeVisible();
     await expect(row).toContainText(fullName);

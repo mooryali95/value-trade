@@ -14,7 +14,10 @@ export function t(key: Key, vars: Record<string, string | number> = {}): string 
 
 /** Money / prices as the app prints them (en-US digits, 2 decimals, grouping), e.g. 25,000.00. */
 export function money(n: number): string {
-  return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 /** Whole quantities as the app prints them, e.g. 1,200. */

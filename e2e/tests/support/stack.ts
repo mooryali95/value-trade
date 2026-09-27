@@ -18,7 +18,8 @@ export type StackEnv = {
 /** Same default as stack/start.sh: E2E_RUN_DIR, else /tmp/vt-e2e/<E2E_DB or vt_e2e>. */
 export function stackEnvPath(): string {
   if (process.env.E2E_STACK_ENV) return process.env.E2E_STACK_ENV;
-  const runDir = process.env.E2E_RUN_DIR || path.join("/tmp/vt-e2e", process.env.E2E_DB || "vt_e2e");
+  const runDir =
+    process.env.E2E_RUN_DIR || path.join("/tmp/vt-e2e", process.env.E2E_DB || "vt_e2e");
   return path.join(runDir, "stack.env");
 }
 

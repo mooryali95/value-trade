@@ -26,7 +26,8 @@ export default defineConfig({
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   timeout: 180_000,
-  expect: { timeout: 20_000 },
+  // Dev-mode compilation on a cold CI runner can be slow: more patience there.
+  expect: { timeout: CI ? 30_000 : 20_000 },
   reporter: [
     ["list"],
     ["html", { outputFolder: "./artifacts/html-report", open: "never" }],
