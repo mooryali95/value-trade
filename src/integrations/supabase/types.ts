@@ -612,9 +612,12 @@ export type Database = {
           id: string
           new_price: number | null
           new_qty: number | null
+          new_status: string | null
           order_id: string
           previous_price: number | null
           previous_qty: number | null
+          previous_status: string | null
+          related_order_id: string | null
         }
         Insert: {
           action: string
@@ -623,9 +626,12 @@ export type Database = {
           id?: string
           new_price?: number | null
           new_qty?: number | null
+          new_status?: string | null
           order_id: string
           previous_price?: number | null
           previous_qty?: number | null
+          previous_status?: string | null
+          related_order_id?: string | null
         }
         Update: {
           action?: string
@@ -634,14 +640,24 @@ export type Database = {
           id?: string
           new_price?: number | null
           new_qty?: number | null
+          new_status?: string | null
           order_id?: string
           previous_price?: number | null
           previous_qty?: number | null
+          previous_status?: string | null
+          related_order_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "orders_audit_order_id_fkey"
             columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_audit_related_order_id_fkey"
+            columns: ["related_order_id"]
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
@@ -1139,15 +1155,32 @@ export type Database = {
           invitation_token: string
         }[]
       }
+      cancel_order: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: {
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
+      }
+      cancel_shariah_blocked_buys: {
+        Args: { _actor?: string; _symbol: string }
+        Returns: number
+      }
       check_rate_limit: {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
       }
+      current_shariah_status: { Args: { _symbol: string }; Returns: string }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      engine_cancel_order: {
+        Args: { _action: string; _actor?: string; _order_id: string }
+        Returns: undefined
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -1159,6 +1192,15 @@ export type Database = {
           name_ar: string
           name_en: string
           slug: string
+        }[]
+      }
+      get_market_snapshot: {
+        Args: { _symbols: string[] }
+        Returns: {
+          change_24h_pct: number
+          last_price: number
+          symbol: string
+          volume_24h: number
         }[]
       }
       get_order_book: {
@@ -1174,6 +1216,16 @@ export type Database = {
         Returns: {
           last_price: number
           traded_at: string
+        }[]
+      }
+      get_symbol_market_stats: {
+        Args: { _symbol: string }
+        Returns: {
+          change_24h_pct: number
+          last_price: number
+          last_traded_at: string
+          trade_count_24h: number
+          volume_24h: number
         }[]
       }
       has_company_role: {
@@ -1198,6 +1250,19 @@ export type Database = {
       is_company_owner: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_my_trades: {
+        Args: { _limit?: number; _symbol?: string; _user_id: string }
+        Returns: {
+          asset_class: string
+          created_at: string
+          id: string
+          order_id: string
+          price: number
+          qty: number
+          side: string
+          symbol: string
+        }[]
       }
       match_order: {
         Args: {
@@ -1247,6 +1312,29 @@ export type Database = {
       reject_access_request: {
         Args: { _actor_id: string; _reason?: string; _request_id: string }
         Returns: undefined
+      }
+      replace_order: {
+        Args: {
+          _order_id: string
+          _price: number
+          _qty: number
+          _user_id: string
+        }
+        Returns: {
+          avg_price: number
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
+      }
+      restore_order: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: {
+          avg_price: number
+          filled_qty: number
+          order_id: string
+          status: string
+        }[]
       }
       search_companies_public: {
         Args: { _query: string }
