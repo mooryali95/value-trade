@@ -917,6 +917,7 @@ export type Database = {
       shariah_decisions: {
         Row: {
           created_at: string
+          effective_at: string
           id: string
           reason: string | null
           reviewer_id: string | null
@@ -927,6 +928,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          effective_at?: string
           id?: string
           reason?: string | null
           reviewer_id?: string | null
@@ -937,6 +939,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          effective_at?: string
           id?: string
           reason?: string | null
           reviewer_id?: string | null
@@ -1155,6 +1158,7 @@ export type Database = {
           invitation_token: string
         }[]
       }
+      band_reference_price: { Args: { _symbol: string }; Returns: number }
       cancel_order: {
         Args: { _order_id: string; _user_id: string }
         Returns: {
@@ -1172,6 +1176,10 @@ export type Database = {
         Returns: boolean
       }
       current_shariah_status: { Args: { _symbol: string }; Returns: string }
+      deactivate_trader: {
+        Args: { _actor_id: string; _user_id: string }
+        Returns: number
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
