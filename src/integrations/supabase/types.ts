@@ -463,6 +463,39 @@ export type Database = {
         }
         Relationships: []
       }
+      launch_review_holds: {
+        Row: {
+          created_at: string
+          detail: Json
+          had_trader_role: boolean
+          id: string
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           position_updates_email: boolean
@@ -916,6 +949,7 @@ export type Database = {
       }
       shariah_decisions: {
         Row: {
+          change_reason: string | null
           created_at: string
           effective_at: string
           id: string
@@ -927,6 +961,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -938,6 +973,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -1103,6 +1139,39 @@ export type Database = {
           },
         ]
       }
+      unit_issuances: {
+        Row: {
+          created_at: string
+          id: string
+          issued_by: string
+          note: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issued_by: string
+          note?: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issued_by?: string
+          note?: string | null
+          price?: number
+          qty?: number
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1171,9 +1240,20 @@ export type Database = {
         Args: { _actor?: string; _symbol: string }
         Returns: number
       }
+      check_access_request_status: {
+        Args: { _email: string; _id: string }
+        Returns: {
+          reviewed_at: string
+          status: string
+        }[]
+      }
       check_rate_limit: {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
+      }
+      close_instrument_orders: {
+        Args: { _action: string; _actor?: string; _symbol: string }
+        Returns: number
       }
       current_shariah_status: { Args: { _symbol: string }; Returns: string }
       deactivate_trader: {
@@ -1205,8 +1285,8 @@ export type Database = {
       get_market_snapshot: {
         Args: { _symbols: string[] }
         Returns: {
-          change_24h_pct: number
-          last_price: number
+          change_24h_pct: number | null
+          last_price: number | null
           symbol: string
           volume_24h: number
         }[]
@@ -1229,9 +1309,9 @@ export type Database = {
       get_symbol_market_stats: {
         Args: { _symbol: string }
         Returns: {
-          change_24h_pct: number
-          last_price: number
-          last_traded_at: string
+          change_24h_pct: number | null
+          last_price: number | null
+          last_traded_at: string | null
           trade_count_24h: number
           volume_24h: number
         }[]
@@ -1251,6 +1331,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      issue_units: {
+        Args: {
+          _actor_id: string
+          _note?: string
+          _price: number
+          _qty: number
+          _symbol: string
+          _user_id: string
+        }
+        Returns: string
+      }
       is_company_member: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -1265,11 +1356,34 @@ export type Database = {
           asset_class: string
           created_at: string
           id: string
-          order_id: string
+          order_id: string | null
           price: number
           qty: number
           side: string
           symbol: string
+        }[]
+      }
+      market_instrument_rows: {
+        Args: { _brand_id?: string; _company_id?: string }
+        Returns: {
+          asset_class: string
+          brand_id: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
         }[]
       }
       match_order: {
@@ -1283,7 +1397,7 @@ export type Database = {
           _user_id: string
         }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1309,6 +1423,106 @@ export type Database = {
         }
         Returns: number
       }
+      public_candles: {
+        Args: { _interval?: string; _limit?: number; _symbol: string }
+        Returns: {
+          bucket_start: string
+          close_price: number
+          high_price: number
+          low_price: number
+          open_price: number
+          trade_count: number
+          volume_units: number
+        }[]
+      }
+      public_company_profile: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          name_ar: string
+          name_en: string
+          sector: string | null
+        }[]
+      }
+      public_instrument: {
+        Args: { _slug: string }
+        Returns: {
+          asset_class: string
+          band_high: number | null
+          band_low: number | null
+          band_reference: number | null
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          day_high: number | null
+          day_low: number | null
+          day_open: number | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_overview: {
+        Args: { _company_id?: string }
+        Returns: {
+          asset_class: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string | null
+          shariah_status: string | null
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_summary: {
+        Args: never
+        Returns: {
+          last_trade_at: string | null
+          listed_count: number
+          trades_24h: number
+          volume_24h_value: number
+        }[]
+      }
+      public_recent_trades: {
+        Args: { _limit?: number; _symbol: string }
+        Returns: {
+          price: number
+          qty: number
+          traded_at: string
+        }[]
+      }
+      public_shariah_rulings: {
+        Args: never
+        Returns: {
+          effective_at: string
+          name_ar: string
+          name_en: string
+          reason: string | null
+          slug: string
+          status: string
+          symbol: string
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -1322,14 +1536,9 @@ export type Database = {
         Returns: undefined
       }
       replace_order: {
-        Args: {
-          _order_id: string
-          _price: number
-          _qty: number
-          _user_id: string
-        }
+        Args: { _order_id: string; _price: number; _qty: number; _user_id: string }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1338,7 +1547,7 @@ export type Database = {
       restore_order: {
         Args: { _order_id: string; _user_id: string }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1351,6 +1560,17 @@ export type Database = {
           name_ar: string
           name_en: string
           slug: string
+        }[]
+      }
+      set_instrument_published: {
+        Args: { _actor_id: string; _published: boolean; _symbol: string }
+        Returns: {
+          brand_id: string
+          cancelled_orders: number
+          changed: boolean
+          company_id: string | null
+          published: boolean
+          symbol: string
         }[]
       }
     }
@@ -1377,12 +1597,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1406,11 +1626,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1431,11 +1651,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1456,11 +1676,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1473,11 +1693,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
