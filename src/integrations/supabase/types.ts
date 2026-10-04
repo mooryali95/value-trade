@@ -1103,6 +1103,39 @@ export type Database = {
           },
         ]
       }
+      unit_issuances: {
+        Row: {
+          created_at: string
+          id: string
+          issued_by: string
+          note: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issued_by: string
+          note?: string | null
+          price: number
+          qty: number
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issued_by?: string
+          note?: string | null
+          price?: number
+          qty?: number
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1258,6 +1291,17 @@ export type Database = {
       is_company_owner: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
+      }
+      issue_units: {
+        Args: {
+          _actor_id: string
+          _note?: string
+          _price: number
+          _qty: number
+          _symbol: string
+          _user_id: string
+        }
+        Returns: string
       }
       list_my_trades: {
         Args: { _limit?: number; _symbol?: string; _user_id: string }
