@@ -463,6 +463,39 @@ export type Database = {
         }
         Relationships: []
       }
+      launch_review_holds: {
+        Row: {
+          created_at: string
+          detail: Json
+          had_trader_role: boolean
+          id: string
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          had_trader_role?: boolean
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           position_updates_email: boolean
