@@ -16,10 +16,14 @@
 //     the app in an iframe on its preview / dev hosts, so those hosts are
 //     not denied (they are not the published site);
 //   * CSP also sets base-uri 'self', object-src 'none' and form-action
-//     'self'. There is no script-src / style-src policy: TanStack Start
-//     streams inline <script> tags for hydration without a nonce hook, so a
-//     script policy would need 'unsafe-inline' (no protection) or would
-//     break hydration. See SECURITY.md.
+//     'self';
+//   * script-src on rendered pages of the production hosts: 'self' plus a
+//     per-request nonce. The router puts that nonce on every inline script it
+//     streams (hydration, scroll restoration, React's streaming scripts), so
+//     injected inline script and scripts from other origins do not run.
+//     Preview and dev hosts get no script policy: the Lovable editor injects
+//     its own tooling there. There is no style-src policy (inline styles are
+//     used by the UI library and carry no script execution).
 
 export const BASE_SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
@@ -43,18 +47,36 @@ export function isEmbeddablePreviewHost(hostname: string): boolean {
     h === "localhost" ||
     h === "127.0.0.1" ||
     h.endsWith(".lovableproject.com") ||
-    (h.endsWith(".lovable.app") && (h.startsWith("id-preview--") || h.startsWith("preview--") || h.endsWith("-dev.lovable.app")))
+    (h.endsWith(".lovable.app") &&
+      (h.startsWith("id-preview--") || h.startsWith("preview--") || h.endsWith("-dev.lovable.app")))
   );
 }
 
-/** The headers for a response to `url` (only those the response does not set itself). */
-export function securityHeadersFor(url: URL): Record<string, string> {
+/** A fresh nonce for one rendered page (128 random bits, base64). */
+export function createScriptNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+const NONCE_RE = /^[A-Za-z0-9+/]{16,}={0,2}$/;
+
+/**
+ * The headers for a response to `url` (only those the response does not set
+ * itself). `scriptNonce` is the nonce the router put on the page's inline
+ * scripts; with it, production hosts also get a script-src policy.
+ */
+export function securityHeadersFor(url: URL, scriptNonce?: string): Record<string, string> {
   const out: Record<string, string> = { ...BASE_SECURITY_HEADERS };
   if (url.protocol === "https:") out["Strict-Transport-Security"] = HSTS;
   if (isEmbeddablePreviewHost(url.hostname)) {
     out["Content-Security-Policy"] = CSP_FRAMED;
   } else {
-    out["Content-Security-Policy"] = CSP_NO_FRAMING;
+    const scripts =
+      scriptNonce && NONCE_RE.test(scriptNonce) ? `; script-src 'self' 'nonce-${scriptNonce}'` : "";
+    out["Content-Security-Policy"] = CSP_NO_FRAMING + scripts;
     out["X-Frame-Options"] = "DENY";
   }
   return out;

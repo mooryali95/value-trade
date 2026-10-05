@@ -2,7 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { withSecurityHeaders } from "./lib/ops/security-headers";
+import { securityHeadersFor, withSecurityHeaders } from "./lib/ops/security-headers";
 import { shouldServeUnavailable, toServiceUnavailable } from "./lib/ops/service-unavailable";
 
 type ServerEntry = {
@@ -22,6 +22,16 @@ async function getServerEntry(): Promise<ServerEntry> {
         fetch: createStartHandler(async (ctx) => {
           const result = await defaultStreamHandler(ctx);
           const response = result instanceof Response ? result : result.response;
+          // The page's script policy carries the nonce its inline scripts were
+          // rendered with; withSecurityHeaders below keeps a header already set.
+          try {
+            const csp = securityHeadersFor(new URL(ctx.request.url), ctx.router.options.ssr?.nonce)[
+              "Content-Security-Policy"
+            ];
+            if (csp) response.headers.set("Content-Security-Policy", csp);
+          } catch (error) {
+            console.error("[security-headers] page script policy skipped", error);
+          }
           // Best effort: if a router upgrade changes these internals again, serve
           // the page as rendered instead of failing every request.
           let unavailable: Response;

@@ -435,8 +435,11 @@ entered by the developer once the owner confirms them.
 
 ### 8.2 Known product limitations
 
-1. No script content security policy (CSP), because the pages use inline
-   hydration scripts. The other security headers are in place.
+1. No open known limitations. The script content security policy (CSP) item
+   was closed on 2026-10-05: every page on the production hosts carries its
+   own random nonce, so inline script without it and scripts from other
+   origins do not run. A third-party service added later (analytics, chat,
+   payments) needs its origin added to the policy (see `SECURITY.md`).
 
 ### 8.3 Recommended next steps (in order)
 

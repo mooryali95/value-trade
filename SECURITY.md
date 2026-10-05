@@ -102,8 +102,8 @@ units, and only invited, admin-activated investors trade them.
   browser's `localStorage` (key `sb-*-auth-token`), not in a cookie: it is
   protected by the absence of script injection (React escaping, no
   `dangerouslySetInnerHTML` of user data, sandboxed e-mail previews), not by
-  cookie flags. There is no script-src CSP yet; add a nonce-based one when
-  TanStack Start supports it.
+  cookie flags, and on the production hosts by a nonce-based script-src CSP
+  (see *Security headers*): injected inline script does not run.
 - **Stable error codes end to end.** A global server-function middleware
   (`src/start.ts`) turns any other failure (validator issue lists, the auth
   middleware's "Unauthorized: ..." text, library messages) into
@@ -258,7 +258,7 @@ server functions, API routes), without overriding a header a handler set
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | camera, microphone, geolocation, payment, USB, interest-cohort, browsing-topics off |
-| `Content-Security-Policy` | `frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'` |
+| `Content-Security-Policy` | `frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'`, plus `script-src 'self' 'nonce-<per request>'` on rendered pages |
 | `X-Frame-Options` | `DENY` |
 
 Framing is refused on the production hosts only: Lovable's editor shows the
@@ -274,10 +274,25 @@ Checked on the production build (`npx vite build`, preset
 `/`, `/market` and a 404 carry every header above; a preview host gets the
 same set without the framing headers.
 
-There is **no script CSP** (`script-src` / `default-src`): TanStack Start
-streams inline `<script>` tags for SSR hydration without a nonce hook, so a
-script policy would either need `'unsafe-inline'` (no protection) or break
-hydration. Revisit when the framework supports per-request nonces.
+**Script policy.** Every rendered page on a production host carries
+`script-src 'self' 'nonce-<n>'`, where `<n>` is 128 random bits made for
+that request (`createScriptNonce`, set as the router's `ssr.nonce` in
+`src/router.tsx`). The router puts the nonce on every inline script it
+streams (hydration, scroll restoration, React's streaming scripts) and
+`src/server.ts` writes the matching header. Scripts from the site's own
+origin load as before (the app bundle, Lovable's `/~flock.js`); inline
+script without the nonce, inline event handlers, `eval` and scripts from any
+other origin are refused. Preview and dev hosts get no script policy because
+the Lovable editor injects its own tooling there. There is no `style-src`
+policy (the UI library uses inline styles, which cannot run script).
+
+Checked on a production build in Chromium: `/`, `/market`, `/shariah`,
+`/auth`, `/request-access`, `/legal/terms`, `/docs/states` and a 404 load and
+hydrate with no CSP violation, client-side navigation works, and a script
+injected into the page is refused. The client bundles contain no `eval` or
+`new Function`. If a third-party script is ever added (analytics, chat,
+payments), its origin must be added to `script-src` in
+`src/lib/ops/security-headers.ts`.
 
 ## Launch migration bundle
 
