@@ -22,8 +22,17 @@ async function getServerEntry(): Promise<ServerEntry> {
         fetch: createStartHandler(async (ctx) => {
           const result = await defaultStreamHandler(ctx);
           const response = result instanceof Response ? result : result.response;
-          if (!shouldServeUnavailable(response.status, ctx.router.stores.matches.get())) return result;
-          const unavailable = toServiceUnavailable(response);
+          // Best effort: if a router upgrade changes these internals again, serve
+          // the page as rendered instead of failing every request.
+          let unavailable: Response;
+          try {
+            if (!shouldServeUnavailable(response.status, ctx.router.stores.matches.get()))
+              return result;
+            unavailable = toServiceUnavailable(response);
+          } catch (error) {
+            console.error("[service-unavailable] status check skipped", error);
+            return result;
+          }
           return result instanceof Response ? unavailable : { ...result, response: unavailable };
         }) as ServerEntry["fetch"],
       }),
