@@ -16,7 +16,7 @@ and [`SECURITY.md`](../../SECURITY.md).
 | 1 | Add the server secrets | Lovable: More > Cloud > Secrets | Owner |
 | 2 | Confirm the authentication settings | Lovable Cloud, authentication settings | Owner |
 | 3 | Fill in the operator details | `src/lib/config/site.ts` | Owner provides the facts, developer enters them |
-| 4 | Apply the database update (launch bundle) once | Lovable: More > Cloud > SQL editor | Owner |
+| 4 | Done: Lovable applied all 32 migrations to the live database on 2026-10-01 (do not run the launch bundle) | Lovable migration tool | Done |
 | 5 | Publish the app | Lovable: Publish > Publish changes | Owner |
 | 6 | Post-deploy checks | `/admin/ops`, `/admin/health`, sign-in | Platform admin |
 | 7 | Go-live reset | Lovable: More > Cloud > SQL editor | Owner |
@@ -141,6 +141,12 @@ slightly between Lovable versions).
 ---
 
 ## 4. Database update: the launch bundle
+
+> **Status (2026-10-05): done.** Lovable applied all 32 migrations to the live
+> database file by file on 2026-10-01, and all of them are present in the
+> migration history (`20260924100000` to `20260926101800`). **Do not run the
+> bundle**; it refuses a second run anyway. This section remains as reference
+> for a fresh environment only.
 
 **The file:** `supabase/ops/launch_bundle.sql`. It contains 32 migrations, from
 `20260924100000` to `20260926101800`, in order, inside **one transaction**.
@@ -394,7 +400,7 @@ entered by the developer once the owner confirms them.
 | 29 | Authentication settings 1 to 10 in section 3, in particular the sign-up decision | Lovable Cloud authentication settings |
 | 30 | E-mail link lifetime and e-mail rate limit | Lovable Cloud authentication settings |
 | 31 | Backup, or point-in-time recovery, before the bundle | Lovable Cloud / database |
-| 32 | Confirm that Lovable has not applied any of the `20260924*`, `20260925*` or `20260926*` migrations to production | Query in section 4 |
+| 32 | Done: the 32 migrations are applied to production through Lovable (verified 2026-10-05) | Nothing |
 | 33 | The platform admin accounts (at least one before the go-live reset) | SQL in section 6.2 |
 | 34 | An external scheduler for price alerts, if one is used, must switch to the new signature with `x-timestamp` | [`docs/api-public.md`](../api-public.md) |
 
