@@ -3,10 +3,13 @@ name: E2E journeys
 # The real app (vite dev) in Chromium against a local PostgreSQL 16 +
 # PostgREST + auth gateway stack built from supabase/migrations. See e2e/README.md.
 
+# Heavy browser suites run on pull requests (and on demand), not on every
+# push to main: main only receives merged, already-tested pull requests and
+# frequent Lovable edits, which would otherwise spend Actions minutes.
 on:
   pull_request:
-  push:
-    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}

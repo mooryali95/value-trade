@@ -6,11 +6,10 @@
  *
  * How TanStack Router sets the SSR status: after the loaders run it answers
  * 404 when a loader threw notFound() and 500 when any loader threw anything
- * else (router.stores.statusCode, read by the stream handler when it creates
- * the Response). setResponseStatus() does not reach an SSR page: h3 keeps the
- * status of the Response the handler returns. So the status is corrected in
- * the SSR handler callback (src/server.ts), after the loaders and before the
- * response is created.
+ * else and the stream handler creates the Response with that status. The way the
+ * router stores it is internal and changed between versions, so the status
+ * is corrected on the Response the SSR handler callback returns
+ * (src/server.ts): only the final status and the public route matches are read.
  */
 
 /**
@@ -27,26 +26,29 @@ export function isServiceUnavailableError(error: unknown): boolean {
   return error instanceof Error && UNAVAILABLE_CODES.has(error.message);
 }
 
-/** The part of the router this needs (a TanStack router satisfies it). */
-export interface SsrRouterStatus {
-  stores: {
-    statusCode: { get(): number; set(value: number): void };
-    matches: { get(): ReadonlyArray<{ status: string; error?: unknown }> };
-  };
+/** A route match as the router exposes it (router.stores.matches). */
+export interface SsrMatchStatus {
+  status: string;
+  error?: unknown;
 }
 
 /**
- * Turns the router's 500 into 503 + Retry-After when every failed loader of
- * this request failed because the database is unavailable. A 404 (notFound)
- * or a 200 is left alone, and so is a 500 with any other cause.
+ * True when the rendered page answered 500 and every failed loader of this
+ * request failed because the database is unavailable. A 404 (notFound), a 200
+ * and a 500 with any other cause are left alone.
  */
-export function applyServiceUnavailableStatus(
-  router: SsrRouterStatus,
-  responseHeaders: Headers,
-): void {
-  if (router.stores.statusCode.get() !== 500) return;
-  const failed = router.stores.matches.get().filter((m) => m.status === "error");
-  if (failed.length === 0 || !failed.every((m) => isServiceUnavailableError(m.error))) return;
-  router.stores.statusCode.set(503);
-  responseHeaders.set("Retry-After", String(RETRY_AFTER_SECONDS));
+export function shouldServeUnavailable(
+  responseStatus: number,
+  matches: ReadonlyArray<SsrMatchStatus>,
+): boolean {
+  if (responseStatus !== 500) return false;
+  const failed = matches.filter((m) => m.status === "error");
+  return failed.length > 0 && failed.every((m) => isServiceUnavailableError(m.error));
+}
+
+/** The same rendered page (body and headers), answered as 503 + Retry-After. */
+export function toServiceUnavailable(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Retry-After", String(RETRY_AFTER_SECONDS));
+  return new Response(response.body, { status: 503, statusText: "Service Unavailable", headers });
 }
