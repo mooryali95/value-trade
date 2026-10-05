@@ -20,17 +20,35 @@ const tables: {
   email_send_log: [],
 };
 
-const enqueueCalls: Array<{ queue: string; payload: any }> = [];
+/** The fields of an enqueued e-mail payload these tests assert on. */
+type EnqueuedPayload = { to: string; idempotency_key: string } & Row;
+
+const enqueueCalls: Array<{ queue: string; payload: EnqueuedPayload }> = [];
 
 let nextId = 0;
-function makeSelectChain(rows: Row[]) {
-  type F = { col: string; val: unknown; op: "eq" | "in" | "gt" };
+type F = { col: string; val: unknown; op: "eq" | "in" | "gt" };
+
+/** The slice of the PostgREST query builder that notify.server uses. */
+interface SelectChain {
+  _filters: F[];
+  _limit: number;
+  select(): SelectChain;
+  order(): SelectChain;
+  limit(n: number): SelectChain;
+  eq(col: string, val: unknown): SelectChain;
+  in(col: string, val: unknown[]): SelectChain;
+  gt(col: string, val: unknown): SelectChain;
+  maybeSingle(): Promise<{ data: Row | null; error: null }>;
+  then(resolve: (v: { data: Row[]; error: null }) => unknown): Promise<unknown>;
+}
+
+function makeSelectChain(rows: Row[]): SelectChain {
   const test = (r: Row, f: F) =>
     f.op === "eq" ? r[f.col] === f.val
     : f.op === "in" ? (f.val as unknown[]).includes(r[f.col])
     : String(r[f.col] ?? "") > String(f.val) || (typeof f.val === "number" && Number(r[f.col] ?? 0) > f.val);
-  const chain: any = {
-    _filters: [] as F[],
+  const chain: SelectChain = {
+    _filters: [],
     _limit: Infinity,
     select() { return this; },
     order() { return this; },
@@ -65,7 +83,7 @@ const supabaseAdmin = {
       },
     };
   },
-  rpc: vi.fn(async (name: string, args: any) => {
+  rpc: vi.fn(async (name: string, args: { queue_name: string; payload: EnqueuedPayload }) => {
     if (name === "enqueue_email") {
       enqueueCalls.push({ queue: args.queue_name, payload: args.payload });
       return { data: 1, error: null };
@@ -87,7 +105,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin }));
 // Avoid pulling React email rendering by mocking enqueueTransactionalEmail
 // to call the same admin insert + rpc path the real helper exercises.
 vi.mock("@/lib/email/enqueue.server", () => ({
-  enqueueTransactionalEmail: vi.fn(async (input: any) => {
+  enqueueTransactionalEmail: vi.fn(async (input: { templateName: string; recipientEmail: string; idempotencyKey?: string }) => {
     const email = input.recipientEmail.toLowerCase();
     const suppressed = tables.suppressed_emails.find((s) => s.email === email);
     if (suppressed) return { sent: false, reason: "suppressed" };

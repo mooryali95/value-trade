@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { render } from '@react-email/render'
-import { parseEmailWebhookPayload } from '@lovable.dev/email-js'
+import { parseEmailWebhookPayload, type EmailWebhookPayload } from '@lovable.dev/email-js'
 import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
 import { createClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
@@ -20,7 +20,13 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   reauthentication: 'رمز التحقّق · Verification code — وحدة القيمة',
 }
 
-// Template mapping
+// Template mapping. The six templates declare different required props and
+// @types/react's ComponentType is contravariant in its props, so `any` is the
+// only props type under which they share one map and can still be rendered
+// with the props bag built below. That bag comes from the hook payload, whose
+// fields @lovable.dev/email-js types as optional; Lovable's auth hook contract
+// is what gives each template the fields it needs.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous component map, see above
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   signup: SignupEmail,
   invite: InviteEmail,
@@ -58,7 +64,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         }
 
         // Verify signature + timestamp, then parse payload.
-        let payload: any
+        let payload: EmailWebhookPayload
         let run_id = ''
         try {
           const verified = await verifyWebhookRequest({
@@ -67,7 +73,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             parser: parseEmailWebhookPayload,
           })
           payload = verified.payload
-          run_id = payload.run_id
+          run_id = payload.run_id ?? ''
         } catch (error) {
           if (error instanceof WebhookError) {
             switch (error.code) {
@@ -109,6 +115,14 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           console.error('Unsupported payload version', { version: payload.version, run_id })
           return Response.json(
             { error: `Unsupported payload version: ${payload.version}` },
+            { status: 400 }
+          )
+        }
+
+        if (typeof payload.data?.action_type !== 'string') {
+          console.error('Webhook payload missing action_type', { run_id })
+          return Response.json(
+            { error: 'Invalid webhook payload' },
             { status: 400 }
           )
         }

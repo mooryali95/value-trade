@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 import { toStableError } from "@/lib/ops/errors.server";
 import { isValidOrderQty, isValidReferencePrice } from "@/lib/trading/calc";
 
@@ -137,8 +139,7 @@ export const listCompanySubmissions = createServerFn({ method: "GET" })
     }));
   });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function callerRoles(context: { supabase: any; userId: string }) {
+async function callerRoles(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const [board, admin] = await Promise.all([
     context.supabase.rpc("has_role", { _user_id: context.userId, _role: "shariah_board" }),
     context.supabase.rpc("has_role", { _user_id: context.userId, _role: "platform_admin" }),

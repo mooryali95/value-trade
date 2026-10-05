@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useErrorMessage } from "@/hooks/use-error-message";
-import { listEmailLog, listEmailTemplates, retryEmail } from "@/lib/admin/email-log.functions";
+import { listEmailLog, listEmailTemplates, logTemplateData, retryEmail } from "@/lib/admin/email-log.functions";
 import { renderEmailPreview } from "@/lib/admin/email-preview.functions";
 import { ArrowClockwise, EnvelopeSimple, Eye, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { EmptyState } from "@/components/empty-state";
@@ -46,6 +46,8 @@ type Status = "all" | "pending" | "sent" | "failed" | "dlq" | "suppressed" | "bo
 const FILTER_KEY = "email-log:filters:v1";
 
 type Filters = { status: Status; template: string; search: string; symbol: string };
+
+type EmailLogRow = Awaited<ReturnType<typeof listEmailLog>>["items"][number];
 
 const DEFAULT_FILTERS: Filters = { status: "all", template: "", search: "", symbol: "" };
 
@@ -135,7 +137,7 @@ function EmailLogContent() {
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
 
-  const askRetry = async (row: any) => {
+  const askRetry = async (row: EmailLogRow) => {
     if (!row.message_id) return;
     const ok = await confirm({
       title: t("u_elResendTitle"),
@@ -146,12 +148,12 @@ function EmailLogContent() {
     if (ok) retryM.mutate(row.message_id);
   };
 
-  const openPreview = async (row: any) => {
+  const openPreview = async (row: EmailLogRow) => {
     try {
       const res = await preview({
         data: {
           template: row.template_name,
-          data: (row.metadata?.template_data ?? {}) as Record<string, unknown>,
+          data: logTemplateData(row.metadata),
         },
       });
       setPreviewOpen({ html: res.html, subject: res.subject, template: row.template_name });
@@ -163,8 +165,8 @@ function EmailLogContent() {
   const rawItems = logQ.data?.items ?? [];
   const sym = symbol.trim().toUpperCase();
   const items = sym
-    ? rawItems.filter((r: any) => {
-        const s = (r?.metadata?.template_data?.symbol ?? "").toString().toUpperCase();
+    ? rawItems.filter((r) => {
+        const s = String(logTemplateData(r.metadata).symbol ?? "").toUpperCase();
         return s.includes(sym);
       })
     : rawItems;
@@ -253,7 +255,7 @@ function EmailLogContent() {
             <EmptyState icon={<EnvelopeSimple size={22} weight="duotone" />} title={t("u_elEmptyTitle")} description={t("u_elEmptyDesc")} />
           </div>
         )}
-        {items.map((r: any) => (
+        {items.map((r) => (
           <div
             key={r.id}
             className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto_minmax(0,1fr)_auto]"

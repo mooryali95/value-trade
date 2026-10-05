@@ -69,7 +69,7 @@ const PriceAlertEmail = ({
 
 export const template = {
   component: PriceAlertEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     `تنبيه سعر · ${d.symbol ?? ''} — Price alert`,
   displayName: 'Price alert',
   previewData: {

@@ -75,7 +75,7 @@ const ShariahDecisionEmail = ({
 
 export const template = {
   component: ShariahDecisionEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     `قرار شرعي · ${d.symbol ?? ''} — Shariah decision`,
   displayName: 'Shariah decision',
   previewData: {

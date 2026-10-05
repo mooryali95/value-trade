@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 
 export type AuditEntry = {
@@ -18,8 +17,7 @@ export type AuditEntry = {
  * the caller (every call site passes `context.userId`). The `supabase`
  * argument is kept for call-site compatibility and is not used.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function writeAudit(_supabase: SupabaseClient<any, any, any>, entry: AuditEntry): Promise<void> {
+export async function writeAudit(_supabase: unknown, entry: AuditEntry): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("audit_log").insert({
@@ -31,11 +29,9 @@ export async function writeAudit(_supabase: SupabaseClient<any, any, any>, entry
       metadata: (entry.metadata ?? {}) as Json,
     });
     if (error) {
-      // eslint-disable-next-line no-console
       console.warn("[audit] insert failed:", error.code ?? "", error.message);
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.warn("[audit] insert threw:", e instanceof Error ? e.name : "unknown");
   }
 }

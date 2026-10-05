@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 // `origin` is accepted for backward compatibility with older clients but is
 // ignored: the smoke target is derived server side (see origin.server.ts).
@@ -9,7 +11,7 @@ const SmokeSchema = z.object({
   sendEmail: z.boolean().default(true),
 });
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
+async function assertAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "platform_admin",
@@ -22,7 +24,7 @@ export const runSmokeSuite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SmokeSchema.parse(input ?? {}))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { runSmoke } = await import("./smoke.server");
     const { selfOrigin } = await import("./origin.server");
     const email = (context.claims as { email?: string } | null)?.email ?? null;
@@ -38,7 +40,7 @@ export const runSmokeSuite = createServerFn({ method: "POST" })
 export const getOpsRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: runs } = await supabaseAdmin
       .from("ops_run_log")
@@ -75,7 +77,7 @@ export const listOpsRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RunsQuery.parse(input ?? {}))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let q = supabaseAdmin
@@ -157,7 +159,7 @@ export const getOpsRunDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: run, error } = await supabaseAdmin
       .from("ops_run_log")
@@ -200,7 +202,7 @@ export const getOpsRunDetail = createServerFn({ method: "GET" })
 export const getOpsThresholds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { getOpsSettings } = await import("./settings.server");
     return getOpsSettings();
   });
@@ -218,7 +220,7 @@ export const updateOpsThresholds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ThresholdsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await assertAdmin(context);
     const { saveOpsSettings } = await import("./settings.server");
     return saveOpsSettings(data, context.userId);
   });

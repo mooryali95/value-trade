@@ -180,7 +180,7 @@ function RulingsSection() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [term, setTerm] = useState("");
 
-  const rows = q.data ?? [];
+  const rows = useMemo(() => q.data ?? [], [q.data]);
   const filtered = useMemo(() => {
     const needle = term.trim().toLowerCase();
     return rows.filter(

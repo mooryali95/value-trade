@@ -1,0 +1,23 @@
+{
+  "name": "value-unit-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end journey tests: the real app in Chromium against a local PostgreSQL + PostgREST + auth gateway stack.",
+  "scripts": {
+    "stack:start": "bash stack/start.sh",
+    "stack:stop": "bash stack/stop.sh",
+    "test": "bash run.sh",
+    "pw": "playwright test",
+    "typecheck": "tsc -p ."
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.16.5",
+    "@types/pg": "^8.15.5",
+    "pg": "^8.23.0",
+    "typescript": "^5.9.3"
+  }
+}

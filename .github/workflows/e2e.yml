@@ -1,0 +1,96 @@
+name: E2E journeys
+
+# The real app (vite dev) in Chromium against a local PostgreSQL 16 +
+# PostgREST + auth gateway stack built from supabase/migrations. See e2e/README.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGREST_VERSION: "12.2.3"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install app dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck the e2e suite
+        working-directory: e2e
+        run: npm run typecheck
+
+      - name: Install PostgreSQL 16 (if missing)
+        run: |
+          if [ ! -x /usr/lib/postgresql/16/bin/initdb ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-client-16
+          fi
+          /usr/lib/postgresql/16/bin/postgres --version
+
+      - name: Cache PostgREST
+        id: postgrest-cache
+        uses: actions/cache@v4
+        with:
+          path: e2e/.bin
+          key: postgrest-v${{ env.POSTGREST_VERSION }}-linux-static-x64
+
+      - name: Download PostgREST
+        if: steps.postgrest-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p e2e/.bin
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/postgrest.tar.xz" \
+            "https://github.com/PostgREST/postgrest/releases/download/v${POSTGREST_VERSION}/postgrest-v${POSTGREST_VERSION}-linux-static-x64.tar.xz"
+          tar -xJf "$RUNNER_TEMP/postgrest.tar.xz" -C e2e/.bin postgrest
+
+      - name: PostgREST version
+        run: e2e/.bin/postgrest --version
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # e2e/run.sh: fresh stack (database from every migration + seed), the
+      # journeys, then the stack is stopped whatever happened.
+      - name: Run the journeys
+        run: npm run test:e2e
+
+      - name: Upload artifacts (traces, screenshots, videos, report, stack logs)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: e2e/artifacts
+          retention-days: 14
+          if-no-files-found: ignore

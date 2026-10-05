@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { withSecurityHeaders } from "./lib/ops/security-headers";
+import { applyServiceUnavailableStatus } from "./lib/ops/service-unavailable";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -12,8 +13,17 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => (m.default ?? m) as ServerEntry,
+    // TanStack Start's default server entry (createStartHandler with the
+    // default stream handler), plus one step before rendering: a page whose
+    // loader could not read the database answers 503 + Retry-After instead
+    // of 500 (see lib/ops/service-unavailable.ts).
+    serverEntryPromise = import("@tanstack/react-start/server").then(
+      ({ createStartHandler, defaultStreamHandler }) => ({
+        fetch: createStartHandler((ctx) => {
+          applyServiceUnavailableStatus(ctx.router, ctx.responseHeaders);
+          return defaultStreamHandler(ctx);
+        }) as ServerEntry["fetch"],
+      }),
     );
   }
   return serverEntryPromise;

@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
-async function ensureAdmin(context: { supabase: any; userId: string }) {
+async function ensureAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "platform_admin",
@@ -67,7 +69,8 @@ export const listAllCompaniesAdmin = createServerFn({ method: "GET" })
     const ids = rows.map((r: { id: string }) => r.id);
     const [{ data: members }, { data: pending }] = await Promise.all([
       supabaseAdmin.from("company_members").select("company_id").in("company_id", ids),
-      (supabaseAdmin.from("access_requests" as any) as any)
+      supabaseAdmin
+        .from("access_requests")
         .select("requested_company_id")
         .eq("status", "pending")
         .in("requested_company_id", ids),

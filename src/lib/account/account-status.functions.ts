@@ -75,7 +75,7 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
     // the database has it; otherwise the same formula as match_order: cash
     // minus (qty - filled_qty) * price of every open/partial priced buy.
     let buyingPower: number | null = null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC newer than the generated Database types (src/integrations/supabase/types.ts)
     const bp = await (supabaseAdmin.rpc as any)("buying_power", { _user_id: userId });
     if (!bp.error && bp.data !== null && bp.data !== undefined && Number.isFinite(Number(bp.data))) {
       buyingPower = money(bp.data);
@@ -121,8 +121,8 @@ export const getMyAccountStatus = createServerFn({ method: "GET" })
         // Only for a confirmed address: an access request is filed by
         // whoever owns the mailbox, not by whoever registered the account.
         account.emailConfirmed
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabaseAdmin.from("access_requests" as any) as any)
+          ? supabaseAdmin
+              .from("access_requests")
               .select("id, status, join_method")
               .ilike("email", account.email.replace(/[\\%_]/g, (c: string) => `\\${c}`))
               .in("status", ["pending", "approved"])

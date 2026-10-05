@@ -44,7 +44,7 @@ const PositionUpdateEmail = ({
 
 export const template = {
   component: PositionUpdateEmail,
-  subject: (d: Record<string, any>) =>
+  subject: (d: Record<string, unknown>) =>
     `تحديث على مركزك · ${d.symbol ?? ''} — Position update`,
   displayName: 'Position update',
   previewData: {

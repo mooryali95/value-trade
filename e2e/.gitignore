@@ -1,0 +1,8 @@
+node_modules/
+# Traces, screenshots, videos, reports and stack logs of test runs.
+artifacts/
+# The PostgREST binary downloaded by stack/start.sh.
+.bin/
+test-results/
+playwright-report/
+blob-report/

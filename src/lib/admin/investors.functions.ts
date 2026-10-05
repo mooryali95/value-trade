@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 import { writeAudit } from "@/lib/audit/audit.server";
 
 /**
@@ -11,8 +13,7 @@ import { writeAudit } from "@/lib/audit/audit.server";
  * caller is a platform admin before touching another user's data.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function ensureAdmin(context: { supabase: any; userId: string }) {
+async function ensureAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "platform_admin",
@@ -245,7 +246,7 @@ export const listPendingActivations = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<PendingActivation[]> => {
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC newer than the generated Database types (src/integrations/supabase/types.ts)
     const { data, error } = await (supabaseAdmin.rpc as any)("admin_pending_activations", {
       _actor_id: context.userId,
       _limit: 200,

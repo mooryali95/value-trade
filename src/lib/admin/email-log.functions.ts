@@ -1,13 +1,29 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database, Json } from "@/integrations/supabase/types";
 
-async function ensureAdmin(context: { supabase: any; userId: string }) {
+async function ensureAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "platform_admin",
   });
   if (!isAdmin) throw new Error("FORBIDDEN");
+}
+
+type JsonObject = { [key: string]: Json | undefined };
+
+function asJsonObject(value: Json | undefined): JsonObject | null {
+  return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+/**
+ * The template data stored in an email_send_log row's metadata (written by
+ * enqueueTransactionalEmail), or {} when the row carries none.
+ */
+export function logTemplateData(metadata: Json | null): JsonObject {
+  return asJsonObject(asJsonObject(metadata)?.template_data) ?? {};
 }
 
 const ListInput = z.object({
@@ -35,7 +51,7 @@ export const listEmailLog = createServerFn({ method: "GET" })
     if (data.search) q = q.ilike("recipient_email", `%${data.search}%`);
     const { data: rows } = await q;
     const seen = new Set<string>();
-    const latest: any[] = [];
+    const latest: NonNullable<typeof rows> = [];
     for (const r of rows ?? []) {
       const key = r.message_id ?? r.id;
       if (seen.has(key)) continue;
@@ -58,7 +74,7 @@ export const listEmailTemplates = createServerFn({ method: "GET" })
       .from("email_send_log")
       .select("template_name")
       .limit(2000);
-    return Array.from(new Set((data ?? []).map((r: any) => r.template_name))).sort();
+    return Array.from(new Set((data ?? []).map((r) => r.template_name))).sort();
   });
 
 export const retryEmail = createServerFn({ method: "POST" })
@@ -75,13 +91,13 @@ export const retryEmail = createServerFn({ method: "POST" })
       .limit(1);
     const row = rows?.[0];
     if (!row) throw new Error("NOT_FOUND");
-    const meta = (row.metadata ?? {}) as any;
+    const meta = asJsonObject(row.metadata) ?? {};
     const { enqueueTransactionalEmail } = await import("@/lib/email/enqueue.server");
     const r = await enqueueTransactionalEmail({
       templateName: row.template_name,
       recipientEmail: row.recipient_email,
-      templateData: (meta.template_data ?? {}) as Record<string, unknown>,
-      label: meta.label ?? row.template_name,
+      templateData: logTemplateData(row.metadata),
+      label: typeof meta.label === "string" ? meta.label : row.template_name,
       // do NOT reuse idempotencyKey — we want a fresh message
     });
     if (!r.sent) {

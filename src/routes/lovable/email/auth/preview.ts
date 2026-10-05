@@ -9,15 +9,6 @@ import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 import { bearerToken, safeEqualSecret } from '@/lib/ops/timing-safe.server'
 
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
-  signup: SignupEmail,
-  invite: InviteEmail,
-  magiclink: MagicLinkEmail,
-  recovery: RecoveryEmail,
-  email_change: EmailChangeEmail,
-  reauthentication: ReauthenticationEmail,
-}
-
 // Configuration
 const SITE_NAME = "Value Unit"
 const ROOT_DOMAIN = "hub.sunkvalue.com"
@@ -29,36 +20,43 @@ const ROOT_DOMAIN = "hub.sunkvalue.com"
 // even if the project's domain has changed since the template was scaffolded.
 const SAMPLE_PROJECT_URL = "https://value-trade.lovable.app"
 const SAMPLE_EMAIL = "user@example.test"
-const SAMPLE_DATA: Record<string, object> = {
-  signup: {
+
+// Pairs each template with its sample props, so the samples are type-checked
+// against the props that template declares.
+function sample<P extends object>(Template: React.ComponentType<P>, props: P): () => React.ReactElement {
+  return () => React.createElement(Template, props)
+}
+
+const SAMPLES: Record<string, () => React.ReactElement> = {
+  signup: sample(SignupEmail, {
     siteName: SITE_NAME,
     siteUrl: SAMPLE_PROJECT_URL,
     recipient: SAMPLE_EMAIL,
     confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  magiclink: {
+  }),
+  magiclink: sample(MagicLinkEmail, {
     siteName: SITE_NAME,
     confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  recovery: {
+  }),
+  recovery: sample(RecoveryEmail, {
     siteName: SITE_NAME,
     confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  invite: {
+  }),
+  invite: sample(InviteEmail, {
     siteName: SITE_NAME,
     siteUrl: SAMPLE_PROJECT_URL,
     confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  email_change: {
+  }),
+  email_change: sample(EmailChangeEmail, {
     siteName: SITE_NAME,
     oldEmail: SAMPLE_EMAIL,
     email: SAMPLE_EMAIL,
     newEmail: SAMPLE_EMAIL,
     confirmationUrl: SAMPLE_PROJECT_URL,
-  },
-  reauthentication: {
+  }),
+  reauthentication: sample(ReauthenticationEmail, {
     token: '123456',
-  },
+  }),
 }
 
 export const Route = createFileRoute("/lovable/email/auth/preview")({
@@ -91,17 +89,16 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
           )
         }
 
-        const EmailTemplate = EMAIL_TEMPLATES[type]
+        const renderSample = SAMPLES[type]
 
-        if (!EmailTemplate) {
+        if (!renderSample) {
           return Response.json(
             { error: `Unknown email type: ${type}` },
             { status: 400 }
           )
         }
 
-        const sampleData = SAMPLE_DATA[type] || {}
-        const html = await render(React.createElement(EmailTemplate, sampleData))
+        const html = await render(renderSample())
 
         return new Response(html, {
           status: 200,

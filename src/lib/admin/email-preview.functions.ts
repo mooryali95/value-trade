@@ -30,7 +30,7 @@ export const renderEmailPreview = createServerFn({ method: "POST" })
     const React = await import("react");
     const props = { ...(entry.previewData ?? {}), ...(data.data ?? {}) };
     const html = await render(
-      React.createElement(entry.component as any, props),
+      React.createElement(entry.component, props),
       { pretty: false },
     );
     const subject =
