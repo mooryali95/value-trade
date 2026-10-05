@@ -949,6 +949,7 @@ export type Database = {
       }
       shariah_decisions: {
         Row: {
+          change_reason: string | null
           created_at: string
           effective_at: string
           id: string
@@ -960,6 +961,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -971,6 +973,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          change_reason?: string | null
           created_at?: string
           effective_at?: string
           id?: string
@@ -1237,6 +1240,13 @@ export type Database = {
         Args: { _actor?: string; _symbol: string }
         Returns: number
       }
+      check_access_request_status: {
+        Args: { _email: string; _id: string }
+        Returns: {
+          reviewed_at: string
+          status: string
+        }[]
+      }
       check_rate_limit: {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
@@ -1275,8 +1285,8 @@ export type Database = {
       get_market_snapshot: {
         Args: { _symbols: string[] }
         Returns: {
-          change_24h_pct: number
-          last_price: number
+          change_24h_pct: number | null
+          last_price: number | null
           symbol: string
           volume_24h: number
         }[]
@@ -1299,9 +1309,9 @@ export type Database = {
       get_symbol_market_stats: {
         Args: { _symbol: string }
         Returns: {
-          change_24h_pct: number
-          last_price: number
-          last_traded_at: string
+          change_24h_pct: number | null
+          last_price: number | null
+          last_traded_at: string | null
           trade_count_24h: number
           volume_24h: number
         }[]
@@ -1321,14 +1331,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_company_member: {
-        Args: { _company_id: string; _user_id: string }
-        Returns: boolean
-      }
-      is_company_owner: {
-        Args: { _company_id: string; _user_id: string }
-        Returns: boolean
-      }
       issue_units: {
         Args: {
           _actor_id: string
@@ -1340,13 +1342,21 @@ export type Database = {
         }
         Returns: string
       }
+      is_company_member: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_company_owner: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       list_my_trades: {
         Args: { _limit?: number; _symbol?: string; _user_id: string }
         Returns: {
           asset_class: string
           created_at: string
           id: string
-          order_id: string
+          order_id: string | null
           price: number
           qty: number
           side: string
@@ -1358,17 +1368,17 @@ export type Database = {
         Returns: {
           asset_class: string
           brand_id: string
-          change_24h_pct: number
-          company_id: string
-          company_name_ar: string
-          company_name_en: string
-          last_price: number
-          last_trade_at: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string
-          shariah_status: string
+          sector: string | null
+          shariah_status: string | null
           slug: string
           symbol: string
           trades_24h: number
@@ -1387,7 +1397,7 @@ export type Database = {
           _user_id: string
         }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1431,30 +1441,30 @@ export type Database = {
           id: string
           name_ar: string
           name_en: string
-          sector: string
+          sector: string | null
         }[]
       }
       public_instrument: {
         Args: { _slug: string }
         Returns: {
           asset_class: string
-          band_high: number
-          band_low: number
-          band_reference: number
-          change_24h_pct: number
-          company_id: string
-          company_name_ar: string
-          company_name_en: string
-          day_high: number
-          day_low: number
-          day_open: number
-          last_price: number
-          last_trade_at: string
+          band_high: number | null
+          band_low: number | null
+          band_reference: number | null
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          day_high: number | null
+          day_low: number | null
+          day_open: number | null
+          last_price: number | null
+          last_trade_at: string | null
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string
-          shariah_status: string
+          sector: string | null
+          shariah_status: string | null
           slug: string
           symbol: string
           trades_24h: number
@@ -1466,17 +1476,17 @@ export type Database = {
         Args: { _company_id?: string }
         Returns: {
           asset_class: string
-          change_24h_pct: number
-          company_id: string
-          company_name_ar: string
-          company_name_en: string
-          last_price: number
-          last_trade_at: string
+          change_24h_pct: number | null
+          company_id: string | null
+          company_name_ar: string | null
+          company_name_en: string | null
+          last_price: number | null
+          last_trade_at: string | null
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string
-          shariah_status: string
+          sector: string | null
+          shariah_status: string | null
           slug: string
           symbol: string
           trades_24h: number
@@ -1487,7 +1497,7 @@ export type Database = {
       public_market_summary: {
         Args: never
         Returns: {
-          last_trade_at: string
+          last_trade_at: string | null
           listed_count: number
           trades_24h: number
           volume_24h_value: number
@@ -1507,7 +1517,7 @@ export type Database = {
           effective_at: string
           name_ar: string
           name_en: string
-          reason: string
+          reason: string | null
           slug: string
           status: string
           symbol: string
@@ -1526,14 +1536,9 @@ export type Database = {
         Returns: undefined
       }
       replace_order: {
-        Args: {
-          _order_id: string
-          _price: number
-          _qty: number
-          _user_id: string
-        }
+        Args: { _order_id: string; _price: number; _qty: number; _user_id: string }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1542,7 +1547,7 @@ export type Database = {
       restore_order: {
         Args: { _order_id: string; _user_id: string }
         Returns: {
-          avg_price: number
+          avg_price: number | null
           filled_qty: number
           order_id: string
           status: string
@@ -1563,7 +1568,7 @@ export type Database = {
           brand_id: string
           cancelled_orders: number
           changed: boolean
-          company_id: string
+          company_id: string | null
           published: boolean
           symbol: string
         }[]
@@ -1592,12 +1597,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1621,11 +1626,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1646,11 +1651,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1671,11 +1676,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1688,11 +1693,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
