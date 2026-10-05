@@ -20,9 +20,12 @@ AXE_CDN = "https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js"
 REPORTS = Path(__file__).parent / "reports"
 
 
-async def audit(page, name, path, base_url, results):
+async def audit(page, name, path, base_url, results, scope="document"):
     await page.goto(base_url + path, wait_until="domcontentloaded")
     await page.wait_for_timeout(700)
+    if scope != "document":
+        # Client-rendered after hydration; wait for it rather than guess.
+        await page.wait_for_selector(scope, timeout=15000)
     local_axe = os.environ.get("A11Y_AXE_SCRIPT")
     if local_axe:
         # For sandboxes where the browser cannot reach the CDN directly.
@@ -30,10 +33,12 @@ async def audit(page, name, path, base_url, results):
     else:
         await page.add_script_tag(url=AXE_CDN)
     raw = await page.evaluate(
-        "async () => { const r = await window.axe.run(document, "
+        "async (scope) => { const ctx = scope === 'document' ? document : { include: [[scope]] }; "
+        "const r = await window.axe.run(ctx, "
         "{ runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'] } }); "
         "return r.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, "
-        "nodes: v.nodes.slice(0,3).map(n => n.target.join(' ')) })); }"
+        "nodes: v.nodes.slice(0,3).map(n => n.target.join(' ')) })); }",
+        scope,
     )
     results[name] = {"path": path, "violations": raw}
     status = "OK" if not raw else f"{len(raw)} violation(s)"
@@ -53,6 +58,13 @@ async def main():
         page = await context.new_page()
 
         authed = await restore_session(context, page, base_url)
+
+        # The fixed cookie notice sits over whatever is at the bottom of the
+        # viewport until dismissed, so axe reports those links as obscured
+        # depending on page height and fonts. Audit the notice on its own once,
+        # then dismiss it so every page is audited on its own content.
+        await audit(page, "cookie-notice", "/", base_url, results, scope='[role="region"].fixed.bottom-0')
+        await page.evaluate("() => localStorage.setItem('cookie-notice:v1', 'dismissed')")
 
         for name, path in PUBLIC_PAGES:
             await audit(page, name, path, base_url, results)
