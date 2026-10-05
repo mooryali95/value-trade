@@ -3,7 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { withSecurityHeaders } from "./lib/ops/security-headers";
-import { applyServiceUnavailableStatus } from "./lib/ops/service-unavailable";
+import { shouldServeUnavailable, toServiceUnavailable } from "./lib/ops/service-unavailable";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -19,9 +19,12 @@ async function getServerEntry(): Promise<ServerEntry> {
     // of 500 (see lib/ops/service-unavailable.ts).
     serverEntryPromise = import("@tanstack/react-start/server").then(
       ({ createStartHandler, defaultStreamHandler }) => ({
-        fetch: createStartHandler((ctx) => {
-          applyServiceUnavailableStatus(ctx.router, ctx.responseHeaders);
-          return defaultStreamHandler(ctx);
+        fetch: createStartHandler(async (ctx) => {
+          const result = await defaultStreamHandler(ctx);
+          const response = result instanceof Response ? result : result.response;
+          if (!shouldServeUnavailable(response.status, ctx.router.stores.matches.get())) return result;
+          const unavailable = toServiceUnavailable(response);
+          return result instanceof Response ? unavailable : { ...result, response: unavailable };
         }) as ServerEntry["fetch"],
       }),
     );
