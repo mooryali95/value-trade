@@ -1241,6 +1241,10 @@ export type Database = {
         Args: { _key: string; _limit: number; _window_seconds: number }
         Returns: boolean
       }
+      close_instrument_orders: {
+        Args: { _action: string; _actor?: string; _symbol: string }
+        Returns: number
+      }
       current_shariah_status: { Args: { _symbol: string }; Returns: string }
       deactivate_trader: {
         Args: { _actor_id: string; _user_id: string }
@@ -1551,6 +1555,17 @@ export type Database = {
           name_ar: string
           name_en: string
           slug: string
+        }[]
+      }
+      set_instrument_published: {
+        Args: { _actor_id: string; _published: boolean; _symbol: string }
+        Returns: {
+          brand_id: string
+          cancelled_orders: number
+          changed: boolean
+          company_id: string
+          published: boolean
+          symbol: string
         }[]
       }
     }
