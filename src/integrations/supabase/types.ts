@@ -1349,6 +1349,29 @@ export type Database = {
           symbol: string
         }[]
       }
+      market_instrument_rows: {
+        Args: { _brand_id?: string; _company_id?: string }
+        Returns: {
+          asset_class: string
+          brand_id: string
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          last_price: number
+          last_trade_at: string
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string
+          shariah_status: string
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
       match_order: {
         Args: {
           _asset_class: string
@@ -1385,6 +1408,106 @@ export type Database = {
           _user_id: string
         }
         Returns: number
+      }
+      public_candles: {
+        Args: { _interval?: string; _limit?: number; _symbol: string }
+        Returns: {
+          bucket_start: string
+          close_price: number
+          high_price: number
+          low_price: number
+          open_price: number
+          trade_count: number
+          volume_units: number
+        }[]
+      }
+      public_company_profile: {
+        Args: { _id: string }
+        Returns: {
+          id: string
+          name_ar: string
+          name_en: string
+          sector: string
+        }[]
+      }
+      public_instrument: {
+        Args: { _slug: string }
+        Returns: {
+          asset_class: string
+          band_high: number
+          band_low: number
+          band_reference: number
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          day_high: number
+          day_low: number
+          day_open: number
+          last_price: number
+          last_trade_at: string
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string
+          shariah_status: string
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_overview: {
+        Args: { _company_id?: string }
+        Returns: {
+          asset_class: string
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          last_price: number
+          last_trade_at: string
+          name_ar: string
+          name_en: string
+          reference_price: number
+          sector: string
+          shariah_status: string
+          slug: string
+          symbol: string
+          trades_24h: number
+          volume_24h_units: number
+          volume_24h_value: number
+        }[]
+      }
+      public_market_summary: {
+        Args: never
+        Returns: {
+          last_trade_at: string
+          listed_count: number
+          trades_24h: number
+          volume_24h_value: number
+        }[]
+      }
+      public_recent_trades: {
+        Args: { _limit?: number; _symbol: string }
+        Returns: {
+          price: number
+          qty: number
+          traded_at: string
+        }[]
+      }
+      public_shariah_rulings: {
+        Args: never
+        Returns: {
+          effective_at: string
+          name_ar: string
+          name_en: string
+          reason: string
+          slug: string
+          status: string
+          symbol: string
+        }[]
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
