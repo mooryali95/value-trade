@@ -24,6 +24,7 @@ export type Database = {
           join_method: string
           new_company_name_ar: string | null
           new_company_name_en: string | null
+          reference_code: string
           rejection_reason: string | null
           requested_company_id: string | null
           resulting_invitation_id: string | null
@@ -41,6 +42,7 @@ export type Database = {
           join_method: string
           new_company_name_ar?: string | null
           new_company_name_en?: string | null
+          reference_code?: string
           rejection_reason?: string | null
           requested_company_id?: string | null
           resulting_invitation_id?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           join_method?: string
           new_company_name_ar?: string | null
           new_company_name_en?: string | null
+          reference_code?: string
           rejection_reason?: string | null
           requested_company_id?: string | null
           resulting_invitation_id?: string | null
@@ -591,6 +594,7 @@ export type Database = {
           asset_class: string
           created_at: string
           filled_at: string | null
+          filled_notional: number
           filled_price: number | null
           filled_qty: number
           id: string
@@ -607,6 +611,7 @@ export type Database = {
           asset_class?: string
           created_at?: string
           filled_at?: string | null
+          filled_notional?: number
           filled_price?: number | null
           filled_qty?: number
           id?: string
@@ -623,6 +628,7 @@ export type Database = {
           asset_class?: string
           created_at?: string
           filled_at?: string | null
+          filled_notional?: number
           filled_price?: number | null
           filled_qty?: number
           id?: string
@@ -728,6 +734,7 @@ export type Database = {
         Row: {
           asset_class: string
           avg_price: number
+          cost_basis: number
           created_at: string
           id: string
           qty: number
@@ -738,6 +745,7 @@ export type Database = {
         Insert: {
           asset_class?: string
           avg_price?: number
+          cost_basis: number
           created_at?: string
           id?: string
           qty?: number
@@ -748,6 +756,7 @@ export type Database = {
         Update: {
           asset_class?: string
           avg_price?: number
+          cost_basis?: number
           created_at?: string
           id?: string
           qty?: number
@@ -799,6 +808,9 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          listing_decided_at: string | null
+          listing_decided_by: string | null
+          listing_reason: string | null
           name_ar: string
           name_en: string
           prospectus_url: string | null
@@ -806,6 +818,7 @@ export type Database = {
           reviewed_at: string | null
           reviewer_id: string | null
           sector: string | null
+          shariah_decision_id: string | null
           status: string
           submitted_at: string
           submitted_by: string
@@ -817,6 +830,9 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          listing_decided_at?: string | null
+          listing_decided_by?: string | null
+          listing_reason?: string | null
           name_ar: string
           name_en: string
           prospectus_url?: string | null
@@ -824,6 +840,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewer_id?: string | null
           sector?: string | null
+          shariah_decision_id?: string | null
           status?: string
           submitted_at?: string
           submitted_by: string
@@ -835,6 +852,9 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          listing_decided_at?: string | null
+          listing_decided_by?: string | null
+          listing_reason?: string | null
           name_ar?: string
           name_en?: string
           prospectus_url?: string | null
@@ -842,6 +862,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewer_id?: string | null
           sector?: string | null
+          shariah_decision_id?: string | null
           status?: string
           submitted_at?: string
           submitted_by?: string
@@ -854,6 +875,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_submissions_shariah_decision_fk"
+            columns: ["shariah_decision_id"]
+            isOneToOne: false
+            referencedRelation: "shariah_decisions"
             referencedColumns: ["id"]
           },
         ]
@@ -889,16 +917,19 @@ export type Database = {
         Row: {
           count: number
           key: string
+          window_seconds: number | null
           window_start: string
         }
         Insert: {
           count?: number
           key: string
+          window_seconds?: number | null
           window_start: string
         }
         Update: {
           count?: number
           key?: string
+          window_seconds?: number | null
           window_start?: string
         }
         Relationships: []
@@ -1202,6 +1233,23 @@ export type Database = {
         Args: { _actor_email: string; _actor_id: string; _token: string }
         Returns: string
       }
+      access_request_reference: { Args: never; Returns: string }
+      admin_pending_activations: {
+        Args: { _actor_id: string; _limit?: number }
+        Returns: {
+          created_at: string
+          email: string
+          email_confirmed: boolean
+          full_name: string
+          on_hold: boolean
+          pending_company_invitations: number
+          request_id: string
+          request_reference: string
+          requested_at: string
+          source: string
+          user_id: string
+        }[]
+      }
       apply_trade_position: {
         Args: {
           _asset_class: string
@@ -1227,7 +1275,31 @@ export type Database = {
           invitation_token: string
         }[]
       }
+      approve_listing: {
+        Args: {
+          _actor_id: string
+          _holder_id?: string
+          _issue_price?: number
+          _note?: string
+          _qty?: number
+          _reference_price: number
+          _submission_id: string
+        }
+        Returns: {
+          brand_id: string
+          issuance_id: string
+          published: boolean
+          reference_price: number
+          submission_id: string
+          symbol: string
+        }[]
+      }
       band_reference_price: { Args: { _symbol: string }; Returns: number }
+      band_tick_edges: {
+        Args: { _ref: number }
+        Returns: Record<string, unknown>
+      }
+      buying_power: { Args: { _user_id: string }; Returns: number }
       cancel_order: {
         Args: { _order_id: string; _user_id: string }
         Returns: {
@@ -1240,9 +1312,10 @@ export type Database = {
         Args: { _actor?: string; _symbol: string }
         Returns: number
       }
-      check_access_request_status: {
-        Args: { _email: string; _id: string }
+      check_access_request_status_ref: {
+        Args: { _email: string; _ref: string }
         Returns: {
+          join_method: string
           reviewed_at: string
           status: string
         }[]
@@ -1255,10 +1328,49 @@ export type Database = {
         Args: { _action: string; _actor?: string; _symbol: string }
         Returns: number
       }
+      company_brand_count: { Args: { _company_id: string }; Returns: number }
+      company_has_member_email: {
+        Args: { _company_id: string; _email: string }
+        Returns: boolean
+      }
+      create_company_invitation: {
+        Args: {
+          _actor_id: string
+          _company_id: string
+          _email: string
+          _role: Database["public"]["Enums"]["company_role"]
+        }
+        Returns: {
+          accepted_at: string | null
+          accepted_by: string | null
+          company_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["company_role"]
+          status: string
+          token: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       current_shariah_status: { Args: { _symbol: string }; Returns: string }
       deactivate_trader: {
         Args: { _actor_id: string; _user_id: string }
         Returns: number
+      }
+      decline_listing: {
+        Args: { _actor_id: string; _reason: string; _submission_id: string }
+        Returns: {
+          status: string
+          submission_id: string
+        }[]
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -1285,8 +1397,8 @@ export type Database = {
       get_market_snapshot: {
         Args: { _symbols: string[] }
         Returns: {
-          change_24h_pct: number | null
-          last_price: number | null
+          change_24h_pct: number
+          last_price: number
           symbol: string
           volume_24h: number
         }[]
@@ -1309,9 +1421,9 @@ export type Database = {
       get_symbol_market_stats: {
         Args: { _symbol: string }
         Returns: {
-          change_24h_pct: number | null
-          last_price: number | null
-          last_traded_at: string | null
+          change_24h_pct: number
+          last_price: number
+          last_traded_at: string
           trade_count_24h: number
           volume_24h: number
         }[]
@@ -1331,6 +1443,36 @@ export type Database = {
         }
         Returns: boolean
       }
+      integrity_report: {
+        Args: never
+        Returns: {
+          check_key: string
+          ok: boolean
+          sample: Json
+          violations: number
+        }[]
+      }
+      invitation_preview: {
+        Args: { _token: string }
+        Returns: {
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          email: string
+          expires_at: string
+          invitation_id: string
+          role: Database["public"]["Enums"]["company_role"]
+          status: string
+        }[]
+      }
+      is_company_member: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_company_owner: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       issue_units: {
         Args: {
           _actor_id: string
@@ -1342,21 +1484,13 @@ export type Database = {
         }
         Returns: string
       }
-      is_company_member: {
-        Args: { _company_id: string; _user_id: string }
-        Returns: boolean
-      }
-      is_company_owner: {
-        Args: { _company_id: string; _user_id: string }
-        Returns: boolean
-      }
       list_my_trades: {
         Args: { _limit?: number; _symbol?: string; _user_id: string }
         Returns: {
           asset_class: string
           created_at: string
           id: string
-          order_id: string | null
+          order_id: string
           price: number
           qty: number
           side: string
@@ -1368,17 +1502,17 @@ export type Database = {
         Returns: {
           asset_class: string
           brand_id: string
-          change_24h_pct: number | null
-          company_id: string | null
-          company_name_ar: string | null
-          company_name_en: string | null
-          last_price: number | null
-          last_trade_at: string | null
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          last_price: number
+          last_trade_at: string
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string | null
-          shariah_status: string | null
+          sector: string
+          shariah_status: string
           slug: string
           symbol: string
           trades_24h: number
@@ -1397,11 +1531,15 @@ export type Database = {
           _user_id: string
         }
         Returns: {
-          avg_price: number | null
+          avg_price: number
           filled_qty: number
           order_id: string
           status: string
         }[]
+      }
+      money_prorata: {
+        Args: { _amount: number; _part: number; _whole: number }
+        Returns: number
       }
       move_to_dlq: {
         Args: {
@@ -1411,6 +1549,26 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      open_buy_reserve: { Args: { _user_id: string }; Returns: number }
+      portfolio_positions: {
+        Args: { _user_id: string }
+        Returns: {
+          asset_class: string
+          avg_price: number
+          band_reference: number
+          cost_basis: number
+          last_price: number
+          last_trade_at: string
+          name_ar: string
+          name_en: string
+          published: boolean
+          qty: number
+          reserved_qty: number
+          slug: string
+          symbol: string
+          updated_at: string
+        }[]
       }
       post_cash_movement: {
         Args: {
@@ -1441,30 +1599,30 @@ export type Database = {
           id: string
           name_ar: string
           name_en: string
-          sector: string | null
+          sector: string
         }[]
       }
       public_instrument: {
         Args: { _slug: string }
         Returns: {
           asset_class: string
-          band_high: number | null
-          band_low: number | null
-          band_reference: number | null
-          change_24h_pct: number | null
-          company_id: string | null
-          company_name_ar: string | null
-          company_name_en: string | null
-          day_high: number | null
-          day_low: number | null
-          day_open: number | null
-          last_price: number | null
-          last_trade_at: string | null
+          band_high: number
+          band_low: number
+          band_reference: number
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          day_high: number
+          day_low: number
+          day_open: number
+          last_price: number
+          last_trade_at: string
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string | null
-          shariah_status: string | null
+          sector: string
+          shariah_status: string
           slug: string
           symbol: string
           trades_24h: number
@@ -1476,17 +1634,17 @@ export type Database = {
         Args: { _company_id?: string }
         Returns: {
           asset_class: string
-          change_24h_pct: number | null
-          company_id: string | null
-          company_name_ar: string | null
-          company_name_en: string | null
-          last_price: number | null
-          last_trade_at: string | null
+          change_24h_pct: number
+          company_id: string
+          company_name_ar: string
+          company_name_en: string
+          last_price: number
+          last_trade_at: string
           name_ar: string
           name_en: string
           reference_price: number
-          sector: string | null
-          shariah_status: string | null
+          sector: string
+          shariah_status: string
           slug: string
           symbol: string
           trades_24h: number
@@ -1497,7 +1655,7 @@ export type Database = {
       public_market_summary: {
         Args: never
         Returns: {
-          last_trade_at: string | null
+          last_trade_at: string
           listed_count: number
           trades_24h: number
           volume_24h_value: number
@@ -1517,11 +1675,15 @@ export type Database = {
           effective_at: string
           name_ar: string
           name_en: string
-          reason: string | null
+          reason: string
           slug: string
           status: string
           symbol: string
         }[]
+      }
+      rate_limit_bucket: {
+        Args: { _at: string; _window_seconds: number }
+        Returns: string
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
@@ -1535,10 +1697,41 @@ export type Database = {
         Args: { _actor_id: string; _reason?: string; _request_id: string }
         Returns: undefined
       }
-      replace_order: {
-        Args: { _order_id: string; _price: number; _qty: number; _user_id: string }
+      renew_company_invitation: {
+        Args: {
+          _actor_id: string
+          _invitation_id: string
+          _rotate_token?: boolean
+        }
         Returns: {
-          avg_price: number | null
+          accepted_at: string | null
+          accepted_by: string | null
+          company_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["company_role"]
+          status: string
+          token: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      replace_order: {
+        Args: {
+          _order_id: string
+          _price: number
+          _qty: number
+          _user_id: string
+        }
+        Returns: {
+          avg_price: number
           filled_qty: number
           order_id: string
           status: string
@@ -1547,10 +1740,44 @@ export type Database = {
       restore_order: {
         Args: { _order_id: string; _user_id: string }
         Returns: {
-          avg_price: number | null
+          avg_price: number
           filled_qty: number
           order_id: string
           status: string
+        }[]
+      }
+      review_submission: {
+        Args: {
+          _decision: string
+          _reason?: string
+          _replace_ruling?: boolean
+          _reviewer_id: string
+          _submission_id: string
+        }
+        Returns: {
+          brand_id: string
+          previous_ruling: string
+          ruling_id: string
+          ruling_recorded: boolean
+          status: string
+          submission_id: string
+          symbol: string
+        }[]
+      }
+      reviewer_instruments: {
+        Args: { _actor_id: string }
+        Returns: {
+          asset_class: string
+          has_company: boolean
+          name_ar: string
+          name_en: string
+          published: boolean
+          ruling_effective_at: string
+          sector: string
+          shariah_status: string
+          slug: string
+          submission_status: string
+          symbol: string
         }[]
       }
       search_companies_public: {
@@ -1568,8 +1795,37 @@ export type Database = {
           brand_id: string
           cancelled_orders: number
           changed: boolean
-          company_id: string | null
+          company_id: string
           published: boolean
+          symbol: string
+        }[]
+      }
+      set_reference_price: {
+        Args: { _actor_id: string; _price: number; _symbol: string }
+        Returns: {
+          brand_id: string
+          changed: boolean
+          previous_price: number
+          reference_price: number
+          symbol: string
+        }[]
+      }
+      shariah_decision_is_mine: {
+        Args: { _decision_id: string }
+        Returns: boolean
+      }
+      update_shariah_decision: {
+        Args: {
+          _actor_id: string
+          _change_reason: string
+          _decision_id: string
+          _reason: string
+          _status: string
+        }
+        Returns: {
+          decision_id: string
+          previous_status: string
+          status: string
           symbol: string
         }[]
       }
@@ -1597,12 +1853,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1626,11 +1882,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1651,11 +1907,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1676,11 +1932,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1693,11 +1949,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
