@@ -13,6 +13,7 @@ import {
   type PublicInstrument,
   type ShariahStatus,
 } from "@/lib/market/public-market.functions";
+import { ASSET_CLASS_LABEL, isAssetClass } from "@/lib/market/asset-classes";
 
 /**
  * Client helpers for the public market data (src/lib/market). Every number
@@ -133,12 +134,19 @@ export function formatPrice(n: number): string {
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
-/** Label key for an asset class; unknown classes are shown as stored. */
+/** Label for an approved asset class (src/lib/market/asset-classes.ts). */
 export function assetClassLabel(assetClass: string, t: ReturnType<typeof useI18n>["t"]): string {
-  if (assetClass === "brand") return t("e2_assetBrand");
-  if (assetClass === "stock") return t("e2_assetStock");
-  if (assetClass === "sukuk") return t("e2_assetSukuk");
-  return assetClass;
+  return isAssetClass(assetClass) ? t(ASSET_CLASS_LABEL[assetClass]) : assetClass;
+}
+
+/** Visible class tag for an instrument row or header. */
+export function AssetClassBadge({ assetClass }: { assetClass: string }) {
+  const { t } = useI18n();
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded border border-border bg-secondary/40 px-1.5 text-[10px] font-medium leading-4 text-ink-soft">
+      {assetClassLabel(assetClass, t)}
+    </span>
+  );
 }
 
 /**

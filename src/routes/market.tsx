@@ -28,8 +28,12 @@ import {
   useMarketOverview,
 } from "@/components/market-data";
 import type { PublicInstrument } from "@/lib/market/public-market.functions";
+import { AssetClassBadge } from "@/components/market-data";
+import { ASSET_CLASSES, countByClass, isAssetClass, type AssetClass } from "@/lib/market/asset-classes";
 
 export const Route = createFileRoute("/market")({
+  validateSearch: (s: Record<string, unknown>): { class?: AssetClass } =>
+    isAssetClass(s.class) ? { class: s.class } : {},
   loader: async () => ({ overview: await loadOverviewOrNull() }),
   head: () => ({
     meta: [
@@ -79,15 +83,19 @@ function MarketPage() {
   const { t, lang } = useI18n();
   const { overview } = Route.useLoaderData();
   const market = useMarketOverview(overview);
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const assetClass: AssetClass | "all" = search.class ?? "all";
+  const setAssetClass = (c: AssetClass | "all") =>
+    navigate({ search: (s) => ({ ...s, class: c === "all" ? undefined : c }), replace: true, resetScroll: false });
   const [q, setQ] = useState("");
   const [sector, setSector] = useState<string>("all");
-  const [assetClass, setAssetClass] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("value");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const instruments = useMemo(() => market.data?.instruments ?? [], [market.data]);
   const summary = market.data?.summary ?? null;
-  const classes = useMemo(() => Array.from(new Set(instruments.map((i) => i.assetClass))).sort(), [instruments]);
+  const classCounts = useMemo(() => countByClass(instruments), [instruments]);
   const sectors = useMemo(
     () => Array.from(new Set(instruments.map((i) => i.sector).filter((s): s is string => !!s))).sort(),
     [instruments],
@@ -168,15 +176,17 @@ function MarketPage() {
             />
           </dl>
 
-          {classes.length > 1 && (
-            <div role="group" aria-label={t("a11yAssetClass")} className="mb-4 flex flex-wrap gap-2">
-              {["all", ...classes].map((c) => (
+          <div role="group" aria-label={t("a11yAssetClass")} className="mb-4 flex flex-wrap gap-2">
+            {(["all", ...ASSET_CLASSES] as const).map((c) => {
+              const n = c === "all" ? instruments.length : classCounts[c];
+              return (
                 <button key={c} type="button" aria-pressed={assetClass === c} onClick={() => setAssetClass(c)} className={chip(assetClass === c)}>
-                  {c === "all" ? t("all") : assetClassLabel(c, t)}
+                  {c === "all" ? t("u_classAllCount") : assetClassLabel(c, t)}
+                  <span className="ms-1.5 font-mono text-[11px] opacity-70">{n}</span>
                 </button>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
 
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
@@ -256,7 +266,8 @@ function MarketPage() {
                         <span className="truncate font-semibold text-ink">{instrumentName(b, lang)}</span>
                         <ShariahPill status={b.shariahStatus} compact />
                       </div>
-                      <div className="truncate text-xs text-muted-foreground">
+                      <div className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+                        <AssetClassBadge assetClass={b.assetClass} />
                         <span dir="ltr">{b.symbol}</span>
                         {b.sector ? ` · ${sectorLabel(b.sector, t)}` : ""}
                       </div>
@@ -287,7 +298,8 @@ function MarketPage() {
                       <span className="truncate text-sm font-semibold text-ink">{instrumentName(b, lang)}</span>
                       <ShariahPill status={b.shariahStatus} compact />
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+                      <AssetClassBadge assetClass={b.assetClass} />
                       <span dir="ltr">{b.symbol}</span>
                       {b.sector ? ` · ${sectorLabel(b.sector, t)}` : ""}
                     </div>
@@ -300,7 +312,10 @@ function MarketPage() {
               ))}
               {filtered.length === 0 && (
                 <div className="p-4">
-                  <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+                  <EmptyState
+                    title={t("emptyTitle")}
+                    description={assetClass !== "all" && classCounts[assetClass] === 0 ? t("u_classEmpty") : t("emptyDesc")}
+                  />
                 </div>
               )}
             </div>

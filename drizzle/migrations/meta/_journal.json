@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791374262245,
+      "tag": "0000_asset_class_catalog",
+      "breakpoints": true
+    }
+  ]
+}
