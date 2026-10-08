@@ -18,6 +18,7 @@ import {
   markOf,
   sectorLabel,
 } from "@/components/market-data";
+import { InstrumentAssistant } from "@/components/instrument-assistant";
 import { ChartPanel, OrderBookPanel, Panel, RecentTradesPanel, useLiveInstrument } from "@/components/market-panels";
 
 export const Route = createFileRoute("/market_/$slug")({
@@ -182,6 +183,10 @@ function BrandDetail() {
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{t("e2_shariahNote")}</p>
           )}
         </Panel>
+      </div>
+
+      <div className="mt-6">
+        <InstrumentAssistant slug={brand.slug} />
       </div>
     </AppShell>
   );
