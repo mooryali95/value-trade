@@ -11,3 +11,5 @@
 
 ## Database migrations
 - A file in `supabase/migrations/` only takes effect once applied to the live database through Lovable's migration tool, byte-for-byte and in filename order — why: Git-pushed migrations are not auto-applied, and code calling unapplied functions breaks (see docs/database-migrations.md).
+- Asset classes come only from `src/lib/market/asset-classes.ts`, mirrored by DB CHECK constraints on `brands`/`product_submissions` — why: UI, filters and the database must agree on one approved list.
+- The investor assistant (`/api/instrument-assistant`) answers only from platform data built server-side in `src/lib/assistant/*.server.ts`, signed-in users, per-user daily rate limit — why: grounded answers, controlled cost.

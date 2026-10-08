@@ -92,6 +92,8 @@ export async function streamAnswer(opts: {
   let buf = "";
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
+      // Keep reading until at least one text delta is emitted (or the stream ends).
+      for (let sent = false; !sent; ) {
       const { done, value } = await reader.read();
       if (done) { controller.close(); return; }
       buf += dec.decode(value, { stream: true });
@@ -103,9 +105,10 @@ export async function streamAnswer(opts: {
         if (!raw || raw === "[DONE]") continue;
         try {
           const ev = JSON.parse(raw);
-          if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") controller.enqueue(enc.encode(ev.delta));
+          if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") { controller.enqueue(enc.encode(ev.delta)); sent = true; }
           else if (ev.type === "error" || ev.type === "response.failed") controller.error(new Error("STREAM_FAILED"));
         } catch { /* partial or non-JSON line */ }
+      }
       }
     },
     cancel() { reader.cancel().catch(() => {}); },
