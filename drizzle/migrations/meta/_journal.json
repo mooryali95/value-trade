@@ -8,6 +8,13 @@
       "when": 1791374262245,
       "tag": "0000_asset_class_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791513713710,
+      "tag": "0001_offerings_all_classes_and_security_review",
+      "breakpoints": true
     }
   ]
 }

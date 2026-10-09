@@ -813,6 +813,7 @@ export type Database = {
           listing_reason: string | null
           name_ar: string
           name_en: string
+          offering_details: Json
           prospectus_url: string | null
           review_reason: string | null
           reviewed_at: string | null
@@ -835,6 +836,7 @@ export type Database = {
           listing_reason?: string | null
           name_ar: string
           name_en: string
+          offering_details?: Json
           prospectus_url?: string | null
           review_reason?: string | null
           reviewed_at?: string | null
@@ -857,6 +859,7 @@ export type Database = {
           listing_reason?: string | null
           name_ar?: string
           name_en?: string
+          offering_details?: Json
           prospectus_url?: string | null
           review_reason?: string | null
           reviewed_at?: string | null
