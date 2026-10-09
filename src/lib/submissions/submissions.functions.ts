@@ -1,3 +1,5 @@
+import { ASSET_CLASSES } from "@/lib/market/asset-classes";
+import { validateOfferingDetails } from "./offering-schema";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
