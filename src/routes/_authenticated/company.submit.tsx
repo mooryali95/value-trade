@@ -18,8 +18,11 @@ import { submitProduct } from "@/lib/submissions/submissions.functions";
 import { LifecycleSteps } from "@/lib/submissions/lifecycle";
 import { SECTORS, sectorLabel } from "@/components/market-data";
 import { toast } from "sonner";
+import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/lib/market/asset-classes";
+import { offeringFields } from "@/lib/submissions/offering-schema";
+import { SubmissionDocuments } from "@/components/submission-documents";
 
-const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
+const ASSET_LABEL: Record<AssetClass, Key> = ASSET_CLASS_LABEL;
 
 export const Route = createFileRoute("/_authenticated/company/submit")({
   validateSearch: (s: Record<string, unknown>) =>
@@ -49,17 +52,19 @@ function SubmitPage() {
   const { companyRole, isLoading: rolesLoading } = useMyRoles();
 
   const [step, setStep] = useState(1);
+  const [created, setCreated] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     companyId: companyId ?? activeId ?? "",
-    // The market lists brand units only (Terms of use); the database refuses
-    // any other asset class (ASSET_CLASS_NOT_SUPPORTED).
-    asset_class: "brand" as const,
+    asset_class: "brand" as AssetClass,
     symbol: "",
     name_ar: "",
     name_en: "",
     sector: "",
     prospectus_url: "",
   });
+  const fields = offeringFields(form.asset_class);
+  const detailsOk = form.asset_class === "brand" || fields.every((f) => !f.required || (details[f.key] ?? "").trim());
 
   const mutation = useMutation({
     mutationFn: () => submitFn({
@@ -71,14 +76,17 @@ function SubmitPage() {
         name_en: form.name_en,
         sector: form.sector || undefined,
         prospectus_url: form.prospectus_url || undefined,
+        offering_details: Object.fromEntries(Object.entries(details).filter(([k, v]) => v.trim() && fields.some((f) => f.key === k))),
       },
     }),
-    onSuccess: () => {
+    onSuccess: (row) => {
       toast.success(t("submissionSubmitted"));
-      navigate({ to: "/company/submissions", search: { companyId: form.companyId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc", page: 1, pageSize: 25 } });
+      setCreated(row.id);
     },
     onError: (e: unknown) => toast.error(errorMessage(e)),
   });
+  const goToList = () =>
+    navigate({ to: "/company/submissions", search: { companyId: form.companyId, q: "", status: "all", asset: "all", sortBy: "submitted", sortDir: "desc", page: 1, pageSize: 25 } });
 
   const targetCompanyId = form.companyId || companyId || activeId || "";
   const role = targetCompanyId ? companyRole(targetCompanyId) : undefined;
@@ -94,7 +102,26 @@ function SubmitPage() {
 
   const stepTitles = [t("wizardStepCompany"), t("wizardStepDetails"), t("wizardReview")];
   const step1Ok = Boolean(form.companyId);
-  const step2Ok = Boolean(form.symbol && form.name_ar && form.name_en);
+  const step2Ok = Boolean(form.symbol && form.name_ar && form.name_en && detailsOk);
+
+  if (created) {
+    return (
+      <AppShell>
+        <PageHeader eyebrow={t("companies")} title={t("submitProductForm")} />
+        <div className="mx-auto max-w-2xl space-y-4 rounded-xl border border-border/60 bg-card p-6">
+          <p className="text-sm text-ink">
+            {lang === "ar"
+              ? "تم استلام طلب الطرح. أرفق الآن نشرة الإصدار والمستندات الداعمة (PDF أو صور) ليراجعها المختصون."
+              : "Offering received. Attach the prospectus and supporting documents (PDF or images) for review."}
+          </p>
+          <SubmissionDocuments submissionId={created} canUpload canDelete />
+          <button type="button" onClick={goToList} className="min-h-11 w-full rounded-md gold-gradient px-4 text-sm font-semibold text-ink">
+            {lang === "ar" ? "الانتقال إلى طلباتي" : "Go to my submissions"}
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
   const companyName = (list.data ?? []).find((m) => m.company.id === form.companyId)?.company;
 
   return (
@@ -148,7 +175,11 @@ function SubmitPage() {
             </select>
           </Field>
           <Field label={t("g_colClass")}>
-            <div className="w-full rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm text-ink">{t("g_assetBrand")}</div>
+            <select value={form.asset_class} onChange={(e) => { setForm({ ...form, asset_class: e.target.value as AssetClass }); setDetails({}); }} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+              {ASSET_CLASSES.map((c) => (
+                <option key={c} value={c}>{t(ASSET_CLASS_LABEL[c])}</option>
+              ))}
+            </select>
           </Field>
           </>
           )}
@@ -177,6 +208,28 @@ function SubmitPage() {
           <Field label={t("prospectusUrl")}>
             <input type="url" value={form.prospectus_url} onChange={(e) => setForm({ ...form, prospectus_url: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" placeholder="https://..." />
           </Field>
+          {fields.length > 0 && (
+            <fieldset className="space-y-3 rounded-lg border border-border/60 p-3">
+              <legend className="px-1 text-caption font-semibold text-ink">
+                {lang === "ar" ? "بيانات نشرة الإصدار" : "Prospectus details"}
+              </legend>
+              {fields.map((f) => {
+                const label = `${lang === "ar" ? f.ar : f.en}${f.required && form.asset_class !== "brand" ? " *" : ""}`;
+                const cls = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm";
+                const v = details[f.key] ?? "";
+                const set = (x: string) => setDetails({ ...details, [f.key]: x });
+                return (
+                  <Field key={f.key} label={label}>
+                    {f.kind === "longtext" ? (
+                      <textarea rows={3} maxLength={2000} value={v} onChange={(e) => set(e.target.value)} className={cls} />
+                    ) : (
+                      <input type={f.kind === "number" ? "number" : f.kind === "date" ? "date" : "text"} min={f.kind === "number" ? 0 : undefined} step="any" value={v} onChange={(e) => set(e.target.value)} className={cls} />
+                    )}
+                  </Field>
+                );
+              })}
+            </fieldset>
+          )}
           </>
           )}
 
@@ -190,6 +243,9 @@ function SubmitPage() {
                 <Row label={t("nameEn")} value={form.name_en || "—"} />
                 <Row label={t("sector")} value={sectorLabel(form.sector, t) || "—"} />
                 <Row label={t("prospectusUrl")} value={form.prospectus_url || "—"} />
+                {fields.filter((f) => (details[f.key] ?? "").trim()).map((f) => (
+                  <Row key={f.key} label={lang === "ar" ? f.ar : f.en} value={details[f.key]} />
+                ))}
               </dl>
               <div className="rounded-lg border border-border/60 p-3">
                 <div className="text-caption font-semibold text-ink">{t("wizardWillHappen")}</div>
