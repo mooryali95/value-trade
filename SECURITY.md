@@ -439,3 +439,9 @@ See `docs/api-public.md` for the exact scheduling SQL and response contracts.
 
 - Security contact: **owner input pending** (see *Reporting a Vulnerability*).
 - On-call: see internal runbook.
+## Approved SECURITY DEFINER exposure (review 2026-10-08)
+Linter warnings for these functions are accepted; each returns no personal data (also recorded as `COMMENT ON FUNCTION ... 'SECURITY-APPROVED ...'`):
+- anon + authenticated: get_order_book, get_symbol_last_trade, public_candles, public_company_profile, public_instrument, public_market_overview, public_market_summary, public_recent_trades, public_shariah_rulings — aggregated public market data, no buyer/seller/user ids.
+- authenticated: has_role, has_company_role, is_company_member, is_company_owner, shariah_decision_is_mine — boolean checks used by RLS.
+- launch_review_holds: RLS on with no policies by design (service role only).
+New SECURITY DEFINER functions must be added here with the same justification.

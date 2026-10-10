@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/instrument-assistant")({
         if (!ctx) return err(404, "NOT_FOUND");
 
         try {
-          const stream = await streamAnswer({ apiKey, context: ctx.context, question: parsed.data.question, lang: parsed.data.lang, signal: request.signal });
+          const stream = await streamAnswer({ apiKey, context: ctx.context, files: ctx.files, question: parsed.data.question, lang: parsed.data.lang, signal: request.signal });
           return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
         } catch (e) {
           if (request.signal.aborted) return new Response(null, { status: 499 });
