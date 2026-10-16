@@ -1,3 +1,5 @@
+import { ASSET_CLASSES } from "@/lib/market/asset-classes";
+import { validateOfferingDetails } from "./offering-schema";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -56,12 +58,13 @@ export function lifecycleError(tag: string, error: { message?: string | null; co
 
 const SubmitInput = z.object({
   companyId: z.string().uuid(),
-  asset_class: z.enum(["stock", "sukuk", "brand"]),
+  asset_class: z.enum(ASSET_CLASSES),
   symbol: z.string().trim().regex(/^[A-Za-z0-9._-]{1,32}$/, "INVALID_SYMBOL"),
   name_ar: z.string().min(1).max(160),
   name_en: z.string().min(1).max(160),
   sector: z.string().max(80).optional(),
   prospectus_url: z.string().url().max(500).optional(),
+  offering_details: z.record(z.string(), z.string().max(2000)).optional(),
 });
 
 /** Stable codes instead of a raw validation dump. */
@@ -71,7 +74,7 @@ export function parseSubmitInput(input: unknown): z.infer<typeof SubmitInput> {
     const field = parsed.error.issues[0]?.path[0];
     throw new Error(field === "symbol" ? "INVALID_SYMBOL" : field === "companyId" ? "FORBIDDEN" : "INVALID_INPUT");
   }
-  return parsed.data;
+  return { ...parsed.data, offering_details: validateOfferingDetails(parsed.data.asset_class, parsed.data.offering_details) };
 }
 
 export const submitProduct = createServerFn({ method: "POST" })
@@ -90,6 +93,7 @@ export const submitProduct = createServerFn({ method: "POST" })
         name_en: data.name_en,
         sector: data.sector ?? null,
         prospectus_url: data.prospectus_url ?? null,
+        offering_details: data.offering_details ?? {},
       })
       .select("id, status, symbol")
       .single();

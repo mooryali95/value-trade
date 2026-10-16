@@ -22,6 +22,7 @@ import { Route as AuthenticatedAccessRequestsRouteImport } from './routes/_authe
 import { Route as AuthenticatedInvitationsRouteImport } from './routes/_authenticated/invitations'
 import { Route as AuthenticatedPortfolioRouteImport } from './routes/_authenticated/portfolio'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as ApiInstrumentAssistantRouteImport } from './routes/api/instrument-assistant'
 import { Route as AuthUpdatePasswordRouteImport } from './routes/auth_.update-password'
 import { Route as CompanyIdRouteImport } from './routes/company.$id'
 import { Route as DocsA11yRouteImport } from './routes/docs.a11y'
@@ -123,6 +124,11 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiInstrumentAssistantRoute = ApiInstrumentAssistantRouteImport.update({
+  id: '/api/instrument-assistant',
+  path: '/api/instrument-assistant',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthUpdatePasswordRoute = AuthUpdatePasswordRouteImport.update({
   id: '/auth_/update-password',
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/instrument-assistant': typeof ApiInstrumentAssistantRoute
   '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
@@ -377,6 +384,7 @@ export interface FileRoutesByTo {
   '/invitations': typeof AuthenticatedInvitationsRoute
   '/portfolio': typeof AuthenticatedPortfolioRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/instrument-assistant': typeof ApiInstrumentAssistantRoute
   '/auth/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
@@ -428,6 +436,7 @@ export interface FileRoutesById {
   '/_authenticated/invitations': typeof AuthenticatedInvitationsRoute
   '/_authenticated/portfolio': typeof AuthenticatedPortfolioRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/instrument-assistant': typeof ApiInstrumentAssistantRoute
   '/auth_/update-password': typeof AuthUpdatePasswordRoute
   '/company/$id': typeof CompanyIdRoute
   '/docs/a11y': typeof DocsA11yRoute
@@ -479,6 +488,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/portfolio'
     | '/workspace'
+    | '/api/instrument-assistant'
     | '/auth/update-password'
     | '/company/$id'
     | '/docs/a11y'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/portfolio'
     | '/workspace'
+    | '/api/instrument-assistant'
     | '/auth/update-password'
     | '/company/$id'
     | '/docs/a11y'
@@ -578,6 +589,7 @@ export interface FileRouteTypes {
     | '/_authenticated/invitations'
     | '/_authenticated/portfolio'
     | '/_authenticated/workspace'
+    | '/api/instrument-assistant'
     | '/auth_/update-password'
     | '/company/$id'
     | '/docs/a11y'
@@ -625,6 +637,7 @@ export interface RootRouteChildren {
   ShariahRoute: typeof ShariahRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ApiInstrumentAssistantRoute: typeof ApiInstrumentAssistantRoute
   AuthUpdatePasswordRoute: typeof AuthUpdatePasswordRoute
   CompanyIdRoute: typeof CompanyIdRoute
   DocsA11yRoute: typeof DocsA11yRoute
@@ -740,6 +753,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/workspace'
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/instrument-assistant': {
+      id: '/api/instrument-assistant'
+      path: '/api/instrument-assistant'
+      fullPath: '/api/instrument-assistant'
+      preLoaderRoute: typeof ApiInstrumentAssistantRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/auth_/update-password': {
       id: '/auth_/update-password'
@@ -1045,6 +1065,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShariahRoute: ShariahRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  ApiInstrumentAssistantRoute: ApiInstrumentAssistantRoute,
   AuthUpdatePasswordRoute: AuthUpdatePasswordRoute,
   CompanyIdRoute: CompanyIdRoute,
   DocsA11yRoute: DocsA11yRoute,
