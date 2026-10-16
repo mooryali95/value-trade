@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useI18n, type Key } from "@/lib/i18n";
 import { useSignedIn } from "@/hooks/use-signed-in";
 import { Panel } from "@/components/market-panels";
+import { LiveRegion } from "@/components/live-region";
 
 const QUICK: Key[] = ["ai_qSummary", "ai_qRisks", "ai_qPrice"];
 
@@ -87,8 +88,10 @@ export function InstrumentAssistant({ slug }: { slug: string }) {
                 className="grid h-11 w-11 shrink-0 place-items-center rounded-md gold-gradient text-ink disabled:opacity-50"><PaperPlaneRight size={18} weight="fill" className="rtl:-scale-x-100" /></button>
             )}
           </form>
+          {/* The answer streams in chunks; announce it once, when complete. */}
+          <LiveRegion message={!busy && !error ? answer : busy ? t("ai_thinking") : ""} />
           {(asked || error) && (
-            <div className="mt-4 space-y-2" aria-live="polite">
+            <div className="mt-4 space-y-2">
               {asked && (
                 <div className="ms-auto w-fit max-w-[85%] rounded-lg bg-ink px-3 py-2 text-sm text-ivory">{asked}</div>
               )}
