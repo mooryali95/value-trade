@@ -48,6 +48,9 @@ test("listing lifecycle: submission -> Shariah approval -> listing with first un
     await expect(owner.locator("dl")).toContainText(SAMPLE_COMPANY_A.nameAr);
     await owner.getByRole("button", { name: t("submitProduct") }).click();
     await expect(toast(owner, t("submissionSubmitted"))).toBeVisible();
+    // The page then offers to attach the prospectus and documents; continue
+    // to the submissions list from there.
+    await owner.getByRole("button", { name: "الانتقال إلى طلباتي" }).click();
     await owner.waitForURL((u) => u.pathname === "/company/submissions");
     await expect(owner.getByText(symbol).first()).toBeVisible();
 
