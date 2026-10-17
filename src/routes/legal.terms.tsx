@@ -10,10 +10,10 @@ export const Route = createFileRoute("/legal/terms")({
       {
         name: "description",
         content:
-          "شروط استخدام وحدة القيمة، السوق الخاصة لوحدات العلامات التجارية. · Terms of use of Value Unit, the private market for brand units.",
+          "شروط استخدام وحدة القيمة، السوق الخاصة للأسهم والصناديق والصكوك ووحدات العلامات التجارية. · Terms of use of Value Unit, the private market for stocks, funds, sukuk and brand units.",
       },
       { property: "og:title", content: "Terms of Service — Value Unit" },
-      { property: "og:description", content: "Terms of use of Value Unit, the private, invitation-only market for brand units." },
+      { property: "og:description", content: "Terms of use of Value Unit, the private, invitation-only market of the Value Unit ecosystem for stocks, funds, sukuk and brand units." },
       { property: "og:url", content: canonicalUrl("/legal/terms") },
       { name: "robots", content: "index,follow" },
     ],
@@ -36,7 +36,7 @@ function TermsPage() {
 function ArSummary() {
   return (
     <p>
-      وحدة القيمة سوق خاصة لوحدات العلامات التجارية، يقتصر الدخول إليها على من توافق عليهم إدارة المنصة. لا يُعدّ أي محتوى
+      وحدة القيمة سوق خاصة ضمن منظومة وحدة القيمة للأسهم والصناديق والصكوك ووحدات العلامات التجارية، يقتصر الدخول إليها على من توافق عليهم إدارة المنصة. لا يُعدّ أي محتوى
       في المنصة نصيحة استثمارية، وقد تنخفض قيمة الوحدات أو يتعذّر بيعها. يُرجى قراءة{" "}
       <Link to="/legal/risk" className={linkCls}>إفصاح المخاطر</Link> قبل التداول.
     </p>
@@ -46,8 +46,8 @@ function ArSummary() {
 function EnSummary() {
   return (
     <p>
-      Value Unit is a private market for brand units, open only to participants approved by the platform administration.
-      Nothing on the Platform is investment advice, and brand units can lose value or be hard to sell. Please read the{" "}
+      Value Unit is a private market within the Value Unit ecosystem for stocks, funds, sukuk and brand units, open only to participants approved by the platform administration.
+      Nothing on the Platform is investment advice, and listed instruments can lose value or be hard to sell. Please read the{" "}
       <Link to="/legal/risk" className={linkCls}>Risk Disclosure</Link> before trading.
     </p>
   );
@@ -74,9 +74,9 @@ function arSections(): LegalSection[] {
       body: (
         <>
           <p>
-            المنصة سوق خاصة تُدرج فيها الشركات وحدات مرتبطة بعلاماتها التجارية («وحدات العلامات التجارية»)، ويشتريها
-            المستثمرون المعتمدون ويبيعونها فيما بينهم عبر دفتر أوامر. المنصة ليست سوقًا ماليةً عامة، ولا يعني إدراج أي علامة
-            تجارية أن المنصة تزكّيها أو تضمن قيمتها.
+            المنصة سوق خاصة تُدرج فيها الشركات أدواتها («الأدوات»): الأسهم والصناديق والصكوك، والوحدات المرتبطة بعلاماتها التجارية («وحدات العلامات التجارية»)، ويشتريها
+            المستثمرون المعتمدون ويبيعونها فيما بينهم عبر دفتر أوامر. المنصة ليست سوقًا ماليةً عامة، ولا يعني إدراج أي أداة
+            أن المنصة تزكّيها أو تضمن قيمتها.
           </p>
         </>
       ),
@@ -97,17 +97,17 @@ function arSections(): LegalSection[] {
     },
     {
       id: "listings",
-      heading: "إدراج العلامات التجارية",
+      heading: "إدراج الأدوات",
       body: (
         <>
           <p>
-            تقدّم الشركة علامتها التجارية مع المستندات المؤيدة، ويراجعها المراجعون الشرعيون في المنصة فيقبلونها أو يرفضونها،
-            ويُبيَّن سبب الرفض دائمًا. عند القبول تُنشر العلامة للتداول، ويحدد مدير المنصة السعر المرجعي للإدراج، وتدخل الوحدات
+            تقدّم الشركة طلب إدراج الأداة (سهم أو صندوق أو صك أو وحدة علامة تجارية) مع نشرة الإصدار والمستندات المؤيدة، ويراجعها المراجعون الشرعيون في المنصة فيقبلونها أو يرفضونها،
+            ويُبيَّن سبب الرفض دائمًا. عند القبول تُنشر الأداة للتداول، ويحدد مدير المنصة السعر المرجعي للإدراج، وتدخل الوحدات
             السوق عبر إصدار أولي يسجّله مدير المنصة.
           </p>
           <p>
-            تتحمل الشركة مسؤولية صحة المعلومات والمستندات التي تقدّمها ومشروعيتها، وامتلاكها الحقوق اللازمة في العلامة التجارية.
-            المراجعة الشرعية ليست تدقيقًا ماليًا ولا تقييمًا مستقلًا للعلامة.
+            تتحمل الشركة مسؤولية صحة المعلومات والمستندات التي تقدّمها ومشروعيتها، وامتلاكها الحقوق اللازمة في الأداة وأصولها.
+            المراجعة الشرعية ليست تدقيقًا ماليًا ولا تقييمًا مستقلًا للأداة.
           </p>
         </>
       ),
@@ -178,7 +178,7 @@ function arSections(): LegalSection[] {
       heading: "المخاطر",
       body: (
         <p>
-          قد تفقد وحدات العلامات التجارية جزءًا من قيمتها أو قيمتها كلها، وقد لا يوجد مشترٍ بالسعر الذي تريده أو بأي سعر. لا
+          قد تفقد الأدوات المدرجة جزءًا من قيمتها أو قيمتها كلها، وقد لا يوجد مشترٍ بالسعر الذي تريده أو بأي سعر. لا
           تضمن المنصة وجود طرف مقابل ولا إمكانية الخروج، ولا تشتري الوحدات من المستثمرين. التفاصيل في{" "}
           <Link to="/legal/risk" className={linkCls}>إفصاح المخاطر</Link>.
         </p>
@@ -292,9 +292,9 @@ function enSections(): LegalSection[] {
       heading: "The service",
       body: (
         <p>
-          The Platform is a private market on which companies list units linked to their brands ("brand units") and approved
+          The Platform is a private market on which companies list instruments ("Instruments"): stocks, funds, sukuk, and units linked to their brands ("brand units") and approved
           investors buy and sell them among themselves on an order book. The Platform is not a public exchange, and the listing
-          of a brand is not an endorsement of it or a guarantee of its value.
+          of an Instrument is not an endorsement of it or a guarantee of its value.
         </p>
       ),
     },
@@ -314,19 +314,19 @@ function enSections(): LegalSection[] {
     },
     {
       id: "listings",
-      heading: "Brand listings",
+      heading: "Listing instruments",
       body: (
         <>
           <p>
-            A company submits its brand with supporting documents. The Platform's Shariah reviewers approve or reject the
-            submission, and a rejection always states its reason. On approval the brand is published for trading, the platform
+            A company submits a listing request for an Instrument (a stock, fund, sukuk or brand unit) with its prospectus and supporting documents. The Platform's Shariah reviewers approve or reject the
+            submission, and a rejection always states its reason. On approval the Instrument is published for trading, the platform
             administrator sets its listing reference price, and units enter the market through a primary issuance recorded by the
             platform administrator.
           </p>
           <p>
             The company is responsible for the accuracy and lawfulness of the information and documents it submits and for
-            holding the necessary rights in the brand. Shariah review is not a financial audit or an independent valuation of the
-            brand.
+            holding the necessary rights in the Instrument and its underlying assets. Shariah review is not a financial audit or an independent valuation of the
+            Instrument.
           </p>
         </>
       ),
