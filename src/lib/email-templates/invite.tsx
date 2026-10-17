@@ -18,11 +18,11 @@ export const InviteEmail = ({ confirmationUrl }: InviteEmailProps) => (
     <Text style={styles.h1En}>Create your account</Text>
     <Text style={styles.h1}>أنشئ حسابك في وحدة القيمة</Text>
     <Text style={styles.text}>
-      وُجّهت إليك دعوة إلى منصة <strong>وحدة القيمة</strong>، السوق الخاصة بالدعوة لوحدات العلامات التجارية.
+      وُجّهت إليك دعوة إلى منصة <strong>وحدة القيمة</strong>، السوق الخاصة بالدعوة ضمن منظومة وحدة القيمة للأسهم والصناديق والصكوك ووحدات العلامات التجارية.
       اضغط الزر أدناه لتفعيل حسابك واختيار كلمة المرور.
     </Text>
     <Text style={styles.textEn} dir="ltr">
-      You have been invited to Value Unit, the private, invitation-only market for brand units. Use the
+      You have been invited to Value Unit, the private, invitation-only market of the Value Unit ecosystem for stocks, funds, sukuk and brand units. Use the
       button below to activate your account and choose your password.
     </Text>
     <div style={styles.buttonWrap}>

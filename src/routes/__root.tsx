@@ -106,7 +106,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 const SITE_TITLE = `${SITE.brandAr} | ${SITE.brandEn}`;
 const SITE_DESCRIPTION =
-  "وحدة القيمة سوق خاصة بالدعوة فقط: تُدرج الشركات وحدات علاماتها التجارية، ويتداولها مستثمرون تفعّلهم إدارة المنصة. Value Unit is a private, invitation-only market for brand units.";
+  "وحدة القيمة سوق خاصة بالدعوة فقط: تُدرج الشركات أسهمها وصناديقها وصكوكها ووحدات علاماتها التجارية، ويتداولها مستثمرون تفعّلهم إدارة المنصة. Value Unit is a private, invitation-only market for brand units.";
 const OG_IMAGE = canonicalUrl("/og-image.png");
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({

@@ -10,10 +10,10 @@ export const Route = createFileRoute("/legal/risk")({
       {
         name: "description",
         content:
-          "المخاطر الرئيسية لتداول وحدات العلامات التجارية في وحدة القيمة. · The main risks of trading brand units on Value Unit.",
+          "المخاطر الرئيسية لتداول الأدوات في وحدة القيمة. · The main risks of trading instruments on Value Unit.",
       },
       { property: "og:title", content: "Risk Disclosure — Value Unit" },
-      { property: "og:description", content: "The main risks of trading brand units on Value Unit, a private market." },
+      { property: "og:description", content: "The main risks of trading instruments on Value Unit, a private market." },
       { property: "og:url", content: canonicalUrl("/legal/risk") },
       { name: "robots", content: "index,follow" },
     ],
@@ -32,7 +32,7 @@ function RiskPage() {
       title="إفصاح المخاطر"
       summary={
         <p>
-          تداول وحدات العلامات التجارية عالي المخاطر. قد تخسر المبلغ الذي استثمرته كله، وقد لا تتمكن من البيع متى أردت. لا
+          تداول الأدوات المدرجة في المنصة عالي المخاطر. قد تخسر المبلغ الذي استثمرته كله، وقد لا تتمكن من البيع متى أردت. لا
           تستثمر إلا مالًا تستطيع تحمّل خسارته، واطلب استشارة مستقلة عند الحاجة.
         </p>
       }
@@ -44,7 +44,7 @@ function RiskPage() {
       title="Risk Disclosure"
       summary={
         <p>
-          Trading brand units is high risk. You could lose all of the money you invest, and you may not be able to sell when
+          Trading the instruments listed on the Platform is high risk. You could lose all of the money you invest, and you may not be able to sell when
           you want to. Only invest money you can afford to lose, and seek independent advice where appropriate.
         </p>
       }
@@ -60,7 +60,7 @@ function arSections(): LegalSection[] {
       heading: "الغرض من هذا الإفصاح",
       body: (
         <p>
-          يبيّن هذا الإفصاح أهم المخاطر المرتبطة بتداول وحدات العلامات التجارية في منصة «وحدة القيمة»، ولا يحصرها جميعًا.
+          يبيّن هذا الإفصاح أهم المخاطر المرتبطة بتداول الأدوات في منصة «وحدة القيمة»، ولا يحصرها جميعًا.
           اقرأه مع <Link to="/legal/terms" className={linkCls}>الشروط والأحكام</Link> قبل تقديم أي أمر.
         </p>
       ),
@@ -103,10 +103,10 @@ function arSections(): LegalSection[] {
     },
     {
       id: "issuer",
-      heading: "مخاطر العلامة التجارية والشركة المدرجة",
+      heading: "مخاطر الجهة المُصدِرة والأداة",
       body: (
         <p>
-          ترتبط قيمة الوحدات بأداء العلامة التجارية وسمعتها وبسلوك الشركة المالكة لها. المعلومات عن العلامة تقدّمها الشركة نفسها،
+          ترتبط قيمة كل أداة بأداء الجهة المُصدِرة وأصولها: نتائج الشركة للأسهم، وأصول الصندوق وإدارته للصناديق، والأصول المصكوكة وقدرة المُصدِر على السداد للصكوك، وأداء العلامة وسمعتها لوحدات العلامات التجارية. المعلومات عن الأداة تقدّمها الشركة نفسها،
           ومراجعة المنصة لها مراجعة شرعية وليست تدقيقًا ماليًا أو قانونيًا ولا ضمانًا لصحتها.
         </p>
       ),
@@ -148,7 +148,7 @@ function arSections(): LegalSection[] {
       heading: "المخاطر النظامية والضريبية",
       body: (
         <p>
-          قد تتغيّر الأنظمة المنطبقة على المنصة أو على وحدات العلامات التجارية، مما قد يقيّد التداول أو يستلزم تغيير الخدمة أو
+          قد تتغيّر الأنظمة المنطبقة على المنصة أو على الأدوات المدرجة فيها، مما قد يقيّد التداول أو يستلزم تغيير الخدمة أو
           إيقافها. وأنت مسؤول عن أي التزامات زكوية أو ضريبية تترتب على تداولاتك.
         </p>
       ),
@@ -178,7 +178,7 @@ function enSections(): LegalSection[] {
       heading: "Purpose of this disclosure",
       body: (
         <p>
-          This disclosure describes the main risks of trading brand units on the Value Unit platform. It does not list every
+          This disclosure describes the main risks of trading instruments on the Value Unit platform. It does not list every
           risk. Read it together with the <Link to="/legal/terms" className={linkCls}>Terms of Service</Link> before placing
           any order.
         </p>
@@ -222,11 +222,12 @@ function enSections(): LegalSection[] {
     },
     {
       id: "issuer",
-      heading: "Brand and company risk",
+      heading: "Issuer and instrument risk",
       body: (
         <p>
-          The value of units depends on the brand's performance and reputation and on the conduct of the company that owns it.
-          Information about a brand is supplied by the company itself; the Platform's review of it is a Shariah review, not a
+          The value of each Instrument depends on its issuer and underlying assets: the company's results for stocks, the fund's
+          assets and management for funds, the underlying assets and the issuer's ability to pay for sukuk, and the brand's
+          performance and reputation for brand units. Information about an Instrument is supplied by the company itself; the Platform's review of it is a Shariah review, not a
           financial or legal audit, and it does not guarantee that the information is accurate.
         </p>
       ),
@@ -269,7 +270,7 @@ function enSections(): LegalSection[] {
       heading: "Legal, regulatory and tax risk",
       body: (
         <p>
-          The rules that apply to the Platform or to brand units may change, which could restrict trading or require the service
+          The rules that apply to the Platform or to the instruments listed on it may change, which could restrict trading or require the service
           to change or stop. You are responsible for any zakat or tax obligations arising from your trades.
         </p>
       ),

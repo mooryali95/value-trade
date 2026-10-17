@@ -218,7 +218,7 @@ export function BrandLayout({
           <Section style={styles.footer}>
             <Text style={styles.footerBrand}>Value Unit · وحدة القيمة</Text>
             <Text style={styles.footerText}>سوق خاصة لوحدات العلامات والأدوات المالية</Text>
-            <Text style={styles.footerText}>Private market for brand units and financial instruments</Text>
+            <Text style={styles.footerText}>Private market for stocks, funds, sukuk and brand units</Text>
             <Text style={{ ...styles.footerText, color: brand.goldDeep, marginTop: 8 }}>
               hub.sunkvalue.com
             </Text>

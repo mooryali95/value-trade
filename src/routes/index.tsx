@@ -59,16 +59,16 @@ export const Route = createFileRoute("/")({
   loader: async () => ({ overview: await loadOverviewOrNull() }),
   head: () => ({
     meta: [
-      { title: "وحدة القيمة — Value Unit | سوق خاص لوحدات العلامات التجارية" },
+      { title: "وحدة القيمة — Value Unit | سوق خاص للأسهم والصناديق والصكوك ووحدات العلامات التجارية" },
       {
         name: "description",
         content:
-          "وحدة القيمة سوق خاص بالدعوة تُدرج فيه الشركات المعتمدة وحدات علاماتها التجارية بعد المراجعة الشرعية. · Value Unit is a private, invitation-only market for brand units.",
+          "وحدة القيمة سوق خاص بالدعوة تُدرج فيه الشركات المعتمدة أدواتها بعد المراجعة الشرعية. · Value Unit is a private, invitation-only market for stocks, funds, sukuk and brand units.",
       },
       { property: "og:title", content: "وحدة القيمة — Value Unit" },
       {
         property: "og:description",
-        content: "A private, invitation-only market where approved companies list brand units after Shariah review.",
+        content: "A private, invitation-only market where approved companies list their instruments (stocks, funds, sukuk and brand units) after Shariah review.",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: canonicalUrl("/") },
