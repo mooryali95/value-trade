@@ -156,8 +156,10 @@ function MarketPage() {
           <LuxurySkeleton lines={8} />
         </div>
       ) : !market.data ? (
-        <div className="mx-auto max-w-md py-10">
-          <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+        <div className="mx-auto flex min-h-[45vh] max-w-lg items-center py-10">
+          <div className="w-full">
+            <MarketDataError error={market.error} onRetry={() => market.refetch()} />
+          </div>
         </div>
       ) : instruments.length === 0 ? (
         <div className="py-6">

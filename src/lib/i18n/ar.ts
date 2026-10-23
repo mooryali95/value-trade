@@ -785,6 +785,7 @@ export const ar = {
   e2_listedInstruments: "الأدوات المدرجة",
   e2_listedOnMarket: "المدرجة في السوق",
   e2_marketDataUnavailable: "بيانات السوق غير متاحة مؤقتًا. يُرجى المحاولة بعد قليل.",
+  e2_marketDataUnavailableTitle: "تعذّر تحميل بيانات السوق",
   e2_marketDescEmpty: "تظهر الأدوات هنا بمجرد إدراجها في السوق.",
   e2_marketDescListed: "الأدوات المدرجة: {n}. تأتي الأسعار من الصفقات المنفذة على المنصة.",
   e2_noAsks: "لا توجد أوامر بيع في الدفتر.",
