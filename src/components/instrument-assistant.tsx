@@ -9,6 +9,22 @@ import { LiveRegion } from "@/components/live-region";
 
 const QUICK: Key[] = ["ai_qSummary", "ai_qRisks", "ai_qPrice"];
 
+/** Three pulsing dots while the model prepares the first token. */
+function ThinkingDots({ label }: { label: string }) {
+  return (
+    <span role="status" aria-label={label} className="inline-flex items-center gap-1 py-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--gold-deep)]"
+          style={{ animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /** "Ask about this asset": streamed, data-grounded answers for one instrument. */
 export function InstrumentAssistant({ slug }: { slug: string }) {
   const { t, lang } = useI18n();
