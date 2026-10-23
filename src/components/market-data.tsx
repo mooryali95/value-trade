@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ShieldCheck, ShieldWarning, Hourglass, Storefront } from "@phosphor-icons/react";
+import { ShieldCheck, ShieldWarning, Hourglass, Storefront, CloudSlash, ArrowClockwise } from "@phosphor-icons/react";
 import { useI18n, type Key, type Lang } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { Num } from "@/components/num";
@@ -310,14 +310,24 @@ export function MarketDataError({ error, onRetry }: { error: unknown; onRetry?: 
   const { t } = useI18n();
   const errorMessage = useErrorMessage();
   return (
-    <div role="alert" className="rounded-lg border border-[var(--bear)]/30 bg-[var(--bear)]/5 px-3 py-3 text-center text-xs">
-      <p className="text-ink-soft">{errorMessage(error, { MARKET_DATA_UNAVAILABLE: "e2_marketDataUnavailable" })}</p>
+    <div
+      role="alert"
+      className="flex flex-col items-center gap-2 rounded-xl border border-[var(--bear)]/25 bg-[var(--bear)]/5 px-4 py-6 text-center"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-full border border-[var(--bear)]/25 bg-card text-[var(--bear)]">
+        <CloudSlash size={20} weight="duotone" aria-hidden />
+      </span>
+      <p className="text-sm font-semibold text-ink">{t("e2_marketDataUnavailableTitle")}</p>
+      <p className="max-w-sm text-xs leading-relaxed text-ink-soft">
+        {errorMessage(error, { MARKET_DATA_UNAVAILABLE: "e2_marketDataUnavailable" })}
+      </p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex min-h-9 items-center rounded border border-border bg-background px-3 text-xs font-semibold text-ink hover:border-[var(--gold-deep)]"
+          className="mt-1 inline-flex min-h-10 items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-card px-4 text-xs font-semibold text-[var(--gold-ink)] transition hover:bg-[var(--gold-soft)]"
         >
+          <ArrowClockwise size={14} weight="bold" aria-hidden />
           {t("tryAgain")}
         </button>
       )}

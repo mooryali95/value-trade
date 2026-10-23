@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChatCircleText, PaperPlaneRight, Stop } from "@phosphor-icons/react";
+import { ChatCircleText, PaperPlaneRight, Stop, WarningCircle } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n, type Key } from "@/lib/i18n";
@@ -8,6 +8,22 @@ import { Panel } from "@/components/market-panels";
 import { LiveRegion } from "@/components/live-region";
 
 const QUICK: Key[] = ["ai_qSummary", "ai_qRisks", "ai_qPrice"];
+
+/** Three pulsing dots while the model prepares the first token. */
+function ThinkingDots({ label }: { label: string }) {
+  return (
+    <span role="status" aria-label={label} className="inline-flex items-center gap-1 py-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--gold-deep)]"
+          style={{ animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
 
 /** "Ask about this asset": streamed, data-grounded answers for one instrument. */
 export function InstrumentAssistant({ slug }: { slug: string }) {
@@ -96,11 +112,18 @@ export function InstrumentAssistant({ slug }: { slug: string }) {
                 <div className="ms-auto w-fit max-w-[85%] rounded-lg bg-ink px-3 py-2 text-sm text-ivory">{asked}</div>
               )}
               {error ? (
-                <p role="alert" className="text-sm text-[var(--bear)]">{t(error)}</p>
+                <div role="alert" className="flex items-center gap-2 rounded-lg border border-[var(--bear)]/30 bg-[var(--bear)]/5 px-3 py-2.5">
+                  <WarningCircle size={18} weight="duotone" className="shrink-0 text-[var(--bear)]" aria-hidden />
+                  <p className="text-sm text-ink-soft">{t(error)}</p>
+                </div>
               ) : (
                 <div className="flex gap-2">
                   <ChatCircleText size={20} weight="duotone" className="mt-0.5 shrink-0 text-[var(--gold-deep)]" aria-hidden />
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{answer || (busy ? t("ai_thinking") : "")}</div>
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                    {answer}
+                    {busy && !answer && <ThinkingDots label={t("ai_thinking")} />}
+                    {busy && answer && <span aria-hidden className="ms-0.5 inline-block h-4 w-[2px] animate-pulse bg-[var(--gold-deep)] align-text-bottom" />}
+                  </div>
                 </div>
               )}
             </div>

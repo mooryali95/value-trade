@@ -792,6 +792,7 @@ export const en: Record<Key, string> = {
   e2_listedInstruments: "Listed instruments",
   e2_listedOnMarket: "Listed on the market",
   e2_marketDataUnavailable: "Market data is temporarily unavailable. Please try again shortly.",
+  e2_marketDataUnavailableTitle: "Market data unavailable",
   e2_marketDescEmpty: "Instruments appear here once they are listed on the market.",
   e2_marketDescListed: "{n} listed instruments. Prices come from executed trades on the platform.",
   e2_noAsks: "No sell orders in the book.",
