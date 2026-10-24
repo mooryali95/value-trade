@@ -9,6 +9,9 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
+## Interface motion
+- Use the opt-in `MotionReveal` presentation wrapper for one-time viewport entrances and scoped institutional CSS for interactions; honor reduced motion and never animate live financial figures — why: accessible motion must not disrupt data inspection or colleagues' application logic.
+
 ## Database migrations
 - A file in `supabase/migrations/` only takes effect once applied to the live database through Lovable's migration tool, byte-for-byte and in filename order — why: Git-pushed migrations are not auto-applied, and code calling unapplied functions breaks (see docs/database-migrations.md).
 - Asset classes come only from `src/lib/market/asset-classes.ts`, mirrored by DB CHECK constraints on `brands`/`product_submissions` — why: UI, filters and the database must agree on one approved list.
