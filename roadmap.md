@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Prepare a phased frontend development roadmap beginning with analysis of text, pages, sections, and user journeys
 - [x] Add restrained institutional interface animations, frontend-only, preserving colleagues' work; verified desktop/mobile interactions and reduced-motion preference
 - [x] Assistant reads offering PDFs (prospectus) and summarises them
 - [x] Security review: 24 linter warnings approved and documented (SECURITY.md + DB comments)
