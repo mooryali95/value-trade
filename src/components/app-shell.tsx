@@ -261,7 +261,7 @@ export function AppShell({
         {t("skipToContent")}
       </a>
       {/* Top header */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+      <header className="institutional-header sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-xl">
         <div
           aria-hidden
           className="h-[3px] w-full transition-colors"
@@ -327,7 +327,7 @@ export function AppShell({
 
         {/* Mobile nav */}
         {open && (
-          <div id="mobile-nav" className="max-h-[calc(100dvh-64px)] overflow-y-auto border-t border-border/60 bg-card lg:hidden">
+          <div id="mobile-nav" className="institutional-menu max-h-[calc(100dvh-64px)] overflow-y-auto border-t border-border/60 bg-card lg:hidden">
             <div className="flex flex-col gap-1 p-2">
               {signedIn && (
                 <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-1 pb-3 pt-1 sm:hidden">
