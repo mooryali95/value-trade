@@ -38,12 +38,26 @@ export function useMarketOverview(initialData?: MarketOverview | null, opts?: { 
   });
 }
 
-/** Loader helper: the overview, or null when the database cannot be read (the page then shows its error state). */
-export async function loadOverviewOrNull(): Promise<MarketOverview | null> {
+/** How long a route loader waits for the overview before rendering without it. */
+export const OVERVIEW_LOADER_TIMEOUT_MS = 5_000;
+
+/**
+ * Loader helper: the overview, or null when the database cannot be read or is
+ * slower than OVERVIEW_LOADER_TIMEOUT_MS. A slow database must not hold the
+ * whole page: with null the page renders at once and useMarketOverview fetches
+ * the board in the browser (showing its loading, then data or error state).
+ */
+export async function loadOverviewOrNull(timeoutMs = OVERVIEW_LOADER_TIMEOUT_MS): Promise<MarketOverview | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
   try {
-    return await getMarketOverview();
+    return await Promise.race([getMarketOverview(), timeout]);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
