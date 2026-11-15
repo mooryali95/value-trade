@@ -60,16 +60,16 @@ export const Route = createFileRoute("/")({
   loader: async () => ({ overview: await loadOverviewOrNull() }),
   head: () => ({
     meta: [
-      { title: "وحدة القيمة — Value Unit | سوق خاص لوحدات العلامات التجارية" },
+      { title: "وحدة القيمة — Value Unit | سوق خاصة للأدوات المالية" },
       {
         name: "description",
         content:
-          "وحدة القيمة سوق خاص بالدعوة تُدرج فيه الشركات المعتمدة وحدات علاماتها التجارية بعد المراجعة الشرعية. · Value Unit is a private, invitation-only market for brand units.",
+          "وحدة القيمة سوق خاصة للأسهم والصناديق والصكوك ووحدات العلامات التجارية، مع مراجعة واعتماد للإدراج. · Value Unit is a private market for financial instruments.",
       },
       { property: "og:title", content: "وحدة القيمة — Value Unit" },
       {
         property: "og:description",
-        content: "A private, invitation-only market where approved companies list brand units after Shariah review.",
+        content: "A private market for stocks, funds, sukuk and brand units, with reviewed and approved listings.",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: canonicalUrl("/") },
@@ -199,7 +199,7 @@ function Landing({ market }: { market: MarketQuery }) {
                 {t("featTitle2")}
               </span>
             </div>
-            <h1 className="text-display text-ink md:text-[3.4rem] md:leading-[1.15]">{t("heroHeadline")}</h1>
+            <h1 className="font-display text-4xl font-bold leading-tight text-ink md:text-5xl">{t("heroHeadline")}</h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-soft md:text-lg">{t("heroSub")}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link to="/market" className={btnPrimary}>
@@ -210,11 +210,8 @@ function Landing({ market }: { market: MarketQuery }) {
                 <UserPlus size={17} weight="duotone" aria-hidden />
                 {t("u_ctaInvestor")}
               </Link>
-              <Link to="/request-access" search={{ kind: "new" }} className={btnSecondary}>
-                <Buildings size={17} weight="duotone" aria-hidden />
-                {t("u_ctaCompany")}
-              </Link>
             </div>
+            <p className="mt-3 max-w-xl text-caption text-ink-soft">{t("ux_browseAccess")}</p>
             <div className="mt-3">
               <Link to="/auth" className={btnGhost}>
                 <SignIn size={16} weight="bold" aria-hidden />

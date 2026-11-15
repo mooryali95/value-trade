@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Paperclip, DownloadSimple, Trash } from "@phosphor-icons/react";
 import { useI18n } from "@/lib/i18n";
+import { useErrorMessage } from "@/hooks/use-error-message";
+import { Button } from "@/components/ui/button";
 import {
   listSubmissionDocuments,
   uploadSubmissionDocument,
@@ -35,6 +37,7 @@ export function SubmissionDocuments({
   canDelete?: boolean;
 }) {
   const { t, lang } = useI18n();
+  const errorMessage = useErrorMessage();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +47,7 @@ export function SubmissionDocuments({
   const urlFn = useServerFn(getSubmissionDocumentUrl);
   const deleteFn = useServerFn(deleteSubmissionDocument);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["submission-docs", submissionId],
     queryFn: () => listFn({ data: { submissionId } }),
   });
@@ -54,7 +57,7 @@ export function SubmissionDocuments({
     if (msg === "FILE_TOO_LARGE") return t("fileTooLarge");
     if (msg === "FILE_TYPE_NOT_ALLOWED") return t("fileTypeNotAllowed");
     if (msg === "FORBIDDEN") return t("permissionRequired");
-    return msg;
+    return errorMessage(e);
   };
 
   const upload = useMutation({
@@ -103,13 +106,14 @@ export function SubmissionDocuments({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-caption font-semibold text-ink">
           <Paperclip size={14} aria-hidden />
-          {t("documents")} ({rows.length})
+          {t("documents")}{data ? ` (${rows.length})` : ""}
         </div>
         {canUpload && (
           <>
             <input
               ref={fileRef}
               type="file"
+              aria-label={t("attachDocument")}
               accept="application/pdf,image/png,image/jpeg,image/webp"
               className="sr-only"
               onChange={(e) => {
@@ -120,14 +124,14 @@ export function SubmissionDocuments({
                 e.target.value = "";
               }}
             />
-            <button
+            <Button variant="outline"
               type="button"
               disabled={busy || upload.isPending}
               onClick={() => fileRef.current?.click()}
-              className="min-h-9 rounded-md border border-border px-3 text-caption font-semibold text-ink hover:border-[var(--gold-deep)] disabled:opacity-50"
+              className="min-h-11 px-3 text-caption font-semibold"
             >
               {upload.isPending ? t("loading") : t("attachDocument")}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -135,7 +139,12 @@ export function SubmissionDocuments({
       <p className="mt-1 text-caption text-ink-soft">{t("documentsHint")}</p>
 
       {isLoading ? (
-        <div className="mt-2 text-caption text-ink-soft">{t("loading")}</div>
+        <div role="status" className="mt-2 text-caption text-ink-soft">{t("loading")}</div>
+      ) : isError ? (
+        <div className="mt-3 space-y-2">
+          <p role="alert" className="text-caption text-state-rejected">{t("loadFailed")}</p>
+          <Button variant="outline" className="min-h-11" onClick={() => refetch()}>{t("tryAgain")}</Button>
+        </div>
       ) : rows.length === 0 ? (
         <div className="mt-2 text-caption text-ink-soft">{t("noDocuments")}</div>
       ) : (
@@ -143,31 +152,33 @@ export function SubmissionDocuments({
           {rows.map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-2 py-2">
               <div className="min-w-0">
-                <div className="truncate text-caption font-medium text-ink">{d.file_name}</div>
+                <div className="break-all text-caption font-medium text-ink">{d.file_name}</div>
                 <div className="text-[10px] text-ink-soft">
                   {Math.round(Number(d.size_bytes ?? 0) / 1024)} KB ·{" "}
                   {new Date(d.created_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
-                <button
+                <Button variant="outline" size="icon"
                   type="button"
                   aria-label={`${t("download")} ${d.file_name}`}
                   onClick={() => open(d.id)}
-                  className="min-h-9 rounded-md border border-border px-2 text-ink hover:border-[var(--gold-deep)]"
+                  title={`${t("download")} ${d.file_name}`}
+                  className="min-h-11 min-w-11 text-ink"
                 >
                   <DownloadSimple size={14} aria-hidden />
-                </button>
+                </Button>
                 {canDelete && (
-                  <button
+                  <Button variant="outline" size="icon"
                     type="button"
                     aria-label={`${t("delete")} ${d.file_name}`}
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(d.id)}
-                    className="min-h-9 rounded-md border border-[var(--bear)]/40 px-2 text-[var(--bear)] disabled:opacity-40"
+                    title={`${t("delete")} ${d.file_name}`}
+                    className="min-h-11 min-w-11 border-state-rejected/40 text-state-rejected"
                   >
                     <Trash size={14} aria-hidden />
-                  </button>
+                  </Button>
                 )}
               </div>
             </li>

@@ -30,6 +30,7 @@ import {
 import type { PublicInstrument } from "@/lib/market/public-market.functions";
 import { AssetClassBadge } from "@/components/market-data";
 import { ASSET_CLASSES, countByClass, isAssetClass, type AssetClass } from "@/lib/market/asset-classes";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/market")({
   validateSearch: (s: Record<string, unknown>): { class?: AssetClass } =>
@@ -92,6 +93,7 @@ function MarketPage() {
   const [sector, setSector] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("value");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const clearFilters = () => { setQ(""); setSector("all"); setAssetClass("all"); };
 
   const instruments = useMemo(() => market.data?.instruments ?? [], [market.data]);
   const summary = market.data?.summary ?? null;
@@ -242,6 +244,9 @@ function MarketPage() {
               total: <Num value={instruments.length} kind="qty" />,
             })}
           </div>
+          {(q || sector !== "all" || assetClass !== "all") && (
+            <Button variant="outline" className="mb-3 min-h-11" onClick={clearFilters}>{t("resetFilters")}</Button>
+          )}
 
           {/* Table (desktop) / cards (mobile) */}
           <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
@@ -317,6 +322,7 @@ function MarketPage() {
                   <EmptyState
                     title={t("emptyTitle")}
                     description={assetClass !== "all" && classCounts[assetClass] === 0 ? t("u_classEmpty") : t("emptyDesc")}
+                    action={<Button variant="outline" className="min-h-11" onClick={clearFilters}>{t("resetFilters")}</Button>}
                   />
                 </div>
               )}
