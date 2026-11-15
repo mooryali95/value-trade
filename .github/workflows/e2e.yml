@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   journeys:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # PostgreSQL 16 packages are not in Ubuntu 26 (new ubuntu-latest)
     timeout-minutes: 20
     env:
       POSTGREST_VERSION: "12.2.3"
