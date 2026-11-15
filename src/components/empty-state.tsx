@@ -13,7 +13,7 @@ type Props = {
 
 export function EmptyState({ title, description, icon, action, hint }: Props) {
   return (
-    <div role="status" aria-live="polite" className="relative overflow-hidden rounded-xl border border-border/70 bg-card px-5 py-10 text-center sm:px-8 sm:py-12">
+    <div role="status" aria-live="polite" aria-atomic="true" className="relative overflow-hidden rounded-xl border border-border/70 bg-card px-5 py-10 text-center sm:px-8 sm:py-12">
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.05]">
         <div className="absolute -end-4 -top-4">
           <ValueDots size={72} color="var(--gold-deep)" />
