@@ -8,7 +8,7 @@ export function ErrorState({ title, description, reset, hint }: Props) {
   const router = useRouter();
   const { t } = useI18n();
   return (
-    <div role="alert" className="mx-auto max-w-md rounded-xl border border-border bg-card px-6 py-10 text-center">
+    <div className="mx-auto max-w-md rounded-xl border border-border bg-card px-6 py-10 text-center">
       <div aria-hidden className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full border border-[var(--bear)]/30 bg-[var(--bear)]/5 text-[var(--bear)]">
         <WarningOctagon size={22} weight="duotone" />
       </div>
