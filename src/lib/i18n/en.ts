@@ -128,6 +128,14 @@ export const en: Record<Key, string> = {
   backHome: "Home",
   notFoundTitle: "Not found",
   notFoundDesc: "The requested resource is not available on the platform.",
+  // Motion preference + state hints (restored Lovable work)
+  reduceMotion: "Reduce motion",
+  motionEnabled: "Motion on",
+  motionReduced: "Motion reduced",
+  errorHint: "If this keeps happening, wait a moment and retry, or contact support.",
+  emptyHint: "Clearing the filters brings back the full list.",
+  emptyDecisionsTitle: "No Shariah decisions yet",
+  emptyDecisionsDesc: "Issue a decision for one of the brands above and it will appear here with a full audit trail.",
   // Portfolio + orders + alerts (phase 4)
   portfolio: "Portfolio",
   totalValue: "Total value",

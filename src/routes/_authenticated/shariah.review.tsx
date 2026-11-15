@@ -202,7 +202,7 @@ function ReviewPage() {
         ) : poolAll.length === 0 ? (
           <EmptyState title={t("d_poolEmptyTitle")} description={t("d_poolEmptyDesc")} />
         ) : pool.length === 0 ? (
-          <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+          <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} />
         ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           {pool.map((b) => (
@@ -268,7 +268,11 @@ function ReviewPage() {
         ) : decisionsError ? (
           <ErrorState reset={() => refetchDecisions()} />
         ) : sorted.length === 0 ? (
-          <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+          search.q || search.status !== "all" ? (
+            <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} />
+          ) : (
+            <EmptyState title={t("emptyDecisionsTitle")} description={t("emptyDecisionsDesc")} />
+          )
         ) : (
           <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
             <div className="hidden grid-cols-[auto_minmax(8rem,1fr)_auto_auto_auto] items-center gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground md:grid">

@@ -490,3 +490,13 @@ html[dir="rtl"] .text-\[9px\],
 html[dir="rtl"] .text-\[10px\] {
   font-size: 11px;
 }
+
+/* User-controlled motion preference (persisted, mirrors prefers-reduced-motion). */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

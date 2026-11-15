@@ -573,7 +573,7 @@ function PortfolioPage() {
       ) : (
         <section>
           {filteredOrders.length === 0 ? (
-            <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} />
+            <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-card">
               <div className="hidden min-w-[860px] grid-cols-[minmax(0,1.5fr)_1fr_1fr_1fr_1fr_1.2fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground md:grid">

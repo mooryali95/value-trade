@@ -126,6 +126,14 @@ export const ar = {
   backHome: "الرئيسية",
   notFoundTitle: "العنصر غير موجود",
   notFoundDesc: "المسار الذي طلبته غير متاح ضمن المنصة حالياً.",
+  // Motion preference + state hints (restored Lovable work)
+  reduceMotion: "تقليل الحركة",
+  motionEnabled: "الحركة مفعّلة",
+  motionReduced: "الحركة مخفّفة",
+  errorHint: "إن تكرر الخطأ، انتظر لحظات ثم أعد المحاولة أو راجع الدعم.",
+  emptyHint: "يمكنك مسح الفلاتر للعودة إلى القائمة الكاملة.",
+  emptyDecisionsTitle: "لا قرارات شرعية بعد",
+  emptyDecisionsDesc: "ابدأ بإصدار قرار لأحد البراندات في القائمة أعلاه، وسيظهر هنا مع سجل تدقيق كامل.",
   // Portfolio + orders + alerts (phase 4)
   portfolio: "المحفظة",
   totalValue: "إجمالي القيمة",

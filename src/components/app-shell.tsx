@@ -31,6 +31,7 @@ import { AccountStatusBanner } from "@/components/account-status-banner";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useAppMode } from "@/lib/nav/app-mode";
 import { CommandPalette } from "@/components/command-palette";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -388,6 +389,23 @@ export function AppShell({
   );
 }
 
+function MotionToggle() {
+  const { t } = useI18n();
+  const { reduced, toggle } = useReducedMotion();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={reduced}
+        className="inline-flex min-h-9 items-center text-start text-muted-foreground transition hover:text-[var(--gold-deep)]"
+      >
+        {t("reduceMotion")} · {reduced ? t("motionReduced") : t("motionEnabled")}
+      </button>
+    </li>
+  );
+}
+
 function FooterLink({ to, search, children }: { to: string; search?: Record<string, string>; children: ReactNode }) {
   return (
     <li>
@@ -434,6 +452,7 @@ function SiteFooter() {
             <FooterLink to="/legal/privacy">{t("legalPrivacy")}</FooterLink>
             <FooterLink to="/legal/shariah-disclosures">{t("legalShariahDisclosures")}</FooterLink>
             <FooterLink to="/legal/cookies">{t("legalCookies")}</FooterLink>
+            <MotionToggle />
           </ul>
         </nav>
       </div>
