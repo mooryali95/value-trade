@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ShieldCheck, ShieldWarning, Hourglass, Storefront } from "@phosphor-icons/react";
+import { ShieldCheck, ShieldWarning, Hourglass, Storefront, CloudSlash, ArrowClockwise } from "@phosphor-icons/react";
 import { useI18n, type Key, type Lang } from "@/lib/i18n";
 import { useErrorMessage } from "@/hooks/use-error-message";
 import { Num } from "@/components/num";
@@ -38,12 +38,26 @@ export function useMarketOverview(initialData?: MarketOverview | null, opts?: { 
   });
 }
 
-/** Loader helper: the overview, or null when the database cannot be read (the page then shows its error state). */
-export async function loadOverviewOrNull(): Promise<MarketOverview | null> {
+/** How long a route loader waits for the overview before rendering without it. */
+export const OVERVIEW_LOADER_TIMEOUT_MS = 5_000;
+
+/**
+ * Loader helper: the overview, or null when the database cannot be read or is
+ * slower than OVERVIEW_LOADER_TIMEOUT_MS. A slow database must not hold the
+ * whole page: with null the page renders at once and useMarketOverview fetches
+ * the board in the browser (showing its loading, then data or error state).
+ */
+export async function loadOverviewOrNull(timeoutMs = OVERVIEW_LOADER_TIMEOUT_MS): Promise<MarketOverview | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
   try {
-    return await getMarketOverview();
+    return await Promise.race([getMarketOverview(), timeout]);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -310,14 +324,24 @@ export function MarketDataError({ error, onRetry }: { error: unknown; onRetry?: 
   const { t } = useI18n();
   const errorMessage = useErrorMessage();
   return (
-    <div role="alert" className="rounded-lg border border-[var(--bear)]/30 bg-[var(--bear)]/5 px-3 py-3 text-center text-xs">
-      <p className="text-ink-soft">{errorMessage(error, { MARKET_DATA_UNAVAILABLE: "e2_marketDataUnavailable" })}</p>
+    <div
+      role="alert"
+      className="flex flex-col items-center gap-2 rounded-xl border border-[var(--bear)]/25 bg-[var(--bear)]/5 px-4 py-6 text-center"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-full border border-[var(--bear)]/25 bg-card text-[var(--bear)]">
+        <CloudSlash size={20} weight="duotone" aria-hidden />
+      </span>
+      <p className="text-sm font-semibold text-ink">{t("e2_marketDataUnavailableTitle")}</p>
+      <p className="max-w-sm text-xs leading-relaxed text-ink-soft">
+        {errorMessage(error, { MARKET_DATA_UNAVAILABLE: "e2_marketDataUnavailable" })}
+      </p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex min-h-9 items-center rounded border border-border bg-background px-3 text-xs font-semibold text-ink hover:border-[var(--gold-deep)]"
+          className="mt-1 inline-flex min-h-10 items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-card px-4 text-xs font-semibold text-[var(--gold-ink)] transition hover:bg-[var(--gold-soft)]"
         >
+          <ArrowClockwise size={14} weight="bold" aria-hidden />
           {t("tryAgain")}
         </button>
       )}

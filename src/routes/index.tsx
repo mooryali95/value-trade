@@ -52,6 +52,7 @@ import { isWorkingOrder } from "@/components/order-outcome";
 import { useAppMode } from "@/lib/nav/app-mode";
 import { BrandDashboard } from "@/components/brand-dashboard";
 import { PlatformDashboard } from "@/components/platform-dashboard";
+import { MotionReveal } from "@/components/motion-reveal";
 
 export const Route = createFileRoute("/")({
   // The public board is read from the database; a failed read renders the
@@ -59,16 +60,16 @@ export const Route = createFileRoute("/")({
   loader: async () => ({ overview: await loadOverviewOrNull() }),
   head: () => ({
     meta: [
-      { title: "وحدة القيمة — Value Unit | سوق خاص للأسهم والصناديق والصكوك ووحدات العلامات التجارية" },
+      { title: "وحدة القيمة — Value Unit | سوق خاصة للأدوات المالية" },
       {
         name: "description",
         content:
-          "وحدة القيمة سوق خاص بالدعوة تُدرج فيه الشركات المعتمدة أدواتها بعد المراجعة الشرعية. · Value Unit is a private, invitation-only market for stocks, funds, sukuk and brand units.",
+          "وحدة القيمة سوق خاصة للأسهم والصناديق والصكوك ووحدات العلامات التجارية، مع مراجعة واعتماد للإدراج. · Value Unit is a private market for financial instruments.",
       },
       { property: "og:title", content: "وحدة القيمة — Value Unit" },
       {
         property: "og:description",
-        content: "A private, invitation-only market where approved companies list their instruments (stocks, funds, sukuk and brand units) after Shariah review.",
+        content: "A private market for stocks, funds, sukuk and brand units, with reviewed and approved listings.",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: canonicalUrl("/") },
@@ -154,12 +155,12 @@ const btnGhost =
 
 function SectionHeading({ id, title, sub }: { id: string; title: string; sub?: string }) {
   return (
-    <div className="max-w-2xl">
+    <MotionReveal className="max-w-2xl">
       <h2 id={id} className="text-2xl font-bold text-ink md:text-3xl">
         {title}
       </h2>
       {sub && <p className="mt-2 text-sm leading-relaxed text-ink-soft md:text-[15px]">{sub}</p>}
-    </div>
+    </MotionReveal>
   );
 }
 
@@ -185,9 +186,9 @@ function Landing({ market }: { market: MarketQuery }) {
               "radial-gradient(700px circle at 85% 15%, oklch(0.72 0.11 82 / 0.14), transparent 60%), radial-gradient(500px circle at 8% 90%, oklch(0.38 0.11 20 / 0.06), transparent 60%)",
           }}
         />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px hairline-gold" />
+        <div aria-hidden className="institutional-rule pointer-events-none absolute inset-x-0 top-0 h-px hairline-gold" />
         <div className="relative grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-center">
-          <div className="min-w-0">
+          <MotionReveal className="institutional-actions min-w-0">
             <div className="mb-5 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-card px-3 py-1 text-xs font-medium text-[var(--gold-ink)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--gold)]" aria-hidden />
@@ -198,7 +199,7 @@ function Landing({ market }: { market: MarketQuery }) {
                 {t("featTitle2")}
               </span>
             </div>
-            <h1 className="text-display text-ink md:text-[3.4rem] md:leading-[1.15]">{t("heroHeadline")}</h1>
+            <h1 className="font-display text-4xl font-bold leading-tight text-ink md:text-5xl">{t("heroHeadline")}</h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-soft md:text-lg">{t("heroSub")}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link to="/market" className={btnPrimary}>
@@ -209,11 +210,8 @@ function Landing({ market }: { market: MarketQuery }) {
                 <UserPlus size={17} weight="duotone" aria-hidden />
                 {t("u_ctaInvestor")}
               </Link>
-              <Link to="/request-access" search={{ kind: "new" }} className={btnSecondary}>
-                <Buildings size={17} weight="duotone" aria-hidden />
-                {t("u_ctaCompany")}
-              </Link>
             </div>
+            <p className="mt-3 max-w-xl text-caption text-ink-soft">{t("ux_browseAccess")}</p>
             <div className="mt-3">
               <Link to="/auth" className={btnGhost}>
                 <SignIn size={16} weight="bold" aria-hidden />
@@ -222,8 +220,9 @@ function Landing({ market }: { market: MarketQuery }) {
             </div>
 
             <MarketSummaryStrip loading={market.isLoading} summary={market.data?.summary ?? null} />
-          </div>
+          </MotionReveal>
 
+          <MotionReveal className="min-w-0">
           <MarketBoard
             loading={market.isLoading}
             failed={!market.data && !market.isLoading}
@@ -231,6 +230,7 @@ function Landing({ market }: { market: MarketQuery }) {
             onRetry={() => market.refetch()}
             instruments={instruments}
           />
+          </MotionReveal>
         </div>
       </section>
 
@@ -456,8 +456,8 @@ function AudienceCard({
   featured?: boolean;
 }) {
   return (
-    <div
-      className={`flex flex-col rounded-xl border bg-card p-6 ${
+    <MotionReveal
+      className={`institutional-card institutional-actions flex flex-col rounded-xl border bg-card p-6 ${
         featured ? "border-[var(--gold)]/60 shadow-luxury" : "border-border/70 shadow-card"
       }`}
     >
@@ -467,7 +467,7 @@ function AudienceCard({
       <h3 className="text-lg font-bold text-ink">{title}</h3>
       <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-soft">{desc}</p>
       <div className="mt-5 [&>a]:w-full">{action}</div>
-    </div>
+    </MotionReveal>
   );
 }
 

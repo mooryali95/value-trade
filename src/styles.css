@@ -490,3 +490,64 @@ html[dir="rtl"] .text-\[9px\],
 html[dir="rtl"] .text-\[10px\] {
   font-size: 11px;
 }
+
+/* User-controlled motion preference (persisted, mirrors prefers-reduced-motion). */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Institutional motion: short, non-looping entrances; never animate live figures.
+ * Scope interactions to opted-in presentation surfaces, not trading controls. */
+:root {
+  --motion-institutional-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.institutional-card {
+  transition: border-color 280ms ease, box-shadow 280ms ease, transform 280ms var(--motion-institutional-ease);
+}
+
+.institutional-actions a {
+  transition: transform 220ms var(--motion-institutional-ease), border-color 220ms ease, box-shadow 220ms ease, color 220ms ease, filter 220ms ease;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .institutional-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--gold);
+    box-shadow: var(--shadow-luxury);
+  }
+  .institutional-actions a:hover {
+    transform: translateY(-1px);
+  }
+  .institutional-header nav a:hover svg {
+    transform: translateY(-1px);
+  }
+  .institutional-header nav a svg {
+    transition: transform 220ms var(--motion-institutional-ease);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .institutional-rule {
+    transform-origin: center;
+    animation: institutional-rule 1000ms var(--motion-institutional-ease) both;
+  }
+  .institutional-menu {
+    animation: institutional-menu 240ms var(--motion-institutional-ease) both;
+  }
+}
+
+@keyframes institutional-rule {
+  from { opacity: 0.2; transform: scaleX(0.25); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes institutional-menu {
+  from { opacity: 0.5; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

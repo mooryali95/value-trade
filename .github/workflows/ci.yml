@@ -73,7 +73,7 @@ jobs:
         run: npx vite build
 
   db-security:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # PostgreSQL 16 packages are not in Ubuntu 26 (new ubuntu-latest)
     steps:
       - uses: actions/checkout@v4
 

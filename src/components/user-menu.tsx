@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, Briefcase, Mail, KeyRound } from "lucide-react";
+import { LogOut, Briefcase, Mail, KeyRound, Waves } from "lucide-react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ export function UserMenu() {
   const [ready, setReady] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { reduced, toggle: toggleMotion } = useReducedMotion();
 
   useEffect(() => {
     let mounted = true;
@@ -142,6 +144,18 @@ export function UserMenu() {
             <KeyRound className="h-3.5 w-3.5 text-[var(--gold-deep)]" aria-hidden />
             {t("r_menuChangePassword")}
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            toggleMotion();
+          }}
+          aria-pressed={reduced}
+          className="flex items-center gap-2 text-xs"
+        >
+          <Waves className="h-3.5 w-3.5 text-[var(--gold-deep)]" aria-hidden />
+          <span className="flex-1">{t("reduceMotion")}</span>
+          <span className="text-[10px] text-muted-foreground">{reduced ? t("motionReduced") : t("motionEnabled")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => void handleSignOut()} className="text-xs text-[var(--bear)]">
