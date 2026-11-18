@@ -6,6 +6,8 @@ import { SITE, canonicalUrl } from "@/lib/config/site";
 export const Route = createFileRoute("/legal/shariah-disclosures")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "الإفصاحات الشرعية — وحدة القيمة | Shariah Disclosures — Value Unit" },
       {
         name: "description",

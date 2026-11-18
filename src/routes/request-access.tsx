@@ -37,6 +37,10 @@ export const Route = createFileRoute("/request-access")({
   validateSearch: (s) => searchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "طلب انضمام — وحدة القيمة | Request access — Value Unit" },
+      { property: "og:description", content: "اطلب الانضمام إلى وحدة القيمة مستثمرًا أو عضوًا في شركة مسجّلة أو بتسجيل شركة جديدة. · Request access to Value Unit as an investor, a company member or a new company." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "طلب انضمام — وحدة القيمة | Request access — Value Unit" },
       {
         name: "description",

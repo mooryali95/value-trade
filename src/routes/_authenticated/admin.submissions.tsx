@@ -63,6 +63,8 @@ export const Route = createFileRoute("/_authenticated/admin/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "طلبات الإدراج واعتمادها — وحدة القيمة | Listing submissions — Value Unit" },
+      { property: "og:description", content: "المراجعة الشرعية لطلبات الشركات واعتماد إدراجها في السوق." },
       { title: "طلبات الإدراج واعتمادها — وحدة القيمة | Listing submissions — Value Unit" },
       { name: "description", content: "المراجعة الشرعية لطلبات الشركات واعتماد إدراجها في السوق." },
       { property: "og:type", content: "website" },

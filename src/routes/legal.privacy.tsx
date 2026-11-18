@@ -6,6 +6,8 @@ import { SITE, canonicalUrl, isFilled, siteContacts } from "@/lib/config/site";
 export const Route = createFileRoute("/legal/privacy")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "سياسة الخصوصية — وحدة القيمة | Privacy Policy — Value Unit" },
       {
         name: "description",

@@ -40,6 +40,8 @@ export const Route = createFileRoute("/_authenticated/shariah/review")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "لوحة المراجعة الشرعية — وحدة القيمة | Shariah review — Value Unit" },
+      { property: "og:description", content: "اعتماد أو رفض أو طلب معلومات عن الأدوات المدرجة." },
       { title: "لوحة المراجعة الشرعية — وحدة القيمة | Shariah review — Value Unit" },
       { name: "description", content: "اعتماد أو رفض أو طلب معلومات عن الأدوات المدرجة." },
       { property: "og:type", content: "website" },

@@ -26,6 +26,10 @@ const TokenSchema = z.string().uuid();
 export const Route = createFileRoute("/invite/$token")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "دعوة — وحدة القيمة | Invitation — Value Unit" },
+      { property: "og:description", content: "دعوة للانضمام إلى شركة على منصة وحدة القيمة. · An invitation to join a company on Value Unit." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "دعوة — وحدة القيمة | Invitation — Value Unit" },
       { name: "description", content: "دعوة للانضمام إلى شركة على منصة وحدة القيمة. · An invitation to join a company on Value Unit." },
       { name: "robots", content: "noindex, nofollow" },

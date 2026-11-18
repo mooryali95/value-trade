@@ -38,6 +38,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/company/settings")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "إعدادات الشركة — وحدة القيمة | Company settings — Value Unit" },
+      { property: "og:description", content: "أدر أعضاء شركتك وعلاماتها التجارية ودعواتها. · Manage your company's members, brands and invitations." },
       { title: "إعدادات الشركة — وحدة القيمة | Company settings — Value Unit" },
       { name: "description", content: "أدر أعضاء شركتك وعلاماتها التجارية ودعواتها. · Manage your company's members, brands and invitations." },
       { property: "og:type", content: "website" },

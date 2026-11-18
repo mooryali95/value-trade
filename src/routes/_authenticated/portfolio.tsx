@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 const SearchSchema = z.object({
   tab: z.enum(["positions", "orders"]).catch("positions").default("positions"),
@@ -47,6 +48,8 @@ export const Route = createFileRoute("/_authenticated/portfolio")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "المحفظة — وحدة القيمة | Portfolio — Value Unit" },
+      { property: "og:description", content: "مراكزك، رصيدك النقدي، وسجل أوامرك." },
       { title: "المحفظة — وحدة القيمة | Portfolio — Value Unit" },
       { name: "description", content: "مراكزك، رصيدك النقدي، وسجل أوامرك." },
       { property: "og:type", content: "website" },
@@ -424,6 +427,9 @@ function PortfolioPage() {
       </div>
 
       {/* Shared filters */}
+      {(search.q || search.status !== "all" || search.side !== "all") && (
+        <Button variant="outline" className="mb-3 min-h-11" onClick={() => updateSearch({ q: "", status: "all", side: "all", page: 1 })}>{t("resetFilters")}</Button>
+      )}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TableStatus
           count={activeList.length}
@@ -450,7 +456,7 @@ function PortfolioPage() {
               <option value="filled">{t("filled")}</option>
               <option value="cancelled">{t("statusClosed")}</option>
             </select>
-            <select aria-label={t("orderType")} value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
+            <select aria-label={t("m_orderSide")} value={search.side} onChange={(e) => updateSearch({ side: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
               <option value="all">{t("filterAll")}</option>
               <option value="buy">{t("filterBuy")}</option>
               <option value="sell">{t("filterSell")}</option>

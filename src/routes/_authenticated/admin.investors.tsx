@@ -44,6 +44,10 @@ import { isValidReferencePrice } from "@/lib/trading/calc";
 export const Route = createFileRoute("/_authenticated/admin/investors")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "المستثمرون — وحدة القيمة | Investors — Value Unit" },
+      { property: "og:description", content: "تفعيل المستثمرين المدعوين للتداول وتمويل حساباتهم. · Activate invited investors and fund their accounts." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "المستثمرون — وحدة القيمة | Investors — Value Unit" },
       { name: "description", content: "تفعيل المستثمرين المدعوين للتداول وتمويل حساباتهم. · Activate invited investors and fund their accounts." },
       { name: "robots", content: "noindex" },

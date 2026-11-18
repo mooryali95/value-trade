@@ -21,6 +21,8 @@ import { assetClassLabel } from "@/components/market-data";
 export const Route = createFileRoute("/_authenticated/settings/notifications")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "تفضيلات الإشعارات · Notification preferences — Value Unit" },
+      { property: "og:description", content: "تحكم في أنواع رسائل البريد التي تصلك من وحدة القيمة." },
       { title: "تفضيلات الإشعارات · Notification preferences — Value Unit" },
       { name: "description", content: "تحكم في أنواع رسائل البريد التي تصلك من وحدة القيمة." },
       { property: "og:type", content: "website" },

@@ -24,6 +24,8 @@ export const Route = createFileRoute("/_authenticated/invitations")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "الدعوات — وحدة القيمة | Invitations — Value Unit" },
+      { property: "og:description", content: "دعوات الانضمام إلى الشركات." },
       { title: "الدعوات — وحدة القيمة | Invitations — Value Unit" },
       { name: "description", content: "دعوات الانضمام إلى الشركات." },
       { property: "og:type", content: "website" },

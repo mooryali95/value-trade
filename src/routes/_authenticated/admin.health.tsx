@@ -15,6 +15,8 @@ import { getPlatformHealth } from "@/lib/ops/health.functions";
 export const Route = createFileRoute("/_authenticated/admin/health")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "الصحة التشغيلية — وحدة القيمة | Operational health — Value Unit" },
+      { property: "og:description", content: "حالة الجداول والخدمات وزمن الاستجابة وتحذيرات الأخطاء." },
       { title: "الصحة التشغيلية — وحدة القيمة | Operational health — Value Unit" },
       { name: "description", content: "حالة الجداول والخدمات وزمن الاستجابة وتحذيرات الأخطاء." },
       { property: "og:type", content: "website" },

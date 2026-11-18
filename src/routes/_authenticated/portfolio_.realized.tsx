@@ -26,6 +26,8 @@ export const Route = createFileRoute("/_authenticated/portfolio_/realized")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "الأرباح المحققة — وحدة القيمة | Realized P&L — Value Unit" },
+      { property: "og:description", content: "كشف الأرباح والخسائر المحققة على الإغلاقات حسب الرمز والمدة." },
       { title: "الأرباح المحققة — وحدة القيمة | Realized P&L — Value Unit" },
       { name: "description", content: "كشف الأرباح والخسائر المحققة على الإغلاقات حسب الرمز والمدة." },
       { property: "og:type", content: "website" },

@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/lib/market/asset-classes";
 import { offeringFields } from "@/lib/submissions/offering-schema";
 import { SubmissionDocuments } from "@/components/submission-documents";
+import { Button } from "@/components/ui/button";
 
 const ASSET_LABEL: Record<AssetClass, Key> = ASSET_CLASS_LABEL;
 
@@ -29,6 +30,8 @@ export const Route = createFileRoute("/_authenticated/company/submit")({
     z.object({ companyId: z.string().uuid().optional() }).parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "تقديم طلب إدراج — وحدة القيمة | Submit for listing — Value Unit" },
+      { property: "og:description", content: "قدّم منتج شركتك للمراجعة الشرعية ثم الإدراج في السوق." },
       { title: "تقديم طلب إدراج — وحدة القيمة | Submit for listing — Value Unit" },
       { name: "description", content: "قدّم منتج شركتك للمراجعة الشرعية ثم الإدراج في السوق." },
       { property: "og:type", content: "website" },
@@ -115,9 +118,9 @@ function SubmitPage() {
               : "Offering received. Attach the prospectus and supporting documents (PDF or images) for review."}
           </p>
           <SubmissionDocuments submissionId={created} canUpload canDelete />
-          <button type="button" onClick={goToList} className="min-h-11 w-full rounded-md gold-gradient px-4 text-sm font-semibold text-ink">
+          <Button type="button" onClick={goToList} className="min-h-11 w-full rounded-md gold-gradient px-4 text-sm font-semibold text-ink">
             {lang === "ar" ? "الانتقال إلى طلباتي" : "Go to my submissions"}
-          </button>
+          </Button>
         </div>
       </AppShell>
     );
@@ -147,7 +150,7 @@ function SubmitPage() {
               const n = i + 1;
               const state = n === step ? "current" : n < step ? "done" : "todo";
               return (
-                <li key={label} className="min-w-0">
+                <li key={label} aria-current={n === step ? "step" : undefined} className="min-w-0">
                   <div
                     className={`h-1 rounded-full ${
                       state === "todo" ? "bg-border" : "bg-[var(--gold-deep)]"
@@ -156,7 +159,7 @@ function SubmitPage() {
                   <div className={`mt-1.5 truncate text-label ${state === "current" ? "text-ink" : "text-ink-soft"}`}>
                     {t("wizardStep")} {n} {t("wizardOf")} {stepTitles.length}
                   </div>
-                  <div className={`truncate text-caption ${state === "current" ? "font-semibold text-ink" : "text-ink-soft"}`}>
+                  <div className={`break-words text-caption ${state === "current" ? "font-semibold text-ink" : "text-ink-soft"}`}>
                     {label}
                   </div>
                 </li>
@@ -166,7 +169,7 @@ function SubmitPage() {
 
           {step === 1 && (
           <>
-          <Field label={t("company")}>
+          <Field label={t("company")} required>
             <select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
               <option value="">{t("g_selectCompany")}</option>
               {(list.data ?? []).map((m) => (
@@ -186,15 +189,15 @@ function SubmitPage() {
 
           {step === 2 && (
           <>
-          <Field label={t("brandSymbol")}>
-            <input value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+          <Field label={t("ux_offeringSymbol")} required>
+            <input dir="ltr" value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={t("nameAr")}>
-              <input value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            <Field label={t("nameAr")} required>
+              <input dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
             </Field>
-            <Field label={t("nameEn")}>
-              <input value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            <Field label={t("nameEn")} required>
+              <input dir="ltr" value={form.name_en} onChange={(e) => setForm({ ...form, name_en: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
             </Field>
           </div>
           <Field label={t("sector")}>
@@ -238,7 +241,7 @@ function SubmitPage() {
               <dl className="divide-y divide-border/40 rounded-lg border border-border/60 bg-secondary/20 text-caption">
                 <Row label={t("company")} value={companyName ? (lang === "ar" ? companyName.name_ar : companyName.name_en) : "—"} />
                 <Row label={t("g_colClass")} value={t(ASSET_LABEL[form.asset_class])} />
-                <Row label={t("brandSymbol")} value={form.symbol.toUpperCase() || "—"} />
+                <Row label={t("ux_offeringSymbol")} value={form.symbol.toUpperCase() || "—"} />
                 <Row label={t("nameAr")} value={form.name_ar || "—"} />
                 <Row label={t("nameEn")} value={form.name_en || "—"} />
                 <Row label={t("sector")} value={sectorLabel(form.sector, t) || "—"} />
@@ -250,37 +253,38 @@ function SubmitPage() {
               <div className="rounded-lg border border-border/60 p-3">
                 <div className="text-caption font-semibold text-ink">{t("wizardWillHappen")}</div>
                 <p className="mt-1 text-caption text-ink-soft">{t("wizardSubmitEffect")}</p>
+                <p className="mt-2 text-caption text-ink-soft">{t("ux_documentsAfterSubmit")}</p>
               </div>
             </div>
           )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <button
+            <Button
               type="button"
               disabled={step === 1}
               onClick={() => setStep((s) => Math.max(1, s - 1))}
               className="min-h-11 rounded-md border border-border px-4 text-sm font-semibold text-ink disabled:opacity-40"
             >
               {t("wizardBack")}
-            </button>
+            </Button>
             {step < 3 ? (
-              <button
+              <Button
                 type="button"
                 disabled={step === 1 ? !step1Ok : !step2Ok}
                 onClick={() => setStep((s) => Math.min(3, s + 1))}
                 className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"
               >
                 {t("wizardNext")}
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
                 disabled={mutation.isPending || !step1Ok || !step2Ok}
                 onClick={() => mutation.mutate()}
                 className="min-h-11 rounded-md gold-gradient px-4 text-sm font-semibold text-ink disabled:opacity-50"
               >
                 {t("submitProduct")}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -291,17 +295,18 @@ function SubmitPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
-      <dt className="min-w-0 truncate text-ink-soft">{label}</dt>
-      <dd className="max-w-[60%] truncate font-semibold text-ink">{value}</dd>
+    <div className="grid grid-cols-1 items-start gap-1 px-3 py-2 sm:grid-cols-2 sm:gap-3">
+      <dt className="min-w-0 break-words text-ink-soft">{label}</dt>
+      <dd className="min-w-0 whitespace-pre-wrap break-words font-semibold text-ink">{value}</dd>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+  const { t } = useI18n();
   return (
     <label className="block">
-      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <span className="mb-1 block text-caption font-medium text-ink-soft">{label}{required && <span className="ms-2 text-muted-foreground">({t("ux_required")})</span>}</span>
       {children}
     </label>
   );

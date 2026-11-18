@@ -22,7 +22,12 @@ const SearchSchema = z.object({ q: z.string().catch("").default("") });
 export const Route = createFileRoute("/_authenticated/admin/companies")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
-    meta: [{ title: "دليل الشركات — وحدة القيمة | Companies directory — Value Unit" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { name: "description", content: "دليل الشركات — وحدة القيمة | Companies directory — Value Unit — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:title", content: "دليل الشركات — وحدة القيمة | Companies directory — Value Unit" },
+      { property: "og:description", content: "دليل الشركات — وحدة القيمة | Companies directory — Value Unit — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },{ title: "دليل الشركات — وحدة القيمة | Companies directory — Value Unit" }, { name: "robots", content: "noindex" }],
   }),
   errorComponent: ({ reset }) => (
     <AppShell>

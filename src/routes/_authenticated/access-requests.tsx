@@ -32,7 +32,12 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/access-requests")({
   head: () => ({
-    meta: [{ title: "طلبات الانضمام — وحدة القيمة | Access requests — Value Unit" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { name: "description", content: "طلبات الانضمام — وحدة القيمة | Access requests — Value Unit — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:title", content: "طلبات الانضمام — وحدة القيمة | Access requests — Value Unit" },
+      { property: "og:description", content: "طلبات الانضمام — وحدة القيمة | Access requests — Value Unit — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },{ title: "طلبات الانضمام — وحدة القيمة | Access requests — Value Unit" }, { name: "robots", content: "noindex" }],
   }),
   errorComponent: ({ reset }) => (
     <AppShell>

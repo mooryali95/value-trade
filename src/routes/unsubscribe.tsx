@@ -15,6 +15,11 @@ type State =
 export const Route = createFileRoute("/unsubscribe")({
   head: () => ({
     meta: [
+      { name: "description", content: "إلغاء الاشتراك · Unsubscribe — وحدة القيمة — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:title", content: "إلغاء الاشتراك · Unsubscribe — وحدة القيمة" },
+      { property: "og:description", content: "إلغاء الاشتراك · Unsubscribe — وحدة القيمة — متابعة وإدارة الخدمة على منصة وحدة القيمة." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "إلغاء الاشتراك · Unsubscribe — وحدة القيمة" },
       { name: "robots", content: "noindex, nofollow" },
     ],

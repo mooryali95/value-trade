@@ -38,6 +38,8 @@ import { Building2, Users, Store, Plus, Send, FileText } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
     meta: [
+      { property: "og:title", content: "منصة الشركة — وحدة القيمة | Workspace — Value Unit" },
+      { property: "og:description", content: "منصة تداول داخلية للشركات المستأجرة." },
       { title: "منصة الشركة — وحدة القيمة | Workspace — Value Unit" },
       { name: "description", content: "منصة تداول داخلية للشركات المستأجرة." },
       { property: "og:type", content: "website" },

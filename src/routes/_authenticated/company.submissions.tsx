@@ -17,6 +17,8 @@ import { SubmissionDocuments } from "@/components/submission-documents";
 import { sectorLabel } from "@/components/market-data";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useState } from "react";
+import { ASSET_CLASSES, ASSET_CLASS_LABEL, isAssetClass } from "@/lib/market/asset-classes";
+import { Button } from "@/components/ui/button";
 
 const SearchSchema = z.object({
   companyId: z.string().uuid().optional(),
@@ -30,12 +32,14 @@ const SearchSchema = z.object({
 });
 type SearchState = z.infer<typeof SearchSchema>;
 
-const ASSET_LABEL: Record<string, Key> = { stock: "g_assetStock", sukuk: "g_assetSukuk", brand: "g_assetBrand" };
+
 
 export const Route = createFileRoute("/_authenticated/company/submissions")({
   validateSearch: (s: Record<string, unknown>) => SearchSchema.parse(s),
   head: () => ({
     meta: [
+      { property: "og:title", content: "طلبات إدراج الشركة — وحدة القيمة | Company listing submissions — Value Unit" },
+      { property: "og:description", content: "مراحل طلبات الإدراج المقدَّمة: المراجعة الشرعية ثم اعتماد الإدراج." },
       { title: "طلبات إدراج الشركة — وحدة القيمة | Company listing submissions — Value Unit" },
       { name: "description", content: "مراحل طلبات الإدراج المقدَّمة: المراجعة الشرعية ثم اعتماد الإدراج." },
       { property: "og:type", content: "website" },
@@ -61,7 +65,10 @@ function CompanySubmissions() {
   const listFn = useServerFn(listCompanySubmissions);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["submissions", companyId],
-    queryFn: () => listFn({ data: { companyId: companyId! } }),
+    queryFn: () => {
+      if (!companyId) throw new Error("COMPANY_REQUIRED");
+      return listFn({ data: { companyId } });
+    },
     enabled: !!companyId,
   });
   const rows = useMemo(() => data ?? [], [data]);
@@ -113,9 +120,7 @@ function CompanySubmissions() {
         </select>
         <select aria-label={t("g_filterAssetClass")} value={search.asset} onChange={(e) => patch({ asset: e.target.value, page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           <option value="all">{t("filterAll")}</option>
-          <option value="stock">{t("g_assetStock")}</option>
-          <option value="sukuk">{t("g_assetSukuk")}</option>
-          <option value="brand">{t("g_assetBrand")}</option>
+          {ASSET_CLASSES.map((c) => <option key={c} value={c}>{t(ASSET_CLASS_LABEL[c])}</option>)}
         </select>
         <select aria-label={t("rowsPerPage")} value={String(pageSize)} onChange={(e) => patch({ pageSize: Number(e.target.value), page: 1 })} className="rounded-md border border-border bg-background px-2 py-1.5 text-xs">
           {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} {t("rowsPerPage")}</option>)}
@@ -145,10 +150,10 @@ function CompanySubmissions() {
           }
         />
       ) : sorted.length === 0 ? (
-        <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} />
+        <EmptyState title={t("emptyTitle")} description={t("emptyDesc")} hint={t("emptyHint")} action={<Button variant="outline" className="min-h-11" onClick={() => patch({ q: "", status: "all", asset: "all", page: 1 })}>{t("resetFilters")}</Button>} />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-          <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-2 md:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] gap-3 border-b border-border/50 px-4 py-3 text-[10px] uppercase tracking-wider text-muted-foreground">
             <SortHeader active={search.sortBy === "symbol"} dir={search.sortDir} onClick={() => patch({ sortBy: "symbol", sortDir: search.sortBy === "symbol" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colSymbol")}</SortHeader>
             <SortHeader active={search.sortBy === "asset"} dir={search.sortDir} onClick={() => patch({ sortBy: "asset", sortDir: search.sortBy === "asset" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("g_colClass")}</SortHeader>
             <SortHeader active={search.sortBy === "sector"} dir={search.sortDir} onClick={() => patch({ sortBy: "sector", sortDir: search.sortBy === "sector" && search.sortDir === "asc" ? "desc" : "asc", page: 1 })}>{t("sector")}</SortHeader>
@@ -157,20 +162,21 @@ function CompanySubmissions() {
           </div>
           {paged.map((s) => (
             <div key={s.id} className="border-b border-border/40 last:border-b-0">
-            <div className="grid grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] items-center gap-3 px-4 py-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_auto] items-center gap-3 px-4 py-3 text-xs">
               <div className="min-w-0">
                 <div className="truncate font-semibold text-ink">{lang === "ar" ? s.name_ar : s.name_en}</div>
                 <div className="text-[10px] font-mono uppercase text-muted-foreground">{s.symbol}</div>
               </div>
-              <div>{ASSET_LABEL[s.asset_class] ? t(ASSET_LABEL[s.asset_class]) : s.asset_class}</div>
+              <div>{isAssetClass(s.asset_class) ? t(ASSET_CLASS_LABEL[s.asset_class]) : s.asset_class}</div>
               <div className="text-muted-foreground">{sectorLabel(s.sector, t) || "—"}</div>
               <div className="text-muted-foreground">{new Date(s.submitted_at).toLocaleDateString(lang === "ar" ? "ar" : "en-US")}</div>
-              <div className="flex items-center gap-2">
+              <div className="col-span-2 flex flex-wrap items-center gap-2 md:col-span-1">
                 <SubmissionStageBadge status={s.status} />
                 <button
                   type="button"
                   onClick={() => setOpenDocs((cur) => (cur === s.id ? null : s.id))}
                   aria-expanded={openDocs === s.id}
+                  aria-controls={`submission-docs-${s.id}`}
                   className="rounded border border-border px-2 py-1 text-[10px] font-semibold text-ink-soft hover:border-[var(--gold-deep)]"
                 >
                   {t("documents")}
@@ -196,7 +202,7 @@ function CompanySubmissions() {
               )}
             </div>
             {openDocs === s.id && (
-              <div className="px-4 pb-3">
+              <div id={`submission-docs-${s.id}`} className="px-4 pb-3">
                 <SubmissionDocuments submissionId={s.id} canUpload={canManageDocs} canDelete={role === "owner"} />
               </div>
             )}

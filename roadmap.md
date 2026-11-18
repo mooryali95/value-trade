@@ -1,5 +1,11 @@
 # Roadmap
-- [x] Prepare a phased frontend development roadmap beginning with analysis of text, pages, sections, and user journeys; execution awaits roadmap approval
+- [x] Prepare and approve phased frontend development roadmap
+- [x] Document content glossary, page/section inventory, editorial decisions and UI collaboration guide in docs/interface-development-audit.ar.md
+- [x] Improve general asset-class copy, browse-versus-trade distinction, market filter reset, document failure states, offering steps/review, submission class filters and portfolio filter reset
+- [x] Complete leaf page metadata without changing functions or legal content
+- [x] Verify public home-to-market flow on desktop/mobile; 52 targeted regression tests passed
+- [ ] Verify offering, portfolio, trading and admin journeys with suitable signed-in accounts and populated instruments — session mint failed because backend was inaccessible; no demo data substituted
+- [ ] Final approval of company plans and operator/legal claims — waiting for owner-approved information; existing plans and legal copy preserved
 - [x] Add restrained institutional interface animations, frontend-only, preserving colleagues' work; verified desktop/mobile interactions and reduced-motion preference
 - [x] Assistant reads offering PDFs (prospectus) and summarises them
 - [x] Security review: 24 linter warnings approved and documented (SECURITY.md + DB comments)

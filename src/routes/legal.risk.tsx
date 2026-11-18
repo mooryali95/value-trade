@@ -6,6 +6,8 @@ import { canonicalUrl } from "@/lib/config/site";
 export const Route = createFileRoute("/legal/risk")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "إفصاح المخاطر — وحدة القيمة | Risk Disclosure — Value Unit" },
       {
         name: "description",

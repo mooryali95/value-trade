@@ -11,6 +11,7 @@
 
 ## Interface motion
 - Use the opt-in `MotionReveal` presentation wrapper for one-time viewport entrances and scoped institutional CSS for interactions; honor reduced motion and never animate live financial figures — why: accessible motion must not disrupt data inspection or colleagues' application logic.
+- Keep the frontend content glossary, page inventory, and verification boundaries in `docs/interface-development-audit.ar.md`; distinguish generic instrument copy from class-specific brand management copy — why: concurrent frontend changes must preserve business meanings and avoid unsupported readiness claims.
 
 ## Database migrations
 - A file in `supabase/migrations/` only takes effect once applied to the live database through Lovable's migration tool, byte-for-byte and in filename order — why: Git-pushed migrations are not auto-applied, and code calling unapplied functions breaks (see docs/database-migrations.md).
